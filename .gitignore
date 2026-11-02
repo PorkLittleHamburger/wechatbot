@@ -15,6 +15,7 @@ data/*
 !data/.gitkeep
 bot/data/*
 !bot/data/.gitkeep
+bot/.development/
 logs/
 .runtime/
 

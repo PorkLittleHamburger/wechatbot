@@ -38,7 +38,7 @@
 
 便携包根目录的 README.md 由本目录的 PORTABLE_README.md 生成，介绍最终用户的启动和配置步骤。
 
-仓库根目录已有的 config.json 和 data 是本机运行状态，本次整理保留在原处。新建的 bot 目录开发环境使用 bot/config.json 与 bot/data；需要沿用旧配置时，应按本机路径检查 helper_root 和数据目录。
+旧开发环境的账号配置和运行数据已迁入 bot/config.json 与 bot/data。两个路径均不纳入 Git。旧联调记录归档在 bot/.development/legacy-public-area，也不纳入 Git。
 
 原生消息桥接所需的两个预编译 DLL 位于 vendor/helper/native/build_text 与 vendor/helper/native/build；对应文件的大小与 SHA-256 记录在 vendor/helper/VENDORED_SHA256.json。重新编译可使用 vendor/helper/native/build_bridges.ps1，编译器和构建步骤见 vendor/helper/native/README.md。
 

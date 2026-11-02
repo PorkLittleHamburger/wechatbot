@@ -8,7 +8,7 @@
 | launcher/ | 桌面启动器、Python 管理后端、构建脚本、测试和文档；详见 [启动器开发说明](launcher/README.md) |
 | dist/ | 本地构建产物，不纳入 Git |
 
-根目录的 start.cmd 和开机自启命令转发到 bot/。启动器入口为 launcher/launcher.cmd，bot/launcher.cmd 也保留为兼容入口。根目录现有的 config.json 与 data 仍保留为旧开发环境的本机数据，不会随源码移动。
+机器人源码入口位于 `bot/start.cmd`，开机自启命令位于 `bot/enable-autostart.cmd` 和 `bot/disable-autostart.cmd`；启动器入口位于 `launcher/launcher.cmd`。原有账号配置和运行数据已迁入 `bot/config.json` 与 `bot/data/`，源码启动器的状态位于 `bot/data/launcher/`。旧测试记录归档在两个项目目录各自的 `.development/legacy-public-area/`，不纳入 Git。
 
 独立仓库：[PorkLittleHamburger/wechat-onebot-launcher](https://github.com/PorkLittleHamburger/wechat-onebot-launcher)。桌面启动器的版本管理从本仓库获取兼容运行时包。
 
@@ -56,7 +56,7 @@ Windows 11 个人微信的 OneBot v11 协议端。设计目标：
 
 全新安装只启动 WebUI 管理服务，没有预设 OneBot 服务端或客户端，也不会自动启动微信桥接。进入 WebUI 的“进程与账号”，点击“扫描已登录账号”，选中目标账号后点击“设为机器人账号”。在“节点配置”中添加所需的 OneBot 端点并保存，端点会立即运行；需要连接微信时再点击账号“启动”。下次启动管理服务时，已保存且启用的端点会独立恢复，微信桥接仍由用户手动启动。每次启动账号都会重新识别当前 PID，以适应电脑重启后的 PID 变化。旧版本已经生成的账号级 `onebot.json` 保留原有端点，可在 WebUI 删除或禁用。
 
-在 WebUI 的“系统设置 → 服务”中启用或关闭开机自启，也可在 Windows“任务管理器 → 启动应用”中开关 WeChat OneBot。启动应用快捷方式调用按需计划任务，以便在当前用户登录时启动管理服务；识别到上次桥接账号登录 PC 微信后会立即连接。移动目录后，请重新启用开机自启，以更新任务和快捷方式路径。原有 enable-autostart.cmd 和 disable-autostart.cmd 仍可使用。
+在 WebUI 的“系统设置 → 服务”中启用或关闭开机自启，也可在 Windows“任务管理器 → 启动应用”中开关 WeChat OneBot。启动应用快捷方式调用按需计划任务，以便在当前用户登录时启动管理服务；识别到上次桥接账号登录 PC 微信后会立即连接。移动目录后，请重新启用开机自启，以更新任务和快捷方式路径。源码目录中的 `bot/enable-autostart.cmd` 和 `bot/disable-autostart.cmd` 也可使用。
 
 当前原生桥接没有 PC 微信登录二维码及扫码状态接口。WebUI 无法生成与本机 PC 微信实例绑定的二维码，也不会使用截图或 Web 微信登录来冒充此功能；未登录时需先通过 PC 微信完成登录。
 
