@@ -29,6 +29,7 @@ from .startup import autostart_task, load_last_bridge, save_last_bridge
 COOKIE_NAME = "wechat_onebot_webui"
 SESSION_SECONDS = 12 * 60 * 60
 LOG_LIMIT = 200
+RESUME_CHECK_SECONDS = 1.0
 
 
 class _SafeRuntimeLogs(logging.Handler):
@@ -117,13 +118,24 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             current = manager.get(account)
             if current is not None and current.started:
                 return
+            if config.driver.type == "helper":
+                try:
+                    accounts = await asyncio.to_thread(discover_logged_accounts, config.driver.helper_root)
+                except Exception:
+                    manager.last_error = "读取微信登录状态失败，正在重试"
+                    await asyncio.sleep(RESUME_CHECK_SECONDS)
+                    continue
+                if not any(row.wxid == account for row in accounts):
+                    manager.last_error = "等待上次桥接账号登录"
+                    await asyncio.sleep(RESUME_CHECK_SECONDS)
+                    continue
             try:
                 await manager.start_account(account)
                 manager.last_error = ""
                 return
             except Exception:
-                manager.last_error = "等待上次桥接账号登录后恢复连接"
-                await asyncio.sleep(10)
+                manager.last_error = "上次桥接账号已登录，桥接启动失败，正在重试"
+                await asyncio.sleep(RESUME_CHECK_SECONDS)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

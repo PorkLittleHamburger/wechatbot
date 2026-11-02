@@ -393,6 +393,35 @@ def test_autostart_resumes_last_bridged_account(tmp_path: Path, monkeypatch):
     assert accounts == ["wxid_previous"]
 
 
+def test_autostart_connects_as_soon_as_last_account_logs_in(tmp_path: Path, monkeypatch):
+    config = make_config(tmp_path)
+    config = replace(config, driver=replace(config.driver, type="helper"))
+    manager = RuntimeManager(config)
+    webui_startup.save_last_bridge(config.storage.data_dir, "wxid_previous")
+    monkeypatch.setattr(webui_server, "RESUME_CHECK_SECONDS", 0.02)
+    scans = []
+    started = threading.Event()
+    accounts = []
+
+    def scan(_root):
+        scans.append(1)
+        if len(scans) < 3:
+            return []
+        return [WeChatLogin(pid=456, wxid="wxid_previous", nickname="Previous")]
+
+    async def start_account(account, pid=None):
+        accounts.append(account)
+        started.set()
+
+    monkeypatch.setattr(webui_server, "discover_logged_accounts", scan)
+    monkeypatch.setattr(manager, "start_account", start_account)
+    with TestClient(create_webui_app(config, manager, start_runtime=True)) as client:
+        assert started.wait(1)
+        assert client.get("/healthz").json()["lastError"] == ""
+    assert len(scans) == 3
+    assert accounts == ["wxid_previous"]
+
+
 @pytest.mark.asyncio
 async def test_runtime_uses_current_account_pid_after_reboot(tmp_path: Path, monkeypatch):
     config = make_config(tmp_path)
