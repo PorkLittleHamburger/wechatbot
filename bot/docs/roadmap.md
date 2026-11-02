@@ -1,75 +1,16 @@
-# Roadmap
+# 后续改进方向
 
-## Milestone 1: Protocol core (complete)
+当前功能和限制以 [协议兼容说明](onebot-compatibility.md)、[网络配置](network-config.md) 和 [桌面使用说明](../../launcher/docs/desktop-launcher.md) 为准。本页列出可继续改进的方向，不作为已实现功能或交付时间的承诺。
 
-- HTTP API, forward WebSocket, reverse WebSocket
-- stable persisted numeric IDs
-- mock driver
-- text, image, file, voice, emoticon and native group mention send paths
-- basic local management page
-- offline tests
+## 兼容与可靠性
 
-## Milestone 2: Native bridge preflight (complete)
+- 扩展外部 OneBot v11 客户端的端到端兼容测试。
+- 增加长时间运行、重连、事件去重和异常退出的覆盖。
+- 改善群角色、群名片与成员缓存的映射和诊断。
+- 扩展隔离 Windows 环境中的安装、升级、卸载与自启验证。
 
-- confirmed a dedicated test WeChat account in the development environment
-- verified DLL load/unload lifecycle
-- verified `get_login_info`, `get_friend_list`, `get_group_list`
-- sent one text message to File Transfer Helper
-- verified account/PID mismatch refusal
-- verified the full AccountRuntime -> action registry -> native bridge path
-- verified a negative signed 32-bit message ID is durable in SQLite
-- inbound text, image, file and native group mention verified with a second live account
+## 能力扩展
 
-## Milestone 3: SnowLuma-aligned runtime boundaries (complete)
+撤回、合并转发和群管理等能力受原生桥接接口限制，目前按不支持处理。新增能力应同时提供实际桥接实现、明确的协议结果和回归验证。无法完成的操作必须返回显式错误。
 
-Completed:
-
-- account-level Bridge lifecycle manager
-- per-account runtime and isolated data/media directories
-- durable per-account message store
-- non-zero signed 32-bit message IDs
-- action registry with validation metadata and examples
-- explicit account discovery; no periodic process polling
-- separate per-account `httpServers`, `httpClients`, `wsServers`, and `wsClients`
-- HTTP client event reporting
-- WebUI session Cookie authentication independent from OneBot tokens
-- WebUI SSE runtime state stream
-- multi-account RuntimeManager and account-scoped WebUI action/start/stop APIs
-
-## Milestone 4: OneBot compatibility hardening (in progress)
-
-- Standard OneBot v11 client end-to-end tests
-- full message deduplication and reconnect tests (provisional media placeholders are now suppressed)
-- media URL base configuration
-- group role/card mapping improvements
-- reverse WebSocket reconnection and token tests against external clients
-
-## Milestone 5: Runtime management console (core complete)
-
-- account status and bridge diagnostics
-- connection/token editing
-- friend/group/member browser
-- test-send dialog with explicit confirmation
-- recent event log and storage statistics
-- capability matrix and unsupported-action visibility
-- JSON action console with write confirmation
-
-Completed: storage statistics, event log, network configuration editor and JSON action console.
-Deferred: backup/restore and notification-channel UI.
-
-## Milestone 6: Packaging (portable directory complete; single-exe deferred)
-
-- portable directory and zip build: `scripts/build_portable.ps1` (complete)
-- single executable
-- pinned helper commit and native hash verification
-- startup/tray lifecycle
-- clean shutdown and DLL unload verification
-- upgrade guard for unsupported WeChat builds
-
-## Explicitly deferred
-
-- recall send (`delete_msg`)
-- merged forward send
-- arbitrary group administration
-- QQ face ID conversion
-- any OCR, screenshot, coordinate click, clipboard, or keyboard/mouse message sending
+账号 WebUI 主要负责账号、桥接与网络端点；版本、实例升级及备份恢复由桌面启动器管理。机器人回复逻辑和业务功能由外部 OneBot 客户端实现。

@@ -36,7 +36,7 @@ WebUI
   session-cookie login + SSE state stream + account action proxy
 ```
 
-This structure is aligned with SnowLuma's architectural principles, not its implementation. No SnowLuma source code is copied. The current repository is migrating from a single-service prototype toward these package boundaries.
+Each layer owns its account state and lifecycle. External bot applications connect through OneBot endpoints; bridge and management details remain inside the gateway.
 
 ## Non-negotiable rules
 
@@ -88,7 +88,7 @@ account ID. `driver.wechat_data_directory` is an optional explicit override.
 
 ## Protocol
 
-Initial action surface:
+Core action surface:
 
 - `send_private_msg`
 - `send_group_msg`

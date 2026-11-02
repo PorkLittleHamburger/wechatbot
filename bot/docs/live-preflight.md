@@ -1,122 +1,52 @@
-# Native Bridge Live Preflight
+# 原生微信桥接验证指南
 
-Date: 2026-11-01 through 2026-11-02
+本指南用于在目标环境中检查原生桥接、账号绑定和 OneBot 收发。Mock 验证覆盖协议及管理逻辑，不能代替具体微信构建和账号环境中的真实桥接验证。
 
-Environment: Windows 11 x64, WeChat 4.1.15.56, Python 3.13.9 x64
+## 准备与只读检查
 
-## Result
+- 确认 Windows x64 微信构建在项目支持范围内，账号已在 PC 微信登录。
+- 使用专门的测试账号和群，核对目标账号与进程 PID；多账号环境中显式选择目标账号。
+- 真实桥接需要管理员权限。配置、日志和测试记录保存在受控位置。
 
-The live stack has now been validated in both outbound and inbound directions on
-real WeChat accounts. No OCR, screenshot, coordinate click, clipboard, or
-keyboard/mouse message sending was used.
-
-### Bridge and outbound preflight
-
-- Bridge state: online / good
-- Account binding: exact account/PID match confirmed
-- Friend list: 40 records returned
-- File Transfer Helper text send: accepted by the native bridge
-- Full path exercised: `AccountRuntime -> OneBot action registry -> native helper -> WeChat`
-- Returned `message_id`: non-zero signed 32-bit value
-- Message persisted to the per-account SQLite store
-- Bridge cleanup: completed normally
-- Post-run process audit: no `text_bridge`, `selftest_bridge`, MinHook, watchdog, or OneBot process remained
-
-### Network and WebUI preflight
-
-- OneBot HTTP listened on `127.0.0.1:6700`
-- Forward WebSocket listened on `127.0.0.1:6701/ws`
-- Lifecycle and `get_login_info` succeeded over HTTP/WS
-- WebUI listened on `127.0.0.1:5099` with an independent HttpOnly session login
-- Shutdown released all ports and unloaded the native bridge
-
-### Inbound live messages
-
-A second real WeChat account sent messages to the bound account.
-
-Text:
-
-- private text produced a `message_type=private` event with a `text` segment
-- the native sender identity and stable numeric `user_id` were retained
-
-Image:
-
-- a real JPEG message first produced a provisional monitor event
-- the asynchronous native download completed and produced a real `image` segment
-- validated file: JPEG, 1280 x 2781, 256,834 bytes
-- the final OneBot segment includes the local media filename and HTTP media URL
-- the provisional media placeholder is now suppressed before final delivery
-
-File:
-
-- a real XLSX attachment produced a `file` segment with filename and HTTP media URL
-- validated file: 201,647 bytes, valid ZIP/XLSX container with 30 entries
-- the sender-provided filename is preserved after path sanitization
-
-Group native mention:
-
-- using WeChat's native `@` selector produced a group message with `to_me=true`
-- the final message contains an `at` segment followed by the text segment
-- manually typing `@name` as plain text is not treated as a native mention
-
-### Media handoff fix
-
-The elevated helper client and the normal-integrity WeChat process cannot
-reliably let the native task copy directly into the project media workspace.
-The verified flow is:
-
-```text
-WeChat native download
-  -> current account's own temp directory
-  -> elevated Python validates and copies
-  -> account-isolated project media directory
-  -> OneBot image/file event
-```
-
-The WeChat account data directory is auto-detected from the running process and
-account ID. `driver.wechat_data_directory` can override it for a custom install.
-Temporary native files are removed after the copy.
-
-### Multi-instance validation
-
-Two independent WeChat instances were present during the final test. The
-binding and capture scripts selected the target using:
-
-```text
-wxid -> matching logged-in process -> exact PID
-```
-
-No foreground-window or UI-coordinate selection was used.
-
-## Prerequisites
-
-- WeChat must be logged in before starting.
-- The helper client must run elevated because it inspects the process and loads
-  the native bridge.
-- A dedicated test account is recommended.
-- When multiple instances are running, bind with `--account <wxid>`.
-
-## Reproduce
-
-Outbound/network preflight:
+源码环境配置见 [机器人开发说明](../README.md)。以下命令从仓库根目录执行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\run_bind_and_preflight_elevated.ps1
+.venv/Scripts/python.exe -m wechat_onebot --config bot/config.json doctor
 ```
 
-Inbound live capture:
+`doctor` 用于检查依赖和环境。随后在 WebUI“进程与账号”中只读扫描、选择账号并保存绑定；扫描和绑定不等同于启动原生桥接。
+
+## 桥接与发送验证
+
+仅在明确需要连接测试账号时，在 WebUI 手动启动该账号，检查桥接状态、账号标识、进程 PID 和日志。
+
+验证时可依次检查：
+
+1. 登录信息、好友和群信息是否属于目标账号。
+2. 向文件传输助手或指定测试会话发送一条文本，核对接收端、返回消息 ID 和本地消息记录。
+3. 使用实际配置的 HTTP、正向 WebSocket 或反向 WebSocket 客户端检查请求、响应、生命周期和心跳事件。
+4. 停止桥接及管理服务后，检查桥接状态、进程和监听端口是否正确清理。
+
+开发环境还提供显式发送测试脚本：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\run_inbound_capture_elevated.ps1
+.venv/Scripts/python.exe bot/scripts/live_preflight.py --config bot/config.json --send-filehelper
 ```
 
-The second account then sends private text, a real image, a real file, and a
-group message using WeChat's native `@` selector. The capture status and events
-are written under `data/`.
+该命令会加载原生桥接并向文件传输助手发送测试消息；仅在已确认的测试环境中执行。省略 `--send-filehelper` 不会执行该文本发送，但仍会尝试连接原生桥接。
 
-## Remaining validation
+## 入站与媒体验证
 
-- Standard OneBot v11 clients over HTTP, forward WebSocket and reverse WebSocket
-- long-running reconnect/failover tests
-- port and bridge cleanup after abnormal termination
-- portable package acceptance on a clean Windows profile
+由另一个测试账号向目标账号发送私聊文本、图片、文件和包含微信原生群 `@` 的消息，核对：
+
+- 私聊、群聊和发送者标识正确，并映射为稳定的 OneBot 数字 ID。
+- 文本生成 `text` 段，微信原生 `@` 生成 `at` 段；手动输入的普通 `@名称` 不视为原生提及。
+- 图片与文件完成实际下载后生成有效媒体段及可访问的媒体地址，不把临时占位内容当作成功事件。
+- 媒体文件保存在对应账号的数据目录中，文件类型和内容与接收端一致。
+- 中断连接、重启管理服务和多个账号并行时，不会串用账号、凭据或数据目录。
+
+## 结果记录
+
+记录应用版本、微信构建、Windows 版本、驱动、测试端点及每项结果。对未覆盖的媒体、客户端、长时间重连和异常退出场景明确标记未验证。
+
+公开问题报告仅附去除凭据、消息正文及个人账号标识后的日志。具体环境的一次验证结果不代表其他版本或设备均兼容。

@@ -3,12 +3,12 @@
 ## Transport
 
 - HTTP API: `POST /` with `{"action": "...", "params": {...}, "echo": "..."}`
-- Default per-account HTTP and WS ports are independent: HTTP `6700`, WS `6701`
+- New accounts have no default OneBot listeners. HTTP and WS addresses are configured per account in `onebot.json` or WebUI.
 - Convenience HTTP route: `POST /{action}` with a params object body
-- Forward WebSocket: `/ws` and `/onebot/v11/ws`
-- Reverse WebSocket: configured in `reverse_ws`
+- Forward WebSocket: the configured endpoint path, for example `/ws`
+- Reverse WebSocket: per-account `wsClients`; HTTP event reporting: `httpClients`
 - Authentication: `Authorization: Bearer <token>` or `?access_token=<token>`
-- WebUI authentication: independent `X-WebUI-Token`; OneBot tokens are not exposed to the browser
+- WebUI authentication: first-login token and management password, followed by an independent HttpOnly session Cookie; OneBot access tokens cannot authenticate WebUI sessions
 - Heartbeat: `meta_event.heartbeat`
 - Lifecycle: `meta_event.lifecycle`
 
