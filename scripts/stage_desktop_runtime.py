@@ -11,6 +11,9 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT / "bot" / "scripts"))
+sys.path.insert(0, str(PROJECT_ROOT / "bot" / "src"))
 from build_portable import ROOT, bundle_python, copy_tree
 from wechat_onebot import __version__
 
@@ -36,7 +39,7 @@ def main():
         # Source must already exist when building without a cached interpreter.
         for name in ("src", "vendor", "webui", "assets"):
             copy_tree(ROOT / name, stage / name)
-        candidates = sorted((ROOT / "dist").glob("wechat-onebot-portable-*/python"), reverse=True)
+        candidates = sorted((ROOT.parent / "dist").glob("wechat-onebot-portable-*/python"), reverse=True)
         cached = next((p for p in candidates if locked_runtime(p)), None)
         if cached:
             copy_tree(cached, stage / "python")
@@ -54,14 +57,14 @@ def main():
         (stage / "VERSION_MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         from wechat_onebot.launcher.versions import validate_manifest
         validate_manifest(stage)
-        target = ROOT / "desktop" / "src-tauri" / "resources" / "runtime"
+        target = ROOT.parent / "desktop" / "src-tauri" / "resources" / "runtime"
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.exists():
-            if target.resolve() != (ROOT / "desktop/src-tauri/resources/runtime").resolve():
-                raise RuntimeError("Unexpected resource path")
+            if target.is_symlink() or target.resolve() != target.absolute():
+                raise RuntimeError("Runtime resource path redirects outside the workspace")
             shutil.rmtree(target)
         shutil.copytree(stage, target)
-        output = ROOT / "dist" / f"wechat-onebot-runtime-{__version__}-windows-x64.zip"
+        output = ROOT.parent / "dist" / f"wechat-onebot-runtime-{__version__}-windows-x64.zip"
         with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
             for path in stage.rglob("*"):
                 if path.is_file():

@@ -645,7 +645,7 @@ class SupervisorProtocol:
 @pytest.fixture
 async def supervisor(tmp_path, bundle_factory):
     # Use a real embedded runtime when available; no venv or DLL tree is copied.
-    portable = next((p for p in sorted((PROJECT / "dist").glob("wechat-onebot-portable-*"), reverse=True)
+    portable = next((p for p in sorted((PROJECT.parent / "dist").glob("wechat-onebot-portable-*"), reverse=True)
                      if (p / "python/python.exe").is_file()
                      and (p / "src/wechat_onebot/launcher/worker.py").is_file()), None)
     python = portable / "python/python.exe" if portable else Path(sys.executable)

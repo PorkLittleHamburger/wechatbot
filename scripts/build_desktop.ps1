@@ -5,7 +5,7 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $root
 $python = Join-Path $root '.venv/Scripts/python.exe'
 if (-not $SkipTests) {
-    & $python -m pytest -q
+    & $python -m pytest -q bot/tests -c bot/pyproject.toml
     if ($LASTEXITCODE -ne 0) { throw 'Python verification failed.' }
 }
 if (-not $SkipRuntime) {

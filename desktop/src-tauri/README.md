@@ -1,7 +1,7 @@
 # Windows desktop shell (Tauri 2)
 
 The Windows shell lives here. React/Vite is in `desktop/src`, Python management
-is in `src/wechat_onebot/launcher`, and staging/build scripts are in `scripts`.
+is in `bot/src/wechat_onebot/launcher`, and staging/build scripts are in `scripts`.
 
 ## Build inputs
 

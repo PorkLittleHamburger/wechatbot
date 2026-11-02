@@ -53,7 +53,7 @@
 
 `scripts/setup_portable_msvc.ps1` 仅下载并校验微软官方工具负载，解压到上述目录，不执行系统安装或写注册表。生成的 `msvc-env.ps1` 由 `scripts/desktop_env.ps1` 加载。已有 Visual Studio 构建环境也可复用。
 
-Python 使用 `requirements-runtime.lock`，前端使用 `package-lock.json`，Rust 使用 `Cargo.lock` 固定依赖。构建脚本先运行 Python 测试、生成并校验离线运行时，再执行前端和 Tauri/NSIS 构建。`-SkipTests` 和 `-SkipRuntime` 仅用于已验证内容未变化时的本地增量编译。
+Python 使用 `bot/requirements-runtime.lock`，前端使用 `package-lock.json`，Rust 使用 `Cargo.lock` 固定依赖。构建脚本先运行 Python 测试、生成并校验离线运行时，再执行前端和 Tauri/NSIS 构建。`-SkipTests` 和 `-SkipRuntime` 仅用于已验证内容未变化时的本地增量编译。
 
 GitHub Windows CI 构建安装器并保存 Actions 工件，不创建或发布 GitHub Release。默认安装包未签名；发布动作仍需用户明确确认。
 

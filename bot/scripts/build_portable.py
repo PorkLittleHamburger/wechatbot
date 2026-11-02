@@ -16,7 +16,7 @@ from wechat_onebot import __version__
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DIST = ROOT / "dist"
+DIST = ROOT.parent / "dist"
 PYTHON_VERSION = "3.13.9"
 PYTHON_ARCHIVE = f"python-{PYTHON_VERSION}-embed-amd64.zip"
 
@@ -73,9 +73,10 @@ def main() -> int:
     (target / "scripts").mkdir()
     for name in ("run_real.ps1", "run_mock.ps1", "wechat-onebot.ps1", "autostart.ps1", "run_launcher.ps1"):
         shutil.copy2(ROOT / "scripts" / name, target / "scripts" / name)
-    for name in ("README.md", "THIRD_PARTY_NOTICES.md", "pyproject.toml", "config.example.json",
+    for name in ("THIRD_PARTY_NOTICES.md", "pyproject.toml", "config.example.json",
                  "start.cmd", "launcher.cmd", "enable-autostart.cmd", "disable-autostart.cmd"):
         shutil.copy2(ROOT / name, target / name)
+    shutil.copy2(ROOT / "PORTABLE_README.md", target / "README.md")
     if (ROOT / "docs").is_dir():
         copy_tree(ROOT / "docs", target / "docs")
 

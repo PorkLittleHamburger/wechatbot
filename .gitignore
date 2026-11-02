@@ -13,7 +13,10 @@ htmlcov/
 config.json
 data/*
 !data/.gitkeep
+bot/data/*
+!bot/data/.gitkeep
 logs/
+.runtime/
 
 # Local editor
 .vscode/

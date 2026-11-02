@@ -6,10 +6,10 @@ from pathlib import Path
 
 
 def test_fresh_runtime_stages_source_before_python_import_check(tmp_path, monkeypatch):
-    scripts = Path(__file__).resolve().parents[1] / "scripts"
+    scripts = Path(__file__).resolve().parents[2] / "scripts"
     monkeypatch.syspath_prepend(str(scripts))
     staging = importlib.import_module("stage_desktop_runtime")
-    root = tmp_path / "project"
+    root = tmp_path / "project" / "bot"
     for name, content in {
         "src/wechat_onebot/__init__.py": '__version__ = "0.8.0"\n',
         "src/wechat_onebot/launcher/worker.py": "# offline fixture\n",
@@ -20,8 +20,9 @@ def test_fresh_runtime_stages_source_before_python_import_check(tmp_path, monkey
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
-    for name in ("vendor", "assets", "dist"):
+    for name in ("vendor", "assets"):
         (root / name).mkdir()
+    (root.parent / "dist").mkdir()
     calls = []
 
     def fresh_python(target):
@@ -37,7 +38,7 @@ def test_fresh_runtime_stages_source_before_python_import_check(tmp_path, monkey
     monkeypatch.setenv("WECHAT_BUILD_ROOT", str(tmp_path / "build"))
     staging.main()
     assert len(calls) == 1
-    installed = root / "desktop/src-tauri/resources/runtime"
+    installed = root.parent / "desktop/src-tauri/resources/runtime"
     manifest = json.loads((installed / "VERSION_MANIFEST.json").read_text())
     assert "src/wechat_onebot/__init__.py" in manifest["files"]
-    assert (root / "dist/wechat-onebot-runtime-0.8.0-windows-x64.zip").is_file()
+    assert (root.parent / "dist/wechat-onebot-runtime-0.8.0-windows-x64.zip").is_file()
