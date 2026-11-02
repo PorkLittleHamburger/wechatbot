@@ -65,7 +65,8 @@ The following actions return `retcode=1404` and never report fake success:
 
 ## Message segment rules
 
-- `reply`, `node`, `forward`, `json`, `xml`, `video`, `contact`, `music` are rejected as unsupported.
+- A `reply` segment is accepted as metadata when the chain contains sendable content. The native bridge cannot create a quoted WeChat reply, so the quote is omitted; group `at` remains a real native mention. A reply-only chain fails without sending.
+- `node`, `forward`, `json`, `xml`, `video`, `contact`, `music` are rejected as unsupported.
 - `at` is group-only. `@全体成员` is unsupported.
 - `face` requires a local file, URL, or `base64://` payload. QQ face IDs are not guessed.
 - Remote media URLs are downloaded with a size limit before native sending.

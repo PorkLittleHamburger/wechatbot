@@ -35,6 +35,8 @@ async def test_reverse_websocket_adapter_receives_lifecycle_and_actions(tmp_path
     messages: asyncio.Queue[dict] = asyncio.Queue()
 
     expected_self_id = str(service.self_id)
+    group_id = mapper.get_or_create("group", "10001@chatroom")
+    user_id = mapper.get_or_create("user", "wxid_alice")
 
     async def handler(websocket):
         assert websocket.request.headers["X-Self-ID"] == expected_self_id
@@ -42,6 +44,15 @@ async def test_reverse_websocket_adapter_receives_lifecycle_and_actions(tmp_path
         assert websocket.request.headers["Authorization"] == "Bearer test-token"
         await messages.put(json.loads(await websocket.recv()))
         await websocket.send(json.dumps({"action": "get_status", "echo": "reverse"}))
+        await messages.put(json.loads(await websocket.recv()))
+        await websocket.send(json.dumps({
+            "action": "send_group_msg", "echo": {"seq": 2},
+            "params": {"group_id": group_id, "message": [
+                {"type": "reply", "data": {"id": "-183402341"}},
+                {"type": "at", "data": {"qq": user_id, "name": "Alice"}},
+                {"type": "text", "data": {"text": "\n今日人品值：87 / 100"}},
+            ]},
+        }))
         await messages.put(json.loads(await websocket.recv()))
 
     server = await websockets.serve(handler, "127.0.0.1", 0)
@@ -52,11 +63,15 @@ async def test_reverse_websocket_adapter_receives_lifecycle_and_actions(tmp_path
     try:
         lifecycle = await asyncio.wait_for(messages.get(), timeout=3)
         response = await asyncio.wait_for(messages.get(), timeout=3)
+        sent = await asyncio.wait_for(messages.get(), timeout=3)
         assert lifecycle["post_type"] == "meta_event"
         assert lifecycle["meta_event_type"] == "lifecycle"
         assert response["status"] == "ok"
         assert response["echo"] == "reverse"
         assert response["data"]["online"] is True
+        assert sent["status"] == "ok" and sent["echo"] == {"seq": 2}
+        assert driver.sent[-1].kind == "at_text"
+        assert driver.sent[-1].payload["user_ids"] == ["wxid_alice"]
     finally:
         await adapter.stop()
         server.close()

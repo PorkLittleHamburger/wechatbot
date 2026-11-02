@@ -224,6 +224,9 @@ class OneBotService:
 
     async def _send_message(self, chat_id: str, raw_message: Any, *, is_group: bool) -> int:
         segments = await self._prepare_segments(raw_message, is_group=is_group)
+        if not any(segment.type in ("image", "file", "record", "face") or
+                   (segment.type == "text" and segment.data["text"]) for segment in segments):
+            raise OneBotActionError(1400, "消息没有可发送的内容")
         if any(segment.type == "at" for segment in segments) and not is_group:
             raise OneBotActionError(1400, "私聊消息不支持 at 段")
         if any(segment.type == "at" for segment in segments) and not any(
@@ -347,7 +350,11 @@ class OneBotService:
             data = raw.get("data") or {}
             if not isinstance(segment_type, str) or not isinstance(data, dict):
                 raise OneBotActionError(1400, "消息段必须包含 type 和 data")
-            if segment_type in ("reply", "node", "forward", "json", "xml", "video", "contact", "music"):
+            if segment_type == "reply":
+                # The native bridge has no quoted-reply send primitive. Keep other
+                # segments, especially a real group @, instead of failing the chain.
+                continue
+            if segment_type in ("node", "forward", "json", "xml", "video", "contact", "music"):
                 raise OneBotActionError(1404, f"当前原生桥接不支持发送 {segment_type} 段")
             if segment_type == "text":
                 text = data.get("text")

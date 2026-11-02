@@ -88,15 +88,15 @@ pwsh -ExecutionPolicy Bypass -File .\scripts\run_real.ps1
 pwsh -ExecutionPolicy Bypass -File .\scripts\run_mock.ps1
 ```
 
-默认监听：
+管理服务默认地址与可选的 OneBot 端点：
 
 - WebUI：`http://127.0.0.1:5099/`
-- OneBot HTTP API：`http://127.0.0.1:6700/`
-- 正向 WebSocket：`ws://127.0.0.1:6701/ws`
 - WebUI 健康检查：`http://127.0.0.1:5099/healthz`
-- OneBot HTTP 健康检查：`http://127.0.0.1:6700/healthz`
+- OneBot HTTP API、正向 WebSocket 和反向 WebSocket 均需在 WebUI 的“节点配置”中手动添加；全新安装没有默认 OneBot 端点。
 
 每个账号的网络配置独立保存在 `data/accounts/<账号>/onebot.json`，包含 `httpServers`、`httpClients`、`wsServers`、`wsClients`。在 WebUI 保存后端点立即生效，即使微信账号 Runtime 尚未启动也能监听或连接；未改动的端点保持连接。启动或停止微信桥接不会停止端点，账号离线状态会通过 OneBot 状态接口报告。管理服务关闭时才统一释放端点。WebUI 还提供实时状态、事件日志、存储统计和 JSON 动作调试/测试发送。
+
+AstrBot 等 OneBot 客户端可能在回复链中同时发送 `reply`、`at` 和文本。当前原生桥接没有微信引用回复发送入口，因此发送时会省略引用关系，继续发送正文及真实群 `@`；单独只有 `reply`、没有可发送内容的消息会报错。
 
 ## 便携包
 
