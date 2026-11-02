@@ -16,6 +16,9 @@ The native bridge is built from the helper bridge sources and MinHook 1.3.4. It 
 
 ## Python dependencies
 
+The Windows portable package includes the CPython 3.13.9 embeddable runtime.
+Its license is included at python/LICENSE.txt.
+
 All Python dependencies retain their own licenses. See the installed package metadata and the `vendor/helper/THIRD_PARTY_NOTICES.md` file.
 
 ## Architecture reference

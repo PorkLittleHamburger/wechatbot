@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>WeChat OneBot · 控制台</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <script>if (localStorage.getItem('wechat-onebot-theme') === 'dark') document.documentElement.classList.add('dark');</script>
 <style>
 :root{
@@ -1769,10 +1770,10 @@ function renderSettings(root) {
       "<div><div class=\"k\">最后错误</div><div class=\"v\">" + esc((S.status && S.status.lastError) || "无") + "</div></div></div>" +
       "<div class=\"divider\"></div><button class=\"btn\" data-act=\"goto\" data-view=\"account\">查看微信实例</button></div></div>" +
       "<div class=\"card\" style=\"margin-top:14px\"><div class=\"card-h\"><h2>开机自启</h2></div><div class=\"card-b\"><div class=\"kv\">" +
-      "<div><div class=\"k\">计划任务</div><div class=\"v\">" + esc(task ? (task.enabled ? (task.managed ? "已启用" : "指向其他安装目录") : "未启用") : (S.autostartError || "读取中…")) + "</div></div>" +
+      "<div><div class=\"k\">启动应用</div><div class=\"v\">" + esc(task ? (task.enabled ? (task.managed ? "已启用" : "指向其他安装目录") : task.startupApp ? "已在任务管理器中关闭" : "未启用") : (S.autostartError || "读取中…")) + "</div></div>" +
       "<div><div class=\"k\">上次桥接账号</div><div class=\"v mono\">" + esc(task && task.lastAccount || "尚无") + "</div></div>" +
       "<div><div class=\"k\">自动恢复</div><div class=\"v\">" + esc(task && task.resumesBridge ? "检测到上次账号登录后立即连接桥接" : "未启用") + "</div></div></div>" +
-      "<div class=\"divider\"></div><p class=\"small muted\">登录 Windows 后启动管理服务；每秒检测上次桥接账号的 PC 微信登录状态，识别到登录后立即启动桥接。WebUI 扫码登录仍需要 PC 微信提供二维码接口。</p>" +
+      "<div class=\"divider\"></div><p class=\"small muted\">登录 Windows 后启动管理服务；可在“任务管理器 → 启动应用”中开关 WeChat OneBot。识别到上次桥接账号登录 PC 微信后立即连接。WebUI 扫码登录仍需要 PC 微信提供二维码接口。</p>" +
       "<div class=\"toolbar\"><button class=\"btn primary\" data-act=\"autostart-toggle\"" + (!task || S.autostartBusy ? " disabled" : "") + ">" + (S.autostartBusy ? "处理中…" : task && task.enabled && task.managed && task.resumesBridge ? "关闭开机自启" : "启用开机自启") + "</button>" +
       "<button class=\"btn\" data-act=\"autostart-refresh\">刷新状态</button></div></div></div>";
     if (!S.autostart && !S.autostartBusy && !S.autostartError) loadAutostart();

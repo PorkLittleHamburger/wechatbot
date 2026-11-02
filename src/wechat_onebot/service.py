@@ -129,7 +129,8 @@ class OneBotService:
             await self._event_sink(payload)
 
     async def dispatch(self, action: str, params: dict[str, Any] | None = None, echo: Any = None) -> dict[str, Any]:
-        params = params or {}
+        if params is None:
+            params = {}
         if not isinstance(params, dict):
             return failure(1400, "params 必须是 JSON 对象", echo)
         try:

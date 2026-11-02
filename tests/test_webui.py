@@ -58,6 +58,7 @@ def test_webui_login_status_and_account_action(tmp_path: Path):
     app = create_webui_app(config, manager)
     with TestClient(app) as client:
         assert client.get("/").status_code == 200
+        assert client.get("/favicon.svg").headers["content-type"].startswith("image/svg+xml")
         assert client.get("/api/status").status_code == 401
         assert client.post("/api/login", json={"token": "wrong"}).status_code == 401
         assert manager.snapshot() == []

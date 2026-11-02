@@ -3,8 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import subprocess
 import sys
 import time
+import tomllib
+import urllib.request
+import zipfile
 from pathlib import Path
 
 from wechat_onebot import __version__
@@ -12,6 +16,8 @@ from wechat_onebot import __version__
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
+PYTHON_VERSION = "3.13.9"
+PYTHON_ARCHIVE = f"python-{PYTHON_VERSION}-embed-amd64.zip"
 
 
 def ignore(directory: str, names: list[str]):
@@ -23,6 +29,36 @@ def copy_tree(source: Path, destination: Path):
     shutil.copytree(source, destination, ignore=ignore, dirs_exist_ok=True)
 
 
+def bundle_python(target: Path) -> None:
+    cache = DIST / ".cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    archive = cache / PYTHON_ARCHIVE
+    if not archive.is_file():
+        urllib.request.urlretrieve(
+            f"https://www.python.org/ftp/python/{PYTHON_VERSION}/{PYTHON_ARCHIVE}", archive
+        )
+    runtime = target / "python"
+    runtime.mkdir()
+    with zipfile.ZipFile(archive) as package:
+        package.extractall(runtime)
+    (runtime / "python313._pth").write_text(
+        "python313.zip\n.\nLib\\site-packages\n..\\src\n", encoding="utf-8"
+    )
+    requirements = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["dependencies"]
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "--only-binary=:all:", "--no-compile",
+         "--python-version", "3.13", "--implementation", "cp", "--abi", "cp313",
+         "--platform", "win_amd64", "--target",
+         str(runtime / "Lib" / "site-packages"), *requirements],
+        check=True,
+    )
+    subprocess.run(
+        [str(runtime / "python.exe"), "-c",
+         "import fastapi, uvicorn, cryptography, PIL, wechat_onebot; print(wechat_onebot.__version__)"],
+        cwd=target, check=True,
+    )
+
+
 def main() -> int:
     stamp = time.strftime("%Y%m%d-%H%M%S")
     target = DIST / f"wechat-onebot-portable-{stamp}"
@@ -31,6 +67,8 @@ def main() -> int:
     copy_tree(ROOT / "src", target / "src")
     copy_tree(ROOT / "vendor", target / "vendor")
     copy_tree(ROOT / "webui", target / "webui")
+    copy_tree(ROOT / "assets", target / "assets")
+    bundle_python(target)
     (target / "scripts").mkdir()
     for name in ("run_real.ps1", "run_mock.ps1", "wechat-onebot.ps1", "autostart.ps1"):
         shutil.copy2(ROOT / "scripts" / name, target / "scripts" / name)
@@ -62,8 +100,8 @@ def main() -> int:
                                                  encoding="utf-8")
     (target / "START_HERE.txt").write_text(
         "WeChat OneBot portable build\n"
-        "1. Install Python 3.11+ and sign in to a supported Windows WeChat build.\n"
-        "2. Double-click start.cmd; it prefers PowerShell 7 and installs dependencies on first launch.\n"
+        "1. Sign in to a supported Windows WeChat build.\n"
+        "2. Double-click start.cmd; Python and dependencies are included in this folder.\n"
         "3. Open http://127.0.0.1:5099, enter the first-login token, and set a password.\n"
         "4. Select an account and save OneBot endpoints; they run even while WeChat is offline.\n"
         "   Start the WeChat bridge separately from the account page when needed.\n"

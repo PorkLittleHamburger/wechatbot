@@ -92,6 +92,7 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
     passwords = PasswordStore(config.storage.data_dir / "webui-auth.json")
     runtime_logs = _SafeRuntimeLogs()
     panel_path = Path(__file__).resolve().parents[3] / "webui" / "index.html"
+    icon_path = panel_path.parent.parent / "assets" / "icons" / "wechat-onebot.svg"
 
     def authorized(request: Request) -> bool:
         cookie = request.cookies.get(COOKIE_NAME, "")
@@ -169,6 +170,10 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
         if not panel_path.is_file():
             return Response("webui/index.html not found", status_code=500, media_type="text/plain")
         return FileResponse(panel_path, media_type="text/html")
+
+    @app.get("/favicon.svg")
+    async def favicon():
+        return FileResponse(icon_path, media_type="image/svg+xml")
 
     @app.get("/api/auth-state")
     async def auth_state():

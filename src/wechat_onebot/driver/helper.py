@@ -290,11 +290,8 @@ class HelperDriver(Driver):
             segments.append(Segment("at", {"qq": member}))
         text = str(data.get("msg") or data.get("content") or "") if msg_type == 1 else ""
         if at_members and text:
-            try:
-                from wxbot_framework.mentions import strip_at_labels
-                text = strip_at_labels(text)
-            except Exception:
-                pass
+            from wxbot_framework.mentions import strip_at_labels
+            text = strip_at_labels(text)
         if text:
             segments.append(Segment("text", {"text": text}))
         if msg_type == 3:
@@ -374,11 +371,8 @@ class HelperDriver(Driver):
             segments.append(Segment("at", {"qq": member}))
         text = message.text or ""
         if at_members and text:
-            try:
-                from wxbot_framework.mentions import strip_at_labels
-                text = strip_at_labels(text)
-            except Exception:
-                pass
+            from wxbot_framework.mentions import strip_at_labels
+            text = strip_at_labels(text)
         if text:
             segments.append(Segment("text", {"text": text}))
         if msg_type == 3:

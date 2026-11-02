@@ -78,28 +78,25 @@ class BridgeManager:
             self._sessions[account] = record
             if pid is not None:
                 self._pid_to_account[pid] = account
-        try:
-            await session.start(emit)
-        except Exception:
-            async with self._lock:
+            try:
+                await session.start(emit)
+            except Exception:
                 self._sessions.pop(account, None)
                 if pid is not None:
                     self._pid_to_account.pop(pid, None)
-            raise
-        self._fire_started(account, session)
+                raise
+            self._fire_started(account, session)
         return record
 
     async def stop_session(self, account: str) -> None:
         async with self._lock:
-            record = self._sessions.pop(account, None)
+            record = self._sessions.get(account)
             if record is None:
                 return
+            await record.session.stop()
+            self._sessions.pop(account)
             if record.pid is not None:
                 self._pid_to_account.pop(record.pid, None)
-        try:
-            await record.session.stop()
-        finally:
-            if record.pid is not None:
                 self._fire_closed(account, record.session, record.pid)
 
     async def stop_all(self) -> None:

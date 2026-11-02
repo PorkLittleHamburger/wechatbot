@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">WeChat OneBot</title>
+  <desc id="desc">Two connected speech bubbles on a blue rounded square.</desc>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#168ec9"/>
+      <stop offset="1" stop-color="#0b577f"/>
+    </linearGradient>
+    <linearGradient id="reply" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a8e6ff"/>
+      <stop offset="1" stop-color="#57c0ed"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="url(#tile)"/>
+  <path d="M65 48h103c23 0 42 19 42 42v50c0 23-19 42-42 42H94l-33 22 7-30c-22-5-38-23-38-45V90c0-23 15-42 35-42Z" fill="#fff"/>
+  <path d="M88 111h56" fill="none" stroke="#168ec9" stroke-width="13" stroke-linecap="round"/>
+  <circle cx="82" cy="111" r="14" fill="#168ec9"/>
+  <circle cx="150" cy="111" r="14" fill="#168ec9"/>
+  <path d="M149 139h53c16 0 29 13 29 29v17c0 15-11 27-25 29l5 19-27-19h-35c-16 0-29-13-29-29v-17c0-16 13-29 29-29Z" fill="url(#reply)" stroke="#0b577f" stroke-width="8" stroke-linejoin="round"/>
+  <path d="m153 176 12 12 26-26" fill="none" stroke="#0b577f" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

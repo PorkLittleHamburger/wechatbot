@@ -37,6 +37,18 @@ async def make_service(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_dispatch_rejects_empty_non_object_params(tmp_path: Path):
+    service, _, mapper, _ = await make_service(tmp_path)
+    try:
+        response = await service.dispatch("get_status", [])
+        assert response["status"] == "failed"
+        assert response["retcode"] == 1400
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
 async def test_send_group_at_text_uses_native_mention(tmp_path: Path):
     service, driver, mapper, _ = await make_service(tmp_path)
     try:
