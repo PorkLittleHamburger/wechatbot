@@ -101,6 +101,8 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             "version": config.version,
             "driver": config.driver.type,
             "configuredAccount": config.driver.wechat_account,
+            "configuredNickname": config.driver.nickname,
+            "configuredPid": config.driver.wechat_pid,
             "lastError": manager.last_error,
             "runtimes": manager.snapshot(),
         }
@@ -235,7 +237,8 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             row = rows.setdefault(account, {"account": account, "pid": None, "nickname": "",
                                              "configured": account == configured, "running": False,
                                              "online": False, "started": False})
-            row.update(pid=runtime["pid"], running=runtime["started"],
+            row.update(pid=runtime["pid"] if runtime["pid"] is not None else row["pid"],
+                       running=runtime["started"],
                        online=runtime["online"], started=runtime["started"])
         error = None
         if scan and config.driver.type == "helper":

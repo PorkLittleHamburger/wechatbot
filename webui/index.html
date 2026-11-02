@@ -115,6 +115,10 @@ svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7;stro
 .btn.sm{height:28px;padding:0 10px;font-size:12px;border-radius:7px}
 .btn.block{width:100%;height:38px}
 .btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.busy{opacity:.75;cursor:progress}
+.btn.busy::before{content:"";width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 .icon-btn{width:30px;height:30px;border:1px solid transparent;background:transparent;border-radius:7px;color:#8b929b;display:inline-grid;place-items:center;cursor:pointer;transition:.15s}
 .icon-btn:hover{background:#262a2f;color:#e3e6ea}
 .icon-btn svg{width:15px;height:15px}
@@ -128,6 +132,15 @@ textarea.input{height:auto;padding:10px;font-family:var(--mono);font-size:12px;l
 .input:focus{border-color:rgba(255,122,69,.55);box-shadow:0 0 0 3px rgba(255,122,69,.1)}
 .input::placeholder{color:#5d646d}
 select.input{appearance:none;background-image:linear-gradient(45deg,transparent 50%,#7b828b 50%),linear-gradient(135deg,#7b828b 50%,transparent 50%);background-position:calc(100% - 15px) 14px,calc(100% - 10px) 14px;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:26px}
+.sort-control{position:relative;min-width:116px}
+.sort-trigger{width:100%;justify-content:space-between}
+.sort-trigger::after{content:"";width:7px;height:7px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg) translateY(-2px);margin-left:10px;transition:transform .15s}
+.sort-control.open .sort-trigger::after{transform:rotate(225deg) translateY(-2px)}
+.sort-menu{position:absolute;z-index:30;top:calc(100% + 5px);left:0;min-width:100%;padding:4px;border:1px solid var(--line);border-radius:9px;background:var(--card);box-shadow:var(--shadow)}
+.sort-option{display:block;width:100%;padding:7px 10px;border:0;border-radius:6px;background:transparent;color:var(--text);text-align:left;cursor:pointer;white-space:nowrap}
+.sort-option:hover,.sort-option:focus-visible{background:var(--hover);outline:none}
+.sort-option[aria-selected="true"]{background:var(--accent-soft);color:var(--accent);font-weight:650}
+.process-card.bound{border-color:color-mix(in srgb,var(--accent) 42%,var(--line))}
 .switch{width:38px;height:21px;border-radius:999px;background:#31353b;position:relative;cursor:pointer;border:0;flex:none;transition:background .18s}
 .switch::after{content:"";position:absolute;top:2.5px;left:2.5px;width:16px;height:16px;border-radius:50%;background:#c7ccd2;transition:transform .18s,background .18s}
 .switch.on{background:var(--accent)}
@@ -491,7 +504,7 @@ const S = {
   network: null, networkJsonOpen: false, configTab: "general",
   events: [], eventFilter: "all", eventQuery: "", selectedEvent: null, eventsAuto: true,
   logTab: "runtime", logs: null, logQuery: "", logLevel: "all", logAuto: true,
-  processes: null, processError: "", processSort: "status",
+  processes: null, processError: "", processSort: "status", processLoading: false, processRequest: 0, bridgeBusy: false,
   friends: null, groups: null, friendQuery: "", groupQuery: "",
   storage: null,
   action: null, actionParams: {}, actionJsonMode: false, actionResult: null, actionBusy: false, confirmWrite: false, actionQuery: "", debugTab: "tester", apiQuery: "",
@@ -527,6 +540,13 @@ function toast(message, kind = "info", ms = 3600) {
   box.innerHTML = "<svg class=\"i\"><use href=\"#" + icon + "\"/></svg><div>" + esc(message) + "</div>";
   $("#toasts").appendChild(box);
   setTimeout(() => box.remove(), ms);
+}
+function busyButton(button, label) {
+  const previous = button.innerHTML;
+  button.disabled = true;
+  button.classList.add("busy");
+  button.textContent = label;
+  return () => { if (button.isConnected) { button.innerHTML = previous; button.classList.remove("busy"); button.disabled = false; } };
 }
 async function copyText(text) {
   try { await navigator.clipboard.writeText(text); toast("已复制到剪贴板", "ok", 1800); }
@@ -631,24 +651,36 @@ $("#btnRefresh").addEventListener("click", async () => { await refreshStatus(); 
 
 /* ---------- status ---------- */
 function applyStatus(payload) {
+  const previousAccount = S.account;
+  const previousNickname = S.status && S.status.configuredNickname;
+  const previousProcessState = S.status && JSON.stringify([S.status.configuredAccount, (S.status.runtimes || []).map((r) => [r.account, r.pid, r.started, r.online])]);
   S.status = payload;
   const runtimes = payload.runtimes || [];
   S.runtime = S.selectedAccount
     ? (runtimes.find((r) => r.account === S.selectedAccount) || null)
     : (runtimes.find((r) => r.account === payload.configuredAccount) || runtimes[0] || null);
   S.account = S.selectedAccount || (S.runtime ? S.runtime.account : (payload.configuredAccount || null));
+  if (S.account !== previousAccount) {
+    S.loginInfo = null; S.versionInfo = null; S.friends = null; S.groups = null;
+    S.network = null; S.storage = null; S.caps = null; S.catalog = null;
+  }
   updateChrome();
   if (payload.lastError && payload.lastError !== S.lastErrorShown) {
     S.lastErrorShown = payload.lastError;
     toast(payload.lastError, "bad", 6000);
   }
   if (S.view === "overview") syncOverview();
-  if (S.view === "account") syncAccount();
+  if (S.view === "account") {
+    if (S.account !== previousAccount || payload.configuredNickname !== previousNickname) render();
+    else syncAccount();
+  }
+  const processState = JSON.stringify([payload.configuredAccount, runtimes.map((r) => [r.account, r.pid, r.started, r.online])]);
+  if (S.view === "account" && previousProcessState !== processState && !S.processLoading) loadProcesses(false);
   if (S.view === "connect") syncConnectStates();
 }
 
-function selectAccount(account) {
-  if (!account || account === S.account) return;
+function selectAccount(account, force = false) {
+  if (!account || (account === S.account && !force)) return;
   S.selectedAccount = account;
   S.loginInfo = null; S.versionInfo = null; S.caps = null; S.catalog = null; S.catalogError = "";
   S.friends = null; S.groups = null; S.network = null; S.storage = null;
@@ -666,7 +698,8 @@ function updateChrome() {
   $("#hdrStatusText").textContent = online ? "在线" : (started ? "离线" : "未启动");
   $("#hdrSelf").textContent = rt && rt.self_id ? rt.self_id : "—";
   $("#hdrPid").textContent = rt && rt.pid ? rt.pid : "—";
-  const nickname = (S.loginInfo && S.loginInfo.nickname && S.loginInfo.nickname.trim()) || (S.account || "未绑定");
+  const nickname = (S.loginInfo && S.loginInfo.nickname && S.loginInfo.nickname.trim()) ||
+    (S.status && S.account === S.status.configuredAccount && S.status.configuredNickname) || (S.account || "未绑定");
   $("#hdrNick").textContent = nickname;
   $("#hdrWxid").textContent = S.account || "—";
   $("#hdrAvatar").textContent = initial(nickname);
@@ -750,9 +783,10 @@ async function loadCaps(force = false) {
 }
 async function loadLoginInfo() {
   if (!S.account) return;
+  const account = S.account;
   try {
     const body = await callAction("get_login_info");
-    if (body && body.status === "ok") { S.loginInfo = body.data || null; updateChrome(); }
+    if (S.account === account && body && body.status === "ok") { S.loginInfo = body.data || null; updateChrome(); if (S.view === "account") render(); }
   } catch (error) {}
 }
 
@@ -879,24 +913,35 @@ function renderProcesses(root) {
   renderAccount(root);
   root.insertAdjacentHTML("afterbegin",
     "<div class=\"surface-header\"><div><h2>微信实例</h2><p>只读查看已配置账号与运行状态；登录账号扫描仅在手动点击时执行。</p></div>" +
-    "<div class=\"toolbar\"><select class=\"input\" id=\"procSort\" style=\"width:116px\"><option value=\"status\">按状态</option><option value=\"pid\">按 PID</option><option value=\"name\">按账号</option></select>" +
+    "<div class=\"toolbar\"><div class=\"sort-control\" id=\"procSort\"><button type=\"button\" class=\"btn sort-trigger\" data-act=\"sort-toggle\" aria-haspopup=\"listbox\" aria-expanded=\"false\">" +
+    esc(({status:"按状态",pid:"按 PID",name:"按账号"})[S.processSort]) + "</button><div class=\"sort-menu hidden\" role=\"listbox\" aria-label=\"实例排序\">" +
+    [["status","按状态"],["pid","按 PID"],["name","按账号"]].map(([value,label]) => "<button type=\"button\" class=\"sort-option\" role=\"option\" aria-selected=\"" + (S.processSort === value) + "\" data-act=\"sort-select\" data-sort=\"" + value + "\">" + label + "</button>").join("") + "</div></div>" +
     "<button class=\"btn sm\" data-act=\"proc-refresh\">刷新状态</button><button class=\"btn sm\" data-act=\"proc-scan\">扫描已登录账号</button></div></div>" +
+    "<div class=\"small muted\" id=\"procFeedback\" role=\"status\" aria-live=\"polite\"></div>" +
     "<div id=\"procBody\" class=\"grid cols-2\"></div>");
-  $("#procSort").value = S.processSort;
-  $("#procSort").addEventListener("change", (event) => { S.processSort = event.target.value; drawProcesses(); });
   drawProcesses();
-  if (!S.processes) loadProcesses(false);
+  if (!S.processes && !S.processLoading) loadProcesses(false);
 }
 
 async function loadProcesses(scan) {
+  const request = ++S.processRequest;
+  S.processLoading = true;
   try {
     const result = await api("/api/processes" + (scan ? "?scan=true" : ""));
+    if (request !== S.processRequest) return false;
     S.processes = result.processes;
     S.processError = result.error || "";
+    return !S.processError;
   } catch (error) {
+    if (request !== S.processRequest) return false;
     S.processError = error.message;
+    return false;
+  } finally {
+    if (request === S.processRequest) {
+      S.processLoading = false;
+      if (S.view === "account") drawProcesses();
+    }
   }
-  if (S.view === "account") drawProcesses();
 }
 
 function drawProcesses() {
@@ -904,10 +949,10 @@ function drawProcesses() {
   const rows = [...(S.processes || [])];
   if (S.processSort === "pid") rows.sort((a, b) => (a.pid || 0) - (b.pid || 0));
   else if (S.processSort === "name") rows.sort((a, b) => String(a.account || "").localeCompare(String(b.account || "")));
-  else rows.sort((a, b) => Number(!!b.online) - Number(!!a.online) || Number(!!b.running) - Number(!!a.running));
+  else rows.sort((a, b) => Number(!!b.configured) - Number(!!a.configured) || Number(!!b.online) - Number(!!a.online) || Number(!!b.running) - Number(!!a.running));
   const warning = S.processError ? "<div class=\"note\" style=\"grid-column:1/-1\">" + esc(S.processError) + "</div>" : "";
   box.innerHTML = warning + (rows.length ? rows.map((row) =>
-    "<div class=\"card process-card\"><div class=\"process-top\"><div class=\"avatar lg\">" + esc(initial(row.nickname || row.account)) + "</div>" +
+    "<div class=\"card process-card" + (row.configured ? " bound" : "") + "\"><div class=\"process-top\"><div class=\"avatar lg\">" + esc(initial(row.nickname || row.account)) + "</div>" +
     "<div style=\"flex:1;min-width:0\"><strong>" + esc(row.nickname || row.account || "未知账号") + "</strong><div class=\"small muted mono\">" + esc(row.account || "未识别") + "</div></div>" +
     "<span class=\"badge " + (row.online ? "ok" : row.running ? "warn" : "") + "\">" + (row.online ? "在线" : row.running ? "已启动" : "未启动") + "</span></div>" +
     "<div class=\"kv\"><div><div class=\"k\">PID</div><div class=\"v\">" + esc(row.pid || "—") + "</div></div><div><div class=\"k\">来源</div><div class=\"v\">" + (row.configured ? "已配置" : "已发现") + "</div></div></div>" +
@@ -919,7 +964,8 @@ function drawProcesses() {
 /* ---------- account ---------- */
 function renderAccount(root) {
   const rt = S.runtime;
-  const nick = (S.loginInfo && S.loginInfo.nickname && S.loginInfo.nickname.trim()) || (S.account || "未绑定");
+  const nick = (S.loginInfo && S.loginInfo.nickname && S.loginInfo.nickname.trim()) ||
+    (S.status && S.account === S.status.configuredAccount && S.status.configuredNickname) || (S.account || "未绑定");
   const wxid = S.account || "—";
   const online = !!(rt && rt.online);
   root.innerHTML =
@@ -929,10 +975,10 @@ function renderAccount(root) {
         "<div class=\"toolbar\" style=\"margin-top:9px\"><span class=\"pill " + (online ? "ok" : "bad") + "\"><i class=\"dot\"></i>" + (online ? "在线" : (rt && rt.started ? "离线" : "未启动")) + "</span>" +
         "<span class=\"badge\">driver " + esc((S.status && S.status.driver) || "—") + "</span>" +
         "<span class=\"badge\">self_id " + esc((rt && rt.self_id) || "—") + "</span>" +
-        "<span class=\"badge\">PID " + esc((rt && rt.pid) || "—") + "</span></div></div>" +
-      "<div class=\"toolbar\"><button class=\"btn primary\" data-act=\"acct-start\"" + (!S.account ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-play\"/></svg>启动微信桥接</button>" +
-        "<button class=\"btn\" data-act=\"acct-restart\"" + (!S.account ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-refresh\"/></svg>重启微信桥接</button>" +
-        "<button class=\"btn danger\" data-act=\"acct-stop\"" + (!S.account ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-stop\"/></svg>停止微信桥接</button></div>" +
+        "<span class=\"badge\" id=\"acPid\">PID " + esc((rt && rt.pid) || (S.status && S.account === S.status.configuredAccount && S.status.configuredPid) || "—") + "</span></div></div>" +
+      "<div class=\"toolbar\"><button class=\"btn primary\" data-act=\"acct-start\"" + (!S.account || (rt && rt.started) || S.bridgeBusy ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-play\"/></svg>启动微信桥接</button>" +
+        "<button class=\"btn\" data-act=\"acct-restart\"" + (!(rt && rt.started) || S.bridgeBusy ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-refresh\"/></svg>重启微信桥接</button>" +
+        "<button class=\"btn danger\" data-act=\"acct-stop\"" + (!(rt && rt.started) || S.bridgeBusy ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-stop\"/></svg>停止微信桥接</button></div>" +
     "</div></div></div>" +
     "<div class=\"grid metrics\">" +
       "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">协议端版本</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-cpu\"/></svg></span></div><div class=\"m-value mono\" id=\"acVer\">" + esc((S.versionInfo && S.versionInfo.app_version) || "—") + "</div><div class=\"m-sub\">app version</div></div>" +
@@ -964,11 +1010,17 @@ function renderAccount(root) {
 
 function syncAccount() {
   const rt = S.runtime; const pill = document.querySelector("#view .acct .pill");
-  if (pill && rt) {
-    pill.className = "pill " + (rt.online ? "ok" : "bad");
-    pill.innerHTML = "<i class=\"dot\"></i>" + (rt.online ? "在线" : (rt.started ? "离线" : "未启动"));
+  if (pill) {
+    pill.className = "pill " + (rt && rt.online ? "ok" : rt && rt.started ? "bad" : "");
+    pill.innerHTML = "<i class=\"dot\"></i>" + (rt && rt.online ? "在线" : (rt && rt.started ? "离线" : "未启动"));
   }
   const m = $("#acMsg"); if (m && rt) m.textContent = String(rt.message_count ?? 0);
+  const pid = $("#acPid"); if (pid) pid.textContent = "PID " + ((rt && rt.pid) || (S.status && S.account === S.status.configuredAccount && S.status.configuredPid) || "—");
+  for (const action of ["start", "restart", "stop"]) {
+    const button = $("[data-act='acct-" + action + "']");
+    if (button && !button.classList.contains("busy")) button.disabled = S.bridgeBusy ||
+      (action === "start" ? !S.account || !!(rt && rt.started) : !(rt && rt.started));
+  }
 }
 
 async function maybeLoadFriends() {
@@ -980,16 +1032,20 @@ async function maybeLoadGroups() {
   try { await loadGroups(); } catch (e) {}
 }
 async function loadFriends() {
+  const account = S.account;
   const body = await callAction("get_friend_list");
   if (body.status !== "ok") throw new Error(body.message || ("retcode " + body.retcode));
+  if (S.account !== account) return;
   S.friends = body.data || [];
   const hint = $("#acFriendHint"); if (hint) hint.textContent = S.friends.length + " 位";
   const metric = $("#acFriends"); if (metric) metric.textContent = String(S.friends.length);
   renderFriendList();
 }
 async function loadGroups() {
+  const account = S.account;
   const body = await callAction("get_group_list");
   if (body.status !== "ok") throw new Error(body.message || ("retcode " + body.retcode));
+  if (S.account !== account) return;
   S.groups = body.data || [];
   const hint = $("#acGroupHint"); if (hint) hint.textContent = S.groups.length + " 个";
   const metric = $("#acGroups"); if (metric) metric.textContent = String(S.groups.length);
@@ -1017,9 +1073,10 @@ function renderGroupList() {
 }
 async function loadVersionInfo() {
   if (S.versionInfo || !S.account) return;
+  const account = S.account;
   try {
     const body = await callAction("get_version_info");
-    if (body.status === "ok") { S.versionInfo = body.data; const el = $("#acVer"); if (el && body.data) el.textContent = body.data.app_version || "—"; }
+    if (S.account === account && body.status === "ok") { S.versionInfo = body.data; const el = $("#acVer"); if (el && body.data) el.textContent = body.data.app_version || "—"; }
   } catch (e) {}
 }
 </script>
@@ -1651,6 +1708,25 @@ document.getElementById("view").addEventListener("click", async (event) => {
   const el = event.target.closest("[data-act]"); if (!el) return;
   const act = el.dataset.act;
   try {
+    if (act === "sort-toggle") {
+      const control = el.closest(".sort-control");
+      const open = control.classList.toggle("open");
+      $(".sort-menu", control).classList.toggle("hidden", !open);
+      el.setAttribute("aria-expanded", String(open));
+      if (open) $(".sort-option[aria-selected='true']", control).focus();
+      return;
+    }
+    if (act === "sort-select") {
+      S.processSort = el.dataset.sort;
+      const control = el.closest(".sort-control");
+      $(".sort-trigger", control).firstChild.textContent = el.textContent;
+      control.classList.remove("open");
+      $(".sort-menu", control).classList.add("hidden");
+      $(".sort-trigger", control).setAttribute("aria-expanded", "false");
+      $$(".sort-option", control).forEach((option) => option.setAttribute("aria-selected", String(option === el)));
+      $(".sort-trigger", control).focus();
+      drawProcesses(); return;
+    }
     if (act === "goto") { setView(el.dataset.view); return; }
     if (act === "goto-http-clients") { S.configTab = "httpClients"; setView("connect"); return; }
     if (act === "goto-debug-api") { S.debugTab = "api"; setView("debug"); return; }
@@ -1673,29 +1749,49 @@ document.getElementById("view").addEventListener("click", async (event) => {
       S.actionJsonMode = false; S.actionResult = null; S.confirmWrite = false; S.debugTab = "tester"; render(); return;
     }
     if (act === "acct-start" || act === "acct-stop" || act === "acct-restart") {
-      if (!S.account) return;
+      if (!S.account || S.bridgeBusy) return;
       const base = "/api/accounts/" + encodeURIComponent(S.account);
       if (act === "acct-stop" && !confirm("停止微信账号桥接？OneBot 端点将继续运行。")) return;
       if (act === "acct-restart" && !confirm("重启微信账号桥接？OneBot 端点将继续运行。")) return;
-      el.disabled = true;
-      if (act === "acct-stop") { await api(base + "/stop", { method: "POST" }); toast("微信桥接已停止，OneBot 端点保持运行", "ok"); }
-      else if (act === "acct-start") { await startRuntime(base); toast("微信桥接已启动", "ok"); }
-      else { await api(base + "/stop", { method: "POST" }); await new Promise((r) => setTimeout(r, 800)); await startRuntime(base); toast("微信桥接已重启", "ok"); }
-      await refreshStatus(); ensureRuntimeData();
+      S.bridgeBusy = true;
+      const restore = busyButton(el, act === "acct-stop" ? "停止中…" : act === "acct-start" ? "启动中…" : "重启中…");
+      const peers = ["acct-start", "acct-restart", "acct-stop"].map((name) => $("[data-act='" + name + "']")).filter((button) => button && button !== el);
+      peers.forEach((button) => { button.disabled = true; });
+      try {
+        if (act === "acct-stop") { await api(base + "/stop", { method: "POST" }); toast("微信桥接已停止，OneBot 端点保持运行", "ok"); }
+        else if (act === "acct-start") { await startRuntime(base); toast("微信桥接已启动", "ok"); }
+        else { await api(base + "/stop", { method: "POST" }); await new Promise((r) => setTimeout(r, 800)); await startRuntime(base); toast("微信桥接已重启", "ok"); }
+        await refreshStatus(); ensureRuntimeData(); await loadProcesses(false);
+      } finally { S.bridgeBusy = false; restore(); syncAccount(); }
       return;
     }
     if (act === "acct-friends") { el.disabled = true; await loadFriends(); toast("好友列表已更新", "ok"); el.disabled = false; return; }
     if (act === "acct-groups") { el.disabled = true; await loadGroups(); toast("群列表已更新", "ok"); el.disabled = false; return; }
-    if (act === "proc-refresh" || act === "proc-scan") { el.disabled = true; await loadProcesses(act === "proc-scan"); el.disabled = false; return; }
+    if (act === "proc-refresh" || act === "proc-scan") {
+      const restore = busyButton(el, act === "proc-scan" ? "扫描中…" : "刷新中…");
+      const feedback = $("#procFeedback"); if (feedback) feedback.textContent = act === "proc-scan" ? "正在扫描已登录账号…" : "正在刷新实例状态…";
+      try {
+        const ok = await loadProcesses(act === "proc-scan");
+        const message = ok ? (act === "proc-scan" ? "账号扫描已完成" : "实例状态已刷新") : (S.processError || "读取失败");
+        if (feedback) feedback.textContent = message;
+        toast(message, ok ? "ok" : "bad");
+      } finally { restore(); }
+      return;
+    }
     if (act === "proc-select") { selectAccount(el.dataset.account); return; }
     if (act === "proc-bind") {
       const account = el.dataset.account;
       if (!confirm("将 " + account + " 设为机器人账号？这一步只保存绑定，不启动原生桥接。")) return;
-      el.disabled = true;
-      await api("/api/account-selection", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account }) });
-      S.selectedAccount = account; S.processes = null; S.network = null;
-      await refreshStatus(); await loadProcesses(false); render();
-      toast("账号已绑定。需要时点击启动以连接微信。", "ok", 4200);
+      const restore = busyButton(el, "绑定中…");
+      try {
+        await api("/api/account-selection", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account }) });
+        selectAccount(account, true);
+        S.processes = null;
+        await refreshStatus();
+        await loadProcesses(true);
+        render();
+        toast("已设为机器人账号；当前桥接状态已更新", "ok", 4200);
+      } finally { restore(); }
       return;
     }
     if (act === "net-tab") { S.network = collectNetwork(); S.configTab = el.dataset.kind; render(); return; }
@@ -1787,6 +1883,22 @@ document.getElementById("view").addEventListener("click", async (event) => {
     toast(error.message || String(error), "bad", 5200);
     el.disabled = false;
   }
+});
+document.addEventListener("click", (event) => {
+  const control = $("#procSort");
+  if (!control || control.contains(event.target)) return;
+  control.classList.remove("open");
+  $(".sort-menu", control).classList.add("hidden");
+  $(".sort-trigger", control).setAttribute("aria-expanded", "false");
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  const control = $("#procSort");
+  if (!control || !control.classList.contains("open")) return;
+  control.classList.remove("open");
+  $(".sort-menu", control).classList.add("hidden");
+  $(".sort-trigger", control).setAttribute("aria-expanded", "false");
+  $(".sort-trigger", control).focus();
 });
 
 function ensureRuntimeData() {

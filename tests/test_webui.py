@@ -325,7 +325,18 @@ def test_webui_selects_fresh_logged_in_account_without_starting_runtime(tmp_path
         assert selected.json() == {"ok": True, "account": "wxid_selected", "pid": 456,
                                    "nickname": "Selected"}
         assert client.get("/api/status").json()["configuredAccount"] == "wxid_selected"
+        assert client.get("/api/status").json()["configuredNickname"] == "Selected"
+        assert client.get("/api/status").json()["configuredPid"] == 456
         assert manager.snapshot() == []
+        monkeypatch.setattr(manager, "snapshot", lambda: [
+            {"account": "wxid_robot", "pid": 123, "started": False, "online": False},
+            {"account": "wxid_selected", "pid": None, "started": False, "online": False},
+        ])
+        rows = {row["account"]: row for row in client.get("/api/processes").json()["processes"]}
+        assert rows["wxid_selected"]["configured"] is True
+        assert rows["wxid_selected"]["pid"] == 456
+        assert rows["wxid_selected"]["nickname"] == "Selected"
+        assert rows["wxid_robot"]["configured"] is False
         saved = json.loads(config.path.read_text(encoding="utf-8"))["driver"]
         assert (saved["wechat_account"], saved["wechat_pid"], saved["nickname"]) == (
             "wxid_selected", 456, "Selected")
