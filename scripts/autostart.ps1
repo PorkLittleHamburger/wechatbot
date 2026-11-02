@@ -9,10 +9,10 @@ $root = Split-Path -Parent $PSScriptRoot
 if ($Status) {
     $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
     if ($task) { $task | Select-Object TaskName,State,TaskPath | Format-Table -AutoSize }
-    else { Write-Host '尚未启用开机自启。' }
+    else { Write-Host 'Autostart is not enabled.' }
     exit 0
 }
-if (-not ($Install -xor $Remove)) { throw '请指定 -Install 或 -Remove。' }
+if (-not ($Install -xor $Remove)) { throw 'Specify -Install or -Remove.' }
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = [Security.Principal.WindowsPrincipal]::new($identity)
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -23,7 +23,7 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 }
 if ($Remove) {
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-    Write-Host '已移除 WeChat OneBot 开机自启任务。'
+    Write-Host 'WeChat OneBot autostart task removed.'
     exit 0
 }
 $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
@@ -35,4 +35,4 @@ $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
 $taskPrincipal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Seconds 0) -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $taskPrincipal -Settings $settings -Force | Out-Null
-Write-Host '已启用登录 Windows 后自动启动。微信未登录时可在 WebUI 稍后选择并启动账号。'
+Write-Host 'Autostart enabled at Windows logon. If WeChat is not logged in, start the account later in WebUI.'

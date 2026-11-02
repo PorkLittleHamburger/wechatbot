@@ -11,6 +11,6 @@ if (-not (Test-Path -LiteralPath $python)) {
     & $python -m pip install -e .
 }
 & $python -c 'import sys; from wechat_onebot.config import ensure_config; ensure_config(sys.argv[1])' (Join-Path $root 'config.json')
-if ($LASTEXITCODE -ne 0) { throw '初始化配置失败。' }
+if ($LASTEXITCODE -ne 0) { throw 'Failed to initialize config.json.' }
 & $python -m wechat_onebot --config (Join-Path $root 'config.json') run --mock --log-level info
 exit $LASTEXITCODE
