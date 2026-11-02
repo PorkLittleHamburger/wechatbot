@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
+import socket
 from dataclasses import replace
 from pathlib import Path
 
+import httpx
+from websockets.sync.client import connect
 from fastapi.testclient import TestClient
 
 from wechat_onebot.config import AppConfig, DriverConfig, OneBotConfig, StorageConfig, WebUiConfig
@@ -83,7 +86,10 @@ def test_webui_login_status_and_account_action(tmp_path: Path):
         assert action.json()["status"] == "ok"
         stopped = client.post("/api/accounts/wxid_robot/stop")
         assert stopped.status_code == 200
-        assert client.get("/api/status").json()["runtimes"] == []
+        offline = client.get("/api/status").json()["runtimes"][0]
+        assert offline["started"] is False
+        assert offline["online"] is False
+        assert offline["network"]["started"] is True
         started = client.post("/api/accounts/wxid_robot/start")
         assert started.status_code == 200
         assert started.json()["ok"] is True
@@ -100,13 +106,133 @@ def test_webui_login_status_and_account_action(tmp_path: Path):
         saved = client.put("/api/accounts/wxid_robot/network", json=network.json())
         assert saved.status_code == 200
         assert saved.json()["saved"] is True
-        assert saved.json()["applied"] is False
+        assert saved.json()["applied"] is True
         changed = {**network.json(), "heartbeatIntervalSeconds": 7}
         assert client.put("/api/accounts/wxid_robot/network", json=changed).json()["saved"] is True
         assert client.get("/api/accounts/wxid_robot/network").json()["heartbeatIntervalSeconds"] == 7
         invalid = client.put("/api/accounts/wxid_robot/network", json={"httpServers": [{"name": "bad", "port": 0}]})
         assert invalid.status_code == 200
         assert invalid.json()["saved"] is False
+
+
+def test_network_save_applies_without_restarting_account(tmp_path: Path):
+    config = make_config(tmp_path)
+    manager = RuntimeManager(config)
+    with TestClient(create_webui_app(config, manager)) as client:
+        login_and_set_password(client)
+        assert client.post("/api/accounts/wxid_robot/start").json()["ok"] is True
+        runtime = manager.get("wxid_robot")
+        driver = runtime.driver
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            http_port = sock.getsockname()[1]
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            ws_port = sock.getsockname()[1]
+        base = "/api/accounts/wxid_robot/network"
+        payload = client.get(base).json()
+        payload["httpServers"] = [{"name": "api", "host": "127.0.0.1", "port": http_port,
+                                   "path": "/", "accessToken": "onebot-token", "enabled": True}]
+        added = client.put(base, json=payload).json()
+        assert added["saved"] is True and added["applied"] is True
+        assert manager.get("wxid_robot") is runtime and runtime.driver is driver and driver.online
+        first_adapter = runtime.network.http_servers[0]
+        with httpx.Client(base_url=f"http://127.0.0.1:{http_port}", timeout=3) as http:
+            response = http.post("/", headers={"Authorization": "Bearer onebot-token"},
+                                 json={"action": "get_status"})
+            assert response.json()["status"] == "ok"
+
+        payload["wsServers"] = [{"name": "events", "host": "127.0.0.1", "port": ws_port,
+                                 "path": "/ws", "accessToken": "onebot-token", "enabled": True}]
+        assert client.put(base, json=payload).json()["applied"] is True
+        assert runtime.network.http_servers[0] is first_adapter
+        assert runtime.driver is driver and driver.online
+        with connect(f"ws://127.0.0.1:{ws_port}/ws?access_token=onebot-token") as ws:
+            assert json.loads(ws.recv(timeout=3))["meta_event_type"] == "lifecycle"
+            with socket.socket() as occupied:
+                occupied.bind(("127.0.0.1", 0))
+                occupied.listen()
+                bad_port = occupied.getsockname()[1]
+                invalid = {**payload, "httpServers": payload["httpServers"] + [
+                    {"name": "busy", "host": "127.0.0.1", "port": bad_port,
+                     "path": "/", "accessToken": "onebot-token", "enabled": True}]}
+                failed = client.put(base, json=invalid).json()
+                assert failed["saved"] is False and failed["applied"] is False
+            assert runtime.network.http_servers[0] is first_adapter
+            assert runtime.driver is driver and driver.online
+            assert client.get(base).json() == payload
+
+            payload["httpServers"][0]["accessToken"] = "rotated-token"
+            assert client.put(base, json=payload).json()["applied"] is True
+            assert runtime.network.http_servers[0] is not first_adapter
+            with httpx.Client(base_url=f"http://127.0.0.1:{http_port}", timeout=3) as http:
+                assert http.post("/", headers={"Authorization": "Bearer onebot-token"},
+                                 json={"action": "get_status"}).status_code == 401
+                assert http.post("/", headers={"Authorization": "Bearer rotated-token"},
+                                 json={"action": "get_status"}).json()["status"] == "ok"
+            assert runtime.driver is driver and driver.online
+
+            payload["httpServers"] = []
+            assert client.put(base, json=payload).json()["applied"] is True
+            assert runtime.network.http_servers == []
+            assert runtime.network.ws_servers[0].started is True
+            assert runtime.driver is driver and driver.online
+            ws.send(json.dumps({"action": "get_status", "echo": "after-update"}))
+            response = json.loads(ws.recv(timeout=3))
+            assert response["status"] == "ok" and response["echo"] == "after-update"
+
+
+def test_network_endpoint_runs_before_and_after_wechat_runtime(tmp_path: Path):
+    config = make_config(tmp_path)
+    manager = RuntimeManager(config)
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        ws_port = sock.getsockname()[1]
+    with TestClient(create_webui_app(config, manager)) as client:
+        login_and_set_password(client)
+        assert manager.snapshot() == []
+        payload = client.get("/api/accounts/wxid_robot/network").json()
+        payload["httpServers"] = [{"name": "offline-api", "host": "127.0.0.1", "port": port,
+                                   "path": "/", "accessToken": "onebot-token", "enabled": True}]
+        payload["wsServers"] = [{"name": "offline-ws", "host": "127.0.0.1", "port": ws_port,
+                                 "path": "/ws", "accessToken": "onebot-token", "enabled": True}]
+        saved = client.put("/api/accounts/wxid_robot/network", json=payload).json()
+        assert saved["saved"] is True and saved["applied"] is True
+        runtime = manager.get("wxid_robot")
+        assert runtime.started is False and runtime.network.started is True
+        assert runtime.service.self_id > 0
+        with (httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=3) as http,
+              connect(f"ws://127.0.0.1:{ws_port}/ws?access_token=onebot-token") as ws):
+            assert json.loads(ws.recv(timeout=3))["meta_event_type"] == "lifecycle"
+            def online():
+                response = http.post("/", headers={"Authorization": "Bearer onebot-token"},
+                                     json={"action": "get_status"})
+                assert response.json()["status"] == "ok"
+                return response.json()["data"]["online"]
+
+            assert online() is False
+            assert client.post("/api/accounts/wxid_robot/start").json()["ok"] is True
+            assert manager.get("wxid_robot") is runtime and online() is True
+            assert client.post("/api/accounts/wxid_robot/stop").json()["ok"] is True
+            assert manager.get("wxid_robot") is runtime and online() is False
+            assert runtime.network.http_servers[0].started is True
+            ws.send(json.dumps({"action": "get_status", "echo": "after-stop"}))
+            response = json.loads(ws.recv(timeout=3))
+            assert response["echo"] == "after-stop"
+            assert response["data"]["online"] is False
+
+    restored = RuntimeManager(config)
+    with TestClient(create_webui_app(config, restored)):
+        runtime = restored.get("wxid_robot")
+        assert runtime is not None and runtime.started is False
+        assert runtime.network.http_servers[0].started is True
+        with httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=3) as http:
+            response = http.post("/", headers={"Authorization": "Bearer onebot-token"},
+                                 json={"action": "get_status"})
+            assert response.json()["data"]["online"] is False
 
 
 def test_webui_password_persists_and_replaces_bootstrap_token(tmp_path: Path):
@@ -215,19 +341,31 @@ async def test_runtime_uses_current_account_pid_after_reboot(tmp_path: Path, mon
 
     class FakeRuntime:
         account = "wxid_robot"
+        started = False
+
+        class network:
+            @staticmethod
+            async def start():
+                pass
+
+        def set_pid(self, pid):
+            observed.append(pid)
 
         async def start(self):
-            pass
+            self.started = True
 
         async def stop(self):
+            self.started = False
+
+        async def close(self):
             pass
 
     fake = FakeRuntime()
     monkeypatch.setattr(runtime_module.AccountRuntime, "create", classmethod(
-        lambda _cls, _config, *, account, pid: (observed.append((account, pid)), fake)[1]))
+        lambda _cls, _config, *, account, network_config=None: fake))
     manager = RuntimeManager(config)
     assert await manager.start_account("wxid_robot", pid=123) is fake
-    assert observed == [("wxid_robot", 456)]
+    assert observed == [456]
     await manager.stop_all()
 
 

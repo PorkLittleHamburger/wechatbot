@@ -930,9 +930,9 @@ function renderAccount(root) {
         "<span class=\"badge\">driver " + esc((S.status && S.status.driver) || "—") + "</span>" +
         "<span class=\"badge\">self_id " + esc((rt && rt.self_id) || "—") + "</span>" +
         "<span class=\"badge\">PID " + esc((rt && rt.pid) || "—") + "</span></div></div>" +
-      "<div class=\"toolbar\"><button class=\"btn primary\" data-act=\"acct-start\"" + (!S.account ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-play\"/></svg>启动</button>" +
-        "<button class=\"btn\" data-act=\"acct-restart\"" + (!S.account ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-refresh\"/></svg>重启</button>" +
-        "<button class=\"btn danger\" data-act=\"acct-stop\"" + (!S.account ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-stop\"/></svg>停止</button></div>" +
+      "<div class=\"toolbar\"><button class=\"btn primary\" data-act=\"acct-start\"" + (!S.account ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-play\"/></svg>启动微信桥接</button>" +
+        "<button class=\"btn\" data-act=\"acct-restart\"" + (!S.account ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-refresh\"/></svg>重启微信桥接</button>" +
+        "<button class=\"btn danger\" data-act=\"acct-stop\"" + (!S.account ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-stop\"/></svg>停止微信桥接</button></div>" +
     "</div></div></div>" +
     "<div class=\"grid metrics\">" +
       "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">协议端版本</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-cpu\"/></svg></span></div><div class=\"m-value mono\" id=\"acVer\">" + esc((S.versionInfo && S.versionInfo.app_version) || "—") + "</div><div class=\"m-sub\">app version</div></div>" +
@@ -1054,13 +1054,13 @@ function renderConnect(root) {
   const general = S.configTab === "general" ?
     "<div class=\"grid cols-2\"><div class=\"card\"><div class=\"card-h\"><h2>通用设置</h2></div><div class=\"card-b\"><label class=\"field\"><span>心跳间隔（秒）</span>" +
     "<input class=\"input\" type=\"number\" min=\"0.5\" max=\"300\" step=\"0.5\" id=\"heartbeatInput\" value=\"" + esc(S.network.heartbeatIntervalSeconds ?? 5) + "\"></label>" +
-    "<p class=\"small muted\">修改后保存配置，并重启账号 Runtime 生效。</p></div></div>" +
+    "<p class=\"small muted\">保存后立即更新网络配置，无需重启账号。</p></div></div>" +
     "<div class=\"card\"><div class=\"card-h\"><h2>当前运行时</h2></div><div class=\"card-b\"><div class=\"kv\">" +
     "<div><div class=\"k\">账号</div><div class=\"v\">" + esc(S.account) + "</div></div><div><div class=\"k\">状态</div><div class=\"v\">" + (rt.online ? "在线" : rt.started ? "离线" : "未启动") + "</div></div>" +
     "<div><div class=\"k\">事件连接</div><div class=\"v\">" + esc((rt.network && rt.network.connections) || 0) + "</div></div><div><div class=\"k\">self_id</div><div class=\"v\">" + esc(rt.self_id || "—") + "</div></div>" +
     "</div></div></div></div>" : "";
   root.innerHTML =
-    "<div class=\"note\"><svg class=\"i\"><use href=\"#i-alert\"/></svg><div>网络配置按账号保存在 <span class=\"mono\">data/accounts/&lt;账号&gt;/onebot.json</span>。保存后需重启账号 Runtime 才会应用新的监听端口与连接。</div></div>" +
+    "<div class=\"note\"><svg class=\"i\"><use href=\"#i-alert\"/></svg><div>网络配置按账号保存在 <span class=\"mono\">data/accounts/&lt;账号&gt;/onebot.json</span>。保存后端点独立生效，微信账号未启动时也可监听和连接。</div></div>" +
     "<div class=\"surface-header\"><div><h2>账号配置</h2><p>按账号分别管理 HTTP 和 WebSocket 连接。</p></div><select id=\"configAccount\" class=\"input\" style=\"width:min(320px,100%)\">" + accountOptions + "</select></div>" +
     "<div class=\"page-tabs\">" + tabs + "</div>" +
     "<div class=\"card\"><div class=\"card-b\"><div class=\"toolbar\">" +
@@ -1068,7 +1068,6 @@ function renderConnect(root) {
       "<div style=\"flex:1\"></div>" +
       "<button class=\"btn ghost sm\" data-act=\"net-json\"><svg class=\"i\"><use href=\"#i-code\"/></svg>原始 JSON</button>" +
       "<button class=\"btn sm\" data-act=\"net-reload\"><svg class=\"i\"><use href=\"#i-refresh\"/></svg>重新读取</button>" +
-      "<button class=\"btn sm\" data-act=\"net-restart\"><svg class=\"i\"><use href=\"#i-play\"/></svg>重启账号</button>" +
       "<button class=\"btn primary sm\" data-act=\"net-save\"><svg class=\"i\"><use href=\"#i-check\"/></svg>保存配置</button>" +
     "</div></div></div>" +
     "<div id=\"netRawWrap\" class=\"card" + (S.networkJsonOpen ? "" : " hidden") + "\"><div class=\"card-h\"><h2>原始 JSON</h2><div class=\"spacer\"></div><button class=\"btn sm\" data-act=\"net-json-apply\">应用到表单</button></div>" +
@@ -1153,6 +1152,7 @@ async function saveNetwork() {
     if (result.saved !== true) { toast(result.message || "保存失败", "bad", 5200); return; }
     toast(result.message || "网络配置已保存", "ok", 4600);
     S.network = payload;
+    await refreshStatus();
     if (S.view === "connect") render();
   } catch (error) { toast("保存失败：" + error.message, "bad", 5200); }
 }
@@ -1675,12 +1675,12 @@ document.getElementById("view").addEventListener("click", async (event) => {
     if (act === "acct-start" || act === "acct-stop" || act === "acct-restart") {
       if (!S.account) return;
       const base = "/api/accounts/" + encodeURIComponent(S.account);
-      if (act === "acct-stop" && !confirm("停止账号 Runtime 会断开全部 OneBot 连接，继续？")) return;
-      if (act === "acct-restart" && !confirm("重启账号 Runtime 会短暂断开全部 OneBot 连接，继续？")) return;
+      if (act === "acct-stop" && !confirm("停止微信账号桥接？OneBot 端点将继续运行。")) return;
+      if (act === "acct-restart" && !confirm("重启微信账号桥接？OneBot 端点将继续运行。")) return;
       el.disabled = true;
-      if (act === "acct-stop") { await api(base + "/stop", { method: "POST" }); toast("账号 Runtime 已停止", "ok"); }
-      else if (act === "acct-start") { await startRuntime(base); toast("账号 Runtime 已启动", "ok"); }
-      else { await api(base + "/stop", { method: "POST" }); await new Promise((r) => setTimeout(r, 800)); await startRuntime(base); toast("账号 Runtime 已重启", "ok"); }
+      if (act === "acct-stop") { await api(base + "/stop", { method: "POST" }); toast("微信桥接已停止，OneBot 端点保持运行", "ok"); }
+      else if (act === "acct-start") { await startRuntime(base); toast("微信桥接已启动", "ok"); }
+      else { await api(base + "/stop", { method: "POST" }); await new Promise((r) => setTimeout(r, 800)); await startRuntime(base); toast("微信桥接已重启", "ok"); }
       await refreshStatus(); ensureRuntimeData();
       return;
     }
@@ -1720,13 +1720,6 @@ document.getElementById("view").addEventListener("click", async (event) => {
     }
     if (act === "net-save") { await saveNetwork(); return; }
     if (act === "net-reload") { S.network = null; S.networkJsonOpen = false; render(); return; }
-    if (act === "net-restart") {
-      if (!S.account) return;
-      if (!confirm("重启账号 Runtime 以应用网络配置？当前 OneBot 连接会短暂断开。")) return;
-      const base = "/api/accounts/" + encodeURIComponent(S.account);
-      await api(base + "/stop", { method: "POST" }); await new Promise((r) => setTimeout(r, 800));
-      await startRuntime(base); await refreshStatus(); toast("账号 Runtime 已重启", "ok"); return;
-    }
     if (act === "net-json") {
       S.network = collectNetwork();
       S.networkJsonOpen = !S.networkJsonOpen; render();

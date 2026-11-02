@@ -42,7 +42,7 @@ async def run(config_path: Path) -> int:
             "last_error": payload.get("lastError", ""),
         }
         print(json.dumps(result, ensure_ascii=False, indent=2))
-        return 0 if result["webui_status_ok"] and result["runtimes_at_start"] == 0 else 2
+        return 0 if result["webui_status_ok"] else 2
     finally:
         server.should_exit = True
         await asyncio.gather(task, return_exceptions=True)

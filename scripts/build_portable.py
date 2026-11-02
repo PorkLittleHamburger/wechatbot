@@ -65,7 +65,8 @@ def main() -> int:
         "1. Install Python 3.11+ and sign in to a supported Windows WeChat build.\n"
         "2. Double-click start.cmd; it prefers PowerShell 7 and installs dependencies on first launch.\n"
         "3. Open http://127.0.0.1:5099, enter the first-login token, and set a password.\n"
-        "4. Select an account, add OneBot endpoints, save, then click Start.\n"
+        "4. Select an account and save OneBot endpoints; they run even while WeChat is offline.\n"
+        "   Start the WeChat bridge separately from the account page when needed.\n"
         "5. Double-click enable-autostart.cmd to start at Windows logon.\n"
         "   Use disable-autostart.cmd to remove the scheduled task.\n"
         "The helper native bridge is non-commercial and requires the pinned WeChat build.\n",

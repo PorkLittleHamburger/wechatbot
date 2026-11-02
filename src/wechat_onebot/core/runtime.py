@@ -8,11 +8,13 @@ from ..config import AppConfig, account_directories
 from ..bridge import discover_logged_accounts
 from ..driver import create_driver
 from ..driver.base import Driver
+from ..driver.helper import HelperDriver
 from ..ids import IdMapper
 from ..media import MediaStore
 from ..onebot import MessageStore
 from ..onebot.instance import OneBotInstance
-from ..onebot.network import OneBotNetworkManager, load_or_create_account_network_config
+from ..onebot.network import (AccountNetworkConfig, OneBotNetworkManager,
+                              load_or_create_account_network_config, save_account_network_config)
 
 
 @dataclass
@@ -32,9 +34,10 @@ class AccountRuntime:
     closed: bool = False
 
     @classmethod
-    def create(cls, config: AppConfig, *, account: str | None = None, pid: int | None = None) -> "AccountRuntime":
+    def create(cls, config: AppConfig, *, account: str | None = None, pid: int | None = None,
+               network_config: AccountNetworkConfig | None = None) -> "AccountRuntime":
         selected_account = account or config.driver.wechat_account or "unbound"
-        selected_pid = config.driver.wechat_pid if pid is None else pid
+        selected_pid = (config.driver.wechat_pid if selected_account == config.driver.wechat_account else None) if pid is None else pid
         account_config = replace(
             config,
             driver=replace(config.driver, wechat_account=selected_account, wechat_pid=selected_pid),
@@ -44,13 +47,15 @@ class AccountRuntime:
         media_dir.mkdir(parents=True, exist_ok=True)
         mapper = IdMapper(account_dir / "ids.sqlite3")
         message_store = MessageStore(account_dir / "messages.sqlite3")
-        network_config = load_or_create_account_network_config(account_dir / "onebot.json",
-                                                               account_config, selected_account)
+        if network_config is None:
+            network_config = load_or_create_account_network_config(account_dir / "onebot.json",
+                                                                   account_config, selected_account)
         base_url = _network_public_base_url(network_config, account_config)
         media = MediaStore(media_dir, max_bytes=config.storage.max_media_bytes, public_base_url=base_url)
         driver = create_driver(account_config)
         service = OneBotInstance(account_config, driver, mapper, media,
                                 message_store=message_store, account=selected_account)
+        service.self_id = mapper.get_or_create("user", selected_account)
         network = OneBotNetworkManager(service, network_config)
         return cls(config=account_config, account=selected_account, pid=selected_pid,
                    account_dir=account_dir, media_dir=media_dir, mapper=mapper,
@@ -61,26 +66,46 @@ class AccountRuntime:
         if self.closed:
             raise RuntimeError("账号 runtime 已关闭")
         if not self.started:
+            await self.network.start()
             await self.service.start()
-            try:
-                await self.network.start()
-            except Exception:
-                await self.service.stop()
-                raise
             self.started = True
 
     async def stop(self) -> None:
         if self.closed:
             return
-        try:
-            if self.started:
-                await self.network.stop()
+        if self.started:
+            try:
                 await self.service.stop()
+            finally:
                 self.started = False
+
+    async def close(self) -> None:
+        if self.closed:
+            return
+        try:
+            try:
+                await self.stop()
+            finally:
+                await self.network.stop()
         finally:
             self.mapper.close()
             self.message_store.close()
             self.closed = True
+
+    def set_pid(self, pid: int | None) -> None:
+        if self.started:
+            raise RuntimeError("运行中的账号不能更改 PID")
+        self.pid = pid
+        self.config = replace(self.config, driver=replace(self.config.driver, wechat_pid=pid))
+        self.service.config = self.config
+        if isinstance(self.driver, HelperDriver):
+            self.driver.rebind(self.config)
+
+    async def reconfigure_network(self, config: AccountNetworkConfig) -> None:
+        if self.closed:
+            raise RuntimeError("账号 Runtime 已关闭")
+        await self.network.reconfigure(config)
+        self.media.public_base_url = _network_public_base_url(config, self.config)
 
     def snapshot(self) -> dict[str, object]:
         return {
@@ -118,6 +143,62 @@ class RuntimeManager:
             self.last_error = str(error)
             return None
 
+    async def start_saved_networks(self) -> None:
+        account = self.config.driver.wechat_account
+        if not account:
+            return
+        account_dir, _ = account_directories(self.config, account)
+        network_config = load_or_create_account_network_config(account_dir / "onebot.json", self.config, account)
+        if any(row.enabled for rows in (network_config.http_servers, network_config.http_clients,
+                                        network_config.ws_servers, network_config.ws_clients) for row in rows):
+            await self.ensure_network(account, network_config)
+
+    async def ensure_network(self, account: str, network_config: AccountNetworkConfig | None = None) -> AccountRuntime:
+        async with self._lock:
+            return await self._ensure_network_locked(account, network_config)
+
+    async def _ensure_network_locked(self, account: str, network_config: AccountNetworkConfig | None = None) -> AccountRuntime:
+        runtime = self._runtimes.get(account)
+        if runtime is not None:
+            return runtime
+        runtime = AccountRuntime.create(self.config, account=account, network_config=network_config)
+        try:
+            await runtime.network.start()
+        except Exception:
+            await runtime.close()
+            raise
+        self._runtimes[account] = runtime
+        return runtime
+
+    async def apply_network_config(self, account: str, network_config: AccountNetworkConfig) -> bool:
+        async with self._lock:
+            account_dir, _ = account_directories(self.config, account)
+            path = account_dir / "onebot.json"
+            runtime = self._runtimes.get(account)
+            if runtime is None:
+                enabled = any(row.enabled for rows in (network_config.http_servers, network_config.http_clients,
+                              network_config.ws_servers, network_config.ws_clients) for row in rows)
+                if not enabled:
+                    save_account_network_config(path, network_config)
+                    return False
+                runtime = AccountRuntime.create(self.config, account=account, network_config=network_config)
+                try:
+                    await runtime.network.start()
+                    save_account_network_config(path, network_config)
+                except Exception:
+                    await runtime.close()
+                    raise
+                self._runtimes[account] = runtime
+                return True
+            previous = runtime.network.config
+            await runtime.reconfigure_network(network_config)
+            try:
+                save_account_network_config(path, network_config)
+            except Exception:
+                await runtime.reconfigure_network(previous)
+                raise
+            return runtime.network.started
+
     async def dispatch(self, account: str, action: str, params: dict | None = None,
                        echo: object = None) -> dict:
         runtime = self.get(account)
@@ -134,28 +215,27 @@ class RuntimeManager:
                 raise RuntimeError("目标账号未登录或无法唯一识别，请在 WebUI 重新扫描")
             pid = matches[0].pid
         async with self._lock:
-            if account in self._runtimes:
-                raise RuntimeError(f"账号 runtime 已存在: {account}")
-            runtime = AccountRuntime.create(self.config, account=account, pid=pid)
-            self._runtimes[account] = runtime
-        try:
+            runtime = await self._ensure_network_locked(account)
+            if runtime.started:
+                raise RuntimeError(f"账号 runtime 已启动: {account}")
+            runtime.set_pid(pid)
             await runtime.start()
-        except Exception:
-            async with self._lock:
-                self._runtimes.pop(account, None)
-            await runtime.stop()
-            raise
         return runtime
 
     async def stop_account(self, account: str) -> None:
         async with self._lock:
-            runtime = self._runtimes.pop(account, None)
-        if runtime is not None:
-            await runtime.stop()
+            runtime = self._runtimes.get(account)
+            if runtime is not None:
+                await runtime.stop()
 
     async def stop_all(self) -> None:
-        accounts = list(self._runtimes)
-        await asyncio.gather(*(self.stop_account(account) for account in accounts), return_exceptions=False)
+        async with self._lock:
+            results = await asyncio.gather(*(runtime.close() for runtime in self._runtimes.values()),
+                                           return_exceptions=True)
+            self._runtimes.clear()
+            for result in results:
+                if isinstance(result, BaseException):
+                    raise result
 
     def get(self, account: str) -> AccountRuntime | None:
         return self._runtimes.get(account)

@@ -98,7 +98,7 @@ class HttpServerAdapter:
         self._server = uvicorn.Server(config)
         if hasattr(self._server, "install_signal_handlers"):
             self._server.install_signal_handlers = lambda: None
-        self._task = asyncio.create_task(self._server.serve(), name=f"http-server:{self.endpoint.name}")
+        self._task = asyncio.create_task(self._serve(), name=f"http-server:{self.endpoint.name}")
         for _ in range(100):
             if self._server.started:
                 self._started = True
@@ -110,6 +110,12 @@ class HttpServerAdapter:
         if self._task.done():
             await self._task
         raise RuntimeError(f"HTTP 服务启动失败: {self.endpoint.host}:{self.endpoint.port}")
+
+    async def _serve(self) -> None:
+        try:
+            await self._server.serve()
+        except SystemExit as error:
+            raise RuntimeError(f"HTTP 服务启动失败: {self.endpoint.host}:{self.endpoint.port}") from error
 
     async def stop(self) -> None:
         self._started = False

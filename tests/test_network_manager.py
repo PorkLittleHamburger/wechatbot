@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import socket
+from dataclasses import replace
 from pathlib import Path
 
 import httpx
@@ -20,8 +21,10 @@ from wechat_onebot.onebot.network import (
     AccountNetworkConfig,
     HttpClientEndpoint,
     HttpServerEndpoint,
+    HttpServerAdapter,
     OneBotNetworkManager,
     WsServerEndpoint,
+    WsClientEndpoint,
     load_or_create_account_network_config,
 )
 from wechat_onebot.service import OneBotService
@@ -109,6 +112,84 @@ async def test_network_manager_serves_http_and_forward_websocket(tmp_path: Path)
         await network.stop()
         await service.stop()
         mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_same_port_update_restores_old_server_on_failure(tmp_path: Path, monkeypatch):
+    config = make_config(tmp_path)
+    port = free_port()
+    driver = MockDriver()
+    mapper = IdMapper(tmp_path / "ids.sqlite3")
+    media = MediaStore(config.storage.media_dir, max_bytes=config.storage.max_media_bytes,
+                       public_base_url=f"http://127.0.0.1:{port}")
+    service = OneBotService(config, driver, mapper, media, account="wxid_robot")
+    endpoint = HttpServerEndpoint("api", "127.0.0.1", port, "/", "original-token")
+    network = OneBotNetworkManager(service, AccountNetworkConfig(30, (endpoint,), (), (), ()))
+    await service.start()
+    await network.start()
+    original_adapter = network.http_servers[0]
+    original_start = HttpServerAdapter.start
+
+    async def fail_new_adapter(self):
+        if self.endpoint.access_token == "broken-token":
+            raise RuntimeError("synthetic bind failure")
+        await original_start(self)
+
+    monkeypatch.setattr(HttpServerAdapter, "start", fail_new_adapter)
+    try:
+        changed = AccountNetworkConfig(30, (replace(endpoint, access_token="broken-token"),), (), (), ())
+        with pytest.raises(RuntimeError, match="synthetic bind failure"):
+            await network.reconfigure(changed)
+        assert network.http_servers[0] is original_adapter
+        assert original_adapter.started and driver.online
+        async with httpx.AsyncClient(base_url=f"http://127.0.0.1:{port}", timeout=3) as client:
+            response = await client.post("/", headers={"Authorization": "Bearer original-token"},
+                                         json={"action": "get_status"})
+            assert response.json()["status"] == "ok"
+    finally:
+        await network.stop()
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_reverse_websocket_client_stays_connected_when_driver_stops(tmp_path: Path):
+    received: asyncio.Queue[dict] = asyncio.Queue()
+
+    async def receiver(ws):
+        async for raw in ws:
+            await received.put(json.loads(raw))
+
+    port = free_port()
+    server = await websockets.serve(receiver, "127.0.0.1", port)
+    config = make_config(tmp_path)
+    driver = MockDriver()
+    mapper = IdMapper(tmp_path / "ids.sqlite3")
+    media = MediaStore(config.storage.media_dir, max_bytes=config.storage.max_media_bytes,
+                       public_base_url="http://127.0.0.1:6700")
+    service = OneBotService(config, driver, mapper, media, account="wxid_robot")
+    service.self_id = mapper.get_or_create("user", "wxid_robot")
+    endpoint = WsClientEndpoint("reverse", f"ws://127.0.0.1:{port}/ws", "", 1.0, True)
+    network = OneBotNetworkManager(service, AccountNetworkConfig(30, (), (), (), (endpoint,)))
+    try:
+        await network.start()
+        lifecycle = await asyncio.wait_for(received.get(), 3)
+        assert lifecycle["meta_event_type"] == "lifecycle"
+        assert lifecycle["self_id"] == service.self_id
+        assert driver.online is False
+        await service.start()
+        await network.emit({"post_type": "notice", "self_id": service.self_id, "notice_type": "started"})
+        assert (await asyncio.wait_for(received.get(), 3))["notice_type"] == "started"
+        await service.stop()
+        assert network.ws_clients[0].snapshot()["started"] is True
+        await network.emit({"post_type": "notice", "self_id": service.self_id, "notice_type": "stopped"})
+        assert (await asyncio.wait_for(received.get(), 3))["notice_type"] == "stopped"
+    finally:
+        await network.stop()
+        await service.stop()
+        mapper.close()
+        server.close()
+        await server.wait_closed()
 
 
 @pytest.mark.asyncio

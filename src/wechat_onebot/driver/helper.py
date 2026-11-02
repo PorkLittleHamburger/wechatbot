@@ -103,6 +103,13 @@ class HelperDriver(Driver):
         self._self_id = app_config.driver.wechat_account
         self._wechat_data_directory: Path | None = app_config.driver.wechat_data_directory
 
+    def rebind(self, app_config: AppConfig) -> None:
+        if self._online:
+            raise DriverError("运行中的微信驱动不能重新绑定 PID")
+        self.config = app_config
+        self._self_id = app_config.driver.wechat_account
+        self._wechat_data_directory = app_config.driver.wechat_data_directory
+
     @property
     def online(self) -> bool:
         return self._online

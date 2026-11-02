@@ -42,7 +42,7 @@ Windows 11 个人微信的 OneBot v11 协议端。设计目标：
 
 适用于 Windows 11 x64。先安装 Python 3.11 或更新版本并加入 PATH，登录受支持版本的电脑微信，然后解压便携包并双击根目录的 `start.cmd`。入口优先使用 PATH 中的 PowerShell 7 (`pwsh.exe`)，其次使用标准安装目录中的 PowerShell 7；未安装时兼容 Windows PowerShell 5.1。首次启动会自动创建虚拟环境、安装依赖和生成带随机 WebUI / OneBot Token 的 `config.json`。启动窗口会显示 WebUI 地址和首次登录 Token；使用 Token 验证后必须设置管理密码，以后用密码登录。密码摘要保存在本地 `data/webui-auth.json`，不会明文保存。首次安装需要联网获取 Python 依赖，并会出现管理员权限提示。
 
-启动后仅提供 WebUI 管理服务，不会自动启动已绑定微信账号，也不会自动创建 OneBot 服务端或客户端。进入 WebUI 的“进程与账号”，点击“扫描已登录账号”，选中目标账号后点击“设为机器人账号”。在“节点配置”中添加所需的 OneBot 端点并保存，再点击“启动”连接微信。保存绑定本身不会加载桥接。每次启动 Runtime 都会按账号重新识别当前 PID，以适应电脑重启后的 PID 变化。旧版本已经生成的账号级 `onebot.json` 保留原有端点，可在 WebUI 删除或禁用。
+全新安装只启动 WebUI 管理服务，没有预设 OneBot 服务端或客户端，也不会自动启动微信桥接。进入 WebUI 的“进程与账号”，点击“扫描已登录账号”，选中目标账号后点击“设为机器人账号”。在“节点配置”中添加所需的 OneBot 端点并保存，端点会立即运行；需要连接微信时再点击账号“启动”。下次启动管理服务时，已保存且启用的端点会独立恢复，微信桥接仍由用户手动启动。每次启动账号都会重新识别当前 PID，以适应电脑重启后的 PID 变化。旧版本已经生成的账号级 `onebot.json` 保留原有端点，可在 WebUI 删除或禁用。
 
 双击 `enable-autostart.cmd` 可创建当前 Windows 管理员用户登录时触发的高权限计划任务；双击 `disable-autostart.cmd` 可移除。计划任务使用安装时所选的 PowerShell，开机自启仅启动管理服务；账号需在 WebUI 手动启动。移动或删除解压目录前，请先移除任务；移动后需重新启用。查看任务状态可运行 `pwsh -File .\scripts\autostart.ps1 -Status`。
 
@@ -96,7 +96,7 @@ pwsh -ExecutionPolicy Bypass -File .\scripts\run_mock.ps1
 - WebUI 健康检查：`http://127.0.0.1:5099/healthz`
 - OneBot HTTP 健康检查：`http://127.0.0.1:6700/healthz`
 
-每个账号的网络配置独立保存在 `data/accounts/<账号>/onebot.json`，包含 `httpServers`、`httpClients`、`wsServers`、`wsClients`。旧版全局 `onebot` / `reverse_ws` 配置仅用于首次迁移。WebUI 还提供实时状态、事件日志、存储统计和 JSON 动作调试/测试发送。
+每个账号的网络配置独立保存在 `data/accounts/<账号>/onebot.json`，包含 `httpServers`、`httpClients`、`wsServers`、`wsClients`。在 WebUI 保存后端点立即生效，即使微信账号 Runtime 尚未启动也能监听或连接；未改动的端点保持连接。启动或停止微信桥接不会停止端点，账号离线状态会通过 OneBot 状态接口报告。管理服务关闭时才统一释放端点。WebUI 还提供实时状态、事件日志、存储统计和 JSON 动作调试/测试发送。
 
 ## 便携包
 

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from wechat_onebot.config import AppConfig, DriverConfig, OneBotConfig, StorageConfig
 from wechat_onebot.core.runtime import AccountRuntime
+from wechat_onebot.driver.helper import HelperDriver
 
 
 def make_config(tmp_path: Path) -> AppConfig:
@@ -38,4 +40,25 @@ async def test_account_runtime_uses_isolated_storage_and_is_idempotent(tmp_path:
     assert runtime.driver.online is True
     await runtime.stop()
     await runtime.stop()
+    assert runtime.driver.online is False
+    assert runtime.network.started is True
+    assert runtime.closed is False
+    await runtime.close()
+    await runtime.close()
     assert runtime.closed is True
+
+
+@pytest.mark.asyncio
+async def test_network_only_runtime_rebinds_current_wechat_pid(tmp_path: Path):
+    config = make_config(tmp_path)
+    config = replace(config, driver=replace(config.driver, type="helper", wechat_pid=123))
+    runtime = AccountRuntime.create(config, account="wxid_robot")
+    try:
+        assert isinstance(runtime.driver, HelperDriver)
+        runtime.set_pid(456)
+        assert runtime.pid == 456
+        assert runtime.driver.config.driver.wechat_pid == 456
+        assert runtime.service.config.driver.wechat_pid == 456
+        assert runtime.started is False and runtime.driver.online is False
+    finally:
+        await runtime.close()

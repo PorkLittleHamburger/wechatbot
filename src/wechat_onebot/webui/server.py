@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from dataclasses import replace
 
 from ..config import AppConfig, account_directories, update_account
-from ..onebot.network import AccountNetworkConfig, load_or_create_account_network_config, save_account_network_config
+from ..onebot.network import AccountNetworkConfig, load_or_create_account_network_config
 from ..core.runtime import RuntimeManager
 from ..bridge import discover_logged_accounts
 from .auth import PasswordStore
@@ -110,6 +110,10 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
         root_logger = logging.getLogger()
         root_logger.addHandler(runtime_logs)
         try:
+            try:
+                await manager.start_saved_networks()
+            except Exception as error:
+                manager.last_error = str(error)
             if start_runtime:
                 await manager.start_configured_account()
             yield
@@ -231,7 +235,7 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             row = rows.setdefault(account, {"account": account, "pid": None, "nickname": "",
                                              "configured": account == configured, "running": False,
                                              "online": False, "started": False})
-            row.update(pid=runtime["pid"], running=True,
+            row.update(pid=runtime["pid"], running=runtime["started"],
                        online=runtime["online"], started=runtime["started"])
         error = None
         if scan and config.driver.type == "helper":
@@ -284,6 +288,10 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
                                                 wechat_pid=pid, nickname=nickname))
         manager.config = config
         manager.last_error = ""
+        try:
+            await manager.start_saved_networks()
+        except Exception as error:
+            manager.last_error = str(error)
         return {"ok": True, "account": account, "pid": pid, "nickname": nickname}
 
     @app.get("/api/logs")
@@ -328,12 +336,11 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             return Response("网络配置必须是 JSON 对象", status_code=400)
         try:
             network_config = AccountNetworkConfig.from_dict(body)
-            account_dir, _ = account_directories(config, account)
-            save_account_network_config(account_dir / "onebot.json", network_config)
+            applied = await manager.apply_network_config(account, network_config)
         except Exception as error:
             return {"ok": False, "saved": False, "applied": False, "message": str(error)}
-        return {"ok": True, "saved": True, "applied": False,
-                "message": "网络配置已保存；重启账号 Runtime 后生效"}
+        return {"ok": True, "saved": True, "applied": applied,
+                "message": "网络配置已保存并实时生效" if applied else "网络配置已保存"}
 
     @app.get("/api/accounts/{account}/events")
     async def account_events(account: str, request: Request):
