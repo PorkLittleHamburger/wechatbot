@@ -21,6 +21,7 @@ from ..config import AppConfig, account_directories, update_account
 from ..onebot.network import AccountNetworkConfig, load_or_create_account_network_config, save_account_network_config
 from ..core.runtime import RuntimeManager
 from ..bridge import discover_logged_accounts
+from .auth import PasswordStore
 
 
 COOKIE_NAME = "wechat_onebot_webui"
@@ -59,46 +60,39 @@ class _SafeRuntimeLogs(logging.Handler):
 
 class SessionStore:
     def __init__(self):
-        self._sessions: dict[str, float] = {}
+        self._sessions: dict[str, tuple[float, str]] = {}
 
-    def create(self) -> str:
+    def create(self, kind: str = "full") -> str:
         token = secrets.token_urlsafe(32)
-        self._sessions[token] = time.time() + SESSION_SECONDS
+        self._sessions[token] = (time.time() + SESSION_SECONDS, kind)
         return token
 
-    def valid(self, token: str) -> bool:
-        expires = self._sessions.get(token)
-        if expires is None:
+    def valid(self, token: str, kind: str = "full") -> bool:
+        entry = self._sessions.get(token)
+        if entry is None:
             return False
+        expires, stored_kind = entry
         if expires < time.time():
             self._sessions.pop(token, None)
             return False
-        return True
+        return stored_kind == kind
 
     def revoke(self, token: str) -> None:
         self._sessions.pop(token, None)
 
+    def revoke_all(self) -> None:
+        self._sessions.clear()
 
-def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtime: bool = True) -> FastAPI:
+
+def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtime: bool = False) -> FastAPI:
     sessions = SessionStore()
+    passwords = PasswordStore(config.storage.data_dir / "webui-auth.json")
     runtime_logs = _SafeRuntimeLogs()
     panel_path = Path(__file__).resolve().parents[3] / "webui" / "index.html"
 
-    def header_token(request: Request) -> str:
-        token = request.headers.get("x-webui-token", "")
-        if token:
-            return token
-        authorization = request.headers.get("authorization", "")
-        scheme, _, value = authorization.partition(" ")
-        return value.strip() if scheme.lower() == "bearer" else ""
-
     def authorized(request: Request) -> bool:
         cookie = request.cookies.get(COOKIE_NAME, "")
-        if cookie and sessions.valid(cookie):
-            return True
-        presented = header_token(request)
-        expected = config.webui.access_token
-        return bool(expected) and hmac.compare_digest(presented, expected)
+        return bool(cookie) and sessions.valid(cookie)
 
     def status_payload() -> dict[str, Any]:
         return {
@@ -135,19 +129,78 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             return Response("webui/index.html not found", status_code=500, media_type="text/plain")
         return FileResponse(panel_path, media_type="text/html")
 
+    @app.get("/api/auth-state")
+    async def auth_state():
+        return {"setupRequired": not passwords.configured}
+
     @app.post("/api/login")
     async def login(request: Request, response: Response):
         try:
             body = await request.json()
         except Exception:
             return Response("请求体必须是 JSON", status_code=400)
-        token = body.get("token") if isinstance(body, dict) else None
-        if not isinstance(token, str) or not config.webui.access_token or not hmac.compare_digest(token, config.webui.access_token):
-            return Response("WebUI token 无效", status_code=401)
-        session = sessions.create()
+        if not isinstance(body, dict):
+            return Response("请求体必须是 JSON 对象", status_code=400)
+        if passwords.configured:
+            password = body.get("password")
+            if not isinstance(password, str) or not passwords.verify(password):
+                return Response("密码错误", status_code=401)
+            kind = "full"
+        else:
+            token = body.get("token")
+            if (not isinstance(token, str) or not config.webui.access_token
+                    or not hmac.compare_digest(token, config.webui.access_token)):
+                return Response("首次登录 Token 无效", status_code=401)
+            kind = "setup"
+        session = sessions.create(kind)
         response.set_cookie(COOKIE_NAME, session, max_age=SESSION_SECONDS, httponly=True,
                             samesite="strict", secure=False)
-        return {"ok": True, "expiresIn": SESSION_SECONDS}
+        return {"ok": True, "expiresIn": SESSION_SECONDS, "setupRequired": kind == "setup"}
+
+    @app.post("/api/setup-password")
+    async def setup_password(request: Request, response: Response):
+        cookie = request.cookies.get(COOKIE_NAME, "")
+        if passwords.configured or not cookie or not sessions.valid(cookie, "setup"):
+            return Response("首次登录验证已失效", status_code=401)
+        try:
+            body = await request.json()
+        except Exception:
+            return Response("请求体必须是 JSON", status_code=400)
+        password = body.get("password") if isinstance(body, dict) else None
+        if not isinstance(password, str):
+            return Response("请输入密码", status_code=400)
+        try:
+            passwords.set(password)
+        except ValueError as error:
+            return Response(str(error), status_code=400)
+        sessions.revoke_all()
+        response.set_cookie(COOKIE_NAME, sessions.create(), max_age=SESSION_SECONDS,
+                            httponly=True, samesite="strict", secure=False)
+        return {"ok": True}
+
+    @app.post("/api/change-password")
+    async def change_password(request: Request, response: Response):
+        if not authorized(request):
+            return Response("未登录", status_code=401)
+        try:
+            body = await request.json()
+        except Exception:
+            return Response("请求体必须是 JSON", status_code=400)
+        if not isinstance(body, dict) or not isinstance(body.get("currentPassword"), str):
+            return Response("请输入当前密码", status_code=400)
+        if not passwords.verify(body["currentPassword"]):
+            return Response("当前密码错误", status_code=401)
+        new_password = body.get("newPassword")
+        if not isinstance(new_password, str):
+            return Response("请输入新密码", status_code=400)
+        try:
+            passwords.set(new_password)
+        except ValueError as error:
+            return Response(str(error), status_code=400)
+        sessions.revoke_all()
+        response.set_cookie(COOKIE_NAME, sessions.create(), max_age=SESSION_SECONDS,
+                            httponly=True, samesite="strict", secure=False)
+        return {"ok": True}
 
     @app.post("/api/logout")
     async def logout(request: Request, response: Response):

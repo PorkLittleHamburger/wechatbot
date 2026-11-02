@@ -40,11 +40,11 @@ Windows 11 个人微信的 OneBot v11 协议端。设计目标：
 
 ## 便携包一键启动
 
-适用于 Windows 11 x64。先安装 Python 3.11 或更新版本并加入 PATH，登录受支持版本的电脑微信，然后解压便携包并双击根目录的 `start.cmd`。首次启动会自动创建虚拟环境、安装依赖和生成带随机 WebUI / OneBot Token 的 `config.json`。启动窗口会显示 WebUI 地址和登录 Token；请妥善保管。首次安装需要联网获取 Python 依赖，并会出现管理员权限提示。
+适用于 Windows 11 x64。先安装 Python 3.11 或更新版本并加入 PATH，登录受支持版本的电脑微信，然后解压便携包并双击根目录的 `start.cmd`。入口优先使用 PATH 中的 PowerShell 7 (`pwsh.exe`)，其次使用标准安装目录中的 PowerShell 7；未安装时兼容 Windows PowerShell 5.1。首次启动会自动创建虚拟环境、安装依赖和生成带随机 WebUI / OneBot Token 的 `config.json`。启动窗口会显示 WebUI 地址和首次登录 Token；使用 Token 验证后必须设置管理密码，以后用密码登录。密码摘要保存在本地 `data/webui-auth.json`，不会明文保存。首次安装需要联网获取 Python 依赖，并会出现管理员权限提示。
 
-进入 WebUI 的“进程与账号”，点击“扫描已登录账号”，选中目标账号后点击“设为机器人账号”。保存绑定本身不会加载桥接；需要连接时再点击“启动”。每次启动 Runtime 都会按账号重新识别当前 PID，以适应电脑重启后的 PID 变化。
+启动后仅提供 WebUI 管理服务，不会自动启动已绑定微信账号，也不会自动创建 OneBot 服务端或客户端。进入 WebUI 的“进程与账号”，点击“扫描已登录账号”，选中目标账号后点击“设为机器人账号”。在“节点配置”中添加所需的 OneBot 端点并保存，再点击“启动”连接微信。保存绑定本身不会加载桥接。每次启动 Runtime 都会按账号重新识别当前 PID，以适应电脑重启后的 PID 变化。旧版本已经生成的账号级 `onebot.json` 保留原有端点，可在 WebUI 删除或禁用。
 
-双击 `enable-autostart.cmd` 可创建当前 Windows 管理员用户登录时触发的高权限计划任务；双击 `disable-autostart.cmd` 可移除。开机自启会启动管理服务，若微信尚未登录，可稍后在 WebUI 扫描并启动账号。移动或删除解压目录前，请先移除任务；移动后需重新启用。查看任务状态可运行 `powershell -File .\scripts\autostart.ps1 -Status`。
+双击 `enable-autostart.cmd` 可创建当前 Windows 管理员用户登录时触发的高权限计划任务；双击 `disable-autostart.cmd` 可移除。计划任务使用安装时所选的 PowerShell，开机自启仅启动管理服务；账号需在 WebUI 手动启动。移动或删除解压目录前，请先移除任务；移动后需重新启用。查看任务状态可运行 `pwsh -File .\scripts\autostart.ps1 -Status`。
 
 ## 从源码安装
 
@@ -58,7 +58,7 @@ python -c "from wechat_onebot.config import ensure_config; ensure_config('config
 修改 `config.json` 中至少以下配置：
 
 - `onebot.access_token`：OneBot 客户端凭据
-- `webui.access_token`：管理页独立凭据，不发送给 OneBot 客户端
+- `webui.access_token`：管理页首次登录凭据，设置管理密码后不可再用于登录
 - `driver.type`：正式运行使用 `helper`，协议开发使用 `mock`
 - `driver.wechat_data_directory`：可选。保持 `null` 时根据微信进程安装路径和当前账号自动发现数据目录；自定义安装位置时可显式填写当前账号目录
 
@@ -79,13 +79,13 @@ python -c "from wechat_onebot.config import ensure_config; ensure_config('config
 正式 helper 模式需要管理员权限，并会加载原生桥接：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\run_real.ps1
+pwsh -ExecutionPolicy Bypass -File .\scripts\run_real.ps1
 ```
 
 只验证 OneBot 协议、不连接微信：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\run_mock.ps1
+pwsh -ExecutionPolicy Bypass -File .\scripts\run_mock.ps1
 ```
 
 默认监听：
@@ -101,7 +101,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_mock.ps1
 ## 便携包
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
+pwsh -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```
 
 脚本会运行打包器，在 `dist/` 下生成带固定 helper 提交、原生 DLL SHA-256 清单、一键启动和开机自启脚本的便携目录与 zip。便携包不包含任何安装者的 `config.json`、消息或登录数据。
@@ -136,7 +136,9 @@ docs/                         架构、SnowLuma 对齐、预检和兼容性说�
 .\.venv\Scripts\python.exe -m wechat_onebot --config .\config.json run --mock
 ```
 
-浏览器访问 `http://127.0.0.1:5099/`，使用 `webui.access_token` 登录。管理页采用浅色蓝调界面，可切换深色主题并展开侧栏。六个主视图为总览、进程与账号、节点配置、日志、调试、系统设置；设置中包含存储管理。进程页提供只读扫描与账号绑定；保存绑定后可单独启动 Runtime。日志页显示受控诊断摘要及 OneBot 事件；调试页包含动作测试、消息编排、实时活动和接口目录，真实发送需要显式勾选确认。管理页通过独立的 HttpOnly 会话 Cookie 访问 Runtime API；OneBot access token 不会进入浏览器。
+浏览器访问 `http://127.0.0.1:5099/`。首次使用 `webui.access_token` 验证并设置管理密码，之后用管理密码登录；“系统设置 → 账号安全”可修改密码。管理页采用浅色蓝调界面，可切换深色主题并展开侧栏。六个主视图为总览、进程与账号、节点配置、日志、调试、系统设置；设置中包含存储管理。进程页提供只读扫描与账号绑定；保存绑定后可单独启动 Runtime。日志页显示受控诊断摘要及 OneBot 事件；调试页包含动作测试、消息编排、实时活动和接口目录，真实发送需要显式勾选确认。管理页通过独立的 HttpOnly 会话 Cookie 访问 Runtime API；OneBot access token 不会进入浏览器。
+
+忘记管理密码时，关闭服务后删除本地 `data/webui-auth.json`，再使用 `config.json` 中的 `webui.access_token` 完成首次验证并设置新密码。自定义 `storage.data_dir` 时，密码文件位于该目录下。
 
 ## 原生桥接预检
 

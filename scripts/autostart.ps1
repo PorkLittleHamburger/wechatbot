@@ -27,7 +27,7 @@ if ($Remove) {
     exit 0
 }
 $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-$powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+$powershell = (Get-Process -Id $PID).Path
 $runner = Join-Path $root 'scripts\run_real.ps1'
 $arguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $runner + '" -Quiet'
 $action = New-ScheduledTaskAction -Execute $powershell -Argument $arguments -WorkingDirectory $root

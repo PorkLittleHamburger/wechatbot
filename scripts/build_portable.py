@@ -63,9 +63,9 @@ def main() -> int:
     (target / "START_HERE.txt").write_text(
         "WeChat OneBot portable build\n"
         "1. Install Python 3.11+ and sign in to a supported Windows WeChat build.\n"
-        "2. Double-click start.cmd; first launch installs dependencies and creates random credentials.\n"
-        "3. Open http://127.0.0.1:5099 and sign in with the printed WebUI token.\n"
-        "4. Scan logged-in accounts in the WebUI, select one, then click Start.\n"
+        "2. Double-click start.cmd; it prefers PowerShell 7 and installs dependencies on first launch.\n"
+        "3. Open http://127.0.0.1:5099, enter the first-login token, and set a password.\n"
+        "4. Select an account, add OneBot endpoints, save, then click Start.\n"
         "5. Double-click enable-autostart.cmd to start at Windows logon.\n"
         "   Use disable-autostart.cmd to remove the scheduled task.\n"
         "The helper native bridge is non-commercial and requires the pinned WeChat build.\n",

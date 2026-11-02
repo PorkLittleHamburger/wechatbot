@@ -37,6 +37,16 @@ def make_config(tmp_path: Path) -> AppConfig:
     return config
 
 
+def login_and_set_password(client: TestClient) -> None:
+    assert client.get("/api/auth-state").json() == {"setupRequired": True}
+    login = client.post("/api/login", json={"token": "webui-token"})
+    assert login.status_code == 200
+    assert login.json()["setupRequired"] is True
+    assert client.get("/api/status").status_code == 401
+    assert client.post("/api/setup-password", json={"password": "correct horse battery staple"}).status_code == 200
+    assert client.get("/api/auth-state").json() == {"setupRequired": False}
+
+
 def test_webui_login_status_and_account_action(tmp_path: Path):
     config = make_config(tmp_path)
     manager = RuntimeManager(config)
@@ -45,11 +55,17 @@ def test_webui_login_status_and_account_action(tmp_path: Path):
         assert client.get("/").status_code == 200
         assert client.get("/api/status").status_code == 401
         assert client.post("/api/login", json={"token": "wrong"}).status_code == 401
-        assert client.post("/api/login", json={"token": "webui-token"}).status_code == 200
+        assert manager.snapshot() == []
+        login_and_set_password(client)
         status = client.get("/api/status")
         assert status.status_code == 200
         payload = status.json()
         assert payload["ok"] is True
+        assert payload["runtimes"] == []
+        started = client.post("/api/accounts/wxid_robot/start")
+        assert started.status_code == 200
+        assert started.json()["ok"] is True
+        payload = client.get("/api/status").json()
         assert payload["runtimes"][0]["account"] == "wxid_robot"
         assert payload["runtimes"][0]["network"]["httpServers"] == []
         process = client.get("/api/processes").json()["processes"][0]
@@ -93,6 +109,30 @@ def test_webui_login_status_and_account_action(tmp_path: Path):
         assert invalid.json()["saved"] is False
 
 
+def test_webui_password_persists_and_replaces_bootstrap_token(tmp_path: Path):
+    config = make_config(tmp_path)
+    with TestClient(create_webui_app(config, RuntimeManager(config))) as client:
+        assert client.post("/api/setup-password", json={"password": "password123"}).status_code == 401
+        assert client.post("/api/login", json={"token": "webui-token"}).status_code == 200
+        assert client.post("/api/setup-password", json={"password": "short"}).status_code == 400
+        assert client.post("/api/setup-password", json={"password": "correct horse battery staple"}).status_code == 200
+        assert client.post("/api/login", json={"token": "webui-token"}).status_code == 401
+        assert client.post("/api/logout").status_code == 200
+        assert client.post("/api/login", json={"password": "wrong"}).status_code == 401
+        assert client.post("/api/login", json={"password": "correct horse battery staple"}).status_code == 200
+        assert client.post("/api/change-password", json={"currentPassword": "wrong", "newPassword": "new password"}).status_code == 401
+        assert client.post("/api/change-password", json={"currentPassword": "correct horse battery staple", "newPassword": "new password"}).status_code == 200
+        assert client.get("/api/status").status_code == 200
+    saved = (config.storage.data_dir / "webui-auth.json").read_text(encoding="utf-8")
+    assert "new password" not in saved
+    with TestClient(create_webui_app(config, RuntimeManager(config))) as client:
+        assert client.get("/api/auth-state").json() == {"setupRequired": False}
+        assert client.post("/api/login", json={"token": "webui-token"}).status_code == 401
+        assert client.post("/api/login", json={"password": "correct horse battery staple"}).status_code == 401
+        assert client.post("/api/login", json={"password": "new password"}).status_code == 200
+        assert client.get("/api/status").status_code == 200
+
+
 def test_read_only_processes_auth_snapshot_and_explicit_scan(tmp_path: Path, monkeypatch):
     config = make_config(tmp_path)
     config = replace(config, driver=replace(config.driver, type="helper", wechat_pid=123))
@@ -107,7 +147,7 @@ def test_read_only_processes_auth_snapshot_and_explicit_scan(tmp_path: Path, mon
     monkeypatch.setattr(webui_server, "discover_logged_accounts", discover)
     with TestClient(create_webui_app(config, manager, start_runtime=False)) as client:
         assert client.get("/api/processes?scan=true").status_code == 401
-        assert client.post("/api/login", json={"token": "webui-token"}).status_code == 200
+        login_and_set_password(client)
         response = client.get("/api/processes")
         assert response.status_code == 200
         assert response.json() == {"processes": [{"account": "wxid_robot", "pid": 123,
@@ -134,7 +174,7 @@ def test_process_scan_error_retains_configured_account(tmp_path: Path, monkeypat
 
     monkeypatch.setattr(webui_server, "discover_logged_accounts", fail_scan)
     with TestClient(create_webui_app(config, manager, start_runtime=False)) as client:
-        client.post("/api/login", json={"token": "webui-token"})
+        login_and_set_password(client)
         response = client.get("/api/processes?scan=true")
         assert response.status_code == 200
         assert response.json()["error"] == "只读账号扫描失败"
@@ -152,7 +192,7 @@ def test_webui_selects_fresh_logged_in_account_without_starting_runtime(tmp_path
         WeChatLogin(pid=456, wxid="wxid_selected", nickname="Selected")])
     with TestClient(create_webui_app(config, manager, start_runtime=False)) as client:
         assert client.post("/api/account-selection", json={"account": "wxid_selected"}).status_code == 401
-        client.post("/api/login", json={"token": "webui-token"})
+        login_and_set_password(client)
         assert client.post("/api/account-selection", json={"account": "wxid_missing"}).status_code == 409
         selected = client.post("/api/account-selection", json={"account": "wxid_selected"})
         assert selected.status_code == 200
@@ -200,7 +240,7 @@ def test_logs_auth_bounded_and_redacted(tmp_path: Path):
     try:
         with TestClient(create_webui_app(config, manager, start_runtime=False)) as client:
             assert client.get("/api/logs").status_code == 401
-            client.post("/api/login", json={"token": "webui-token"})
+            login_and_set_password(client)
             for index in range(webui_server.LOG_LIMIT + 5):
                 logger.warning("HTTP 上报失败 %s: %s", "secret-token", f"raw message {index}")
             logs = client.get("/api/logs").json()["logs"]

@@ -29,13 +29,22 @@ $configPath = Join-Path $root 'config.json'
 & $python -c 'import sys; from wechat_onebot.config import ensure_config; ensure_config(sys.argv[1])' $configPath
 if ($LASTEXITCODE -ne 0) { throw 'Failed to initialize config.json.' }
 $settings = Get-Content -LiteralPath $configPath -Raw -Encoding utf8 | ConvertFrom-Json
-if ($settings.webui.access_token -eq 'change-this-webui-token' -or $settings.onebot.access_token -eq 'change-this-token') {
-    throw 'config.json still has example tokens. Set separate WebUI and OneBot tokens.'
+$dataDir = $settings.storage.data_dir
+if (-not [IO.Path]::IsPathRooted($dataDir)) { $dataDir = Join-Path $root $dataDir }
+$needsSetup = -not (Test-Path -LiteralPath (Join-Path $dataDir 'webui-auth.json'))
+if ($needsSetup -and $settings.webui.access_token -eq 'change-this-webui-token') {
+    throw 'Set a unique first-login WebUI token in config.json.'
+}
+if ($settings.onebot.access_token -eq 'change-this-token') {
+    throw 'Set a unique OneBot token in config.json.'
 }
 if (-not $Quiet) {
     Write-Host ('WebUI: http://' + $settings.webui.host + ':' + $settings.webui.port + '/')
-    Write-Host ('WebUI Access Token: ' + $settings.webui.access_token)
-    Write-Host 'First use: open Processes in WebUI, scan logged-in accounts, and select one.'
+    if ($needsSetup) {
+        Write-Host ('First-login WebUI Token: ' + $settings.webui.access_token)
+        Write-Host 'Open WebUI, sign in with this token, and set a management password.'
+    }
+    Write-Host 'Select an account and configure OneBot endpoints in WebUI before starting the account.'
 }
 & $python -m wechat_onebot --config $configPath run
 exit $LASTEXITCODE

@@ -43,17 +43,33 @@ def make_config(tmp_path: Path) -> AppConfig:
     )
 
 
-def test_account_network_config_migration(tmp_path: Path):
+def test_new_account_network_has_no_default_endpoints(tmp_path: Path):
     config = make_config(tmp_path)
     path = tmp_path / "data" / "accounts" / "wxid_robot" / "onebot.json"
     network = load_or_create_account_network_config(path, config, "wxid_robot")
     assert path.is_file()
-    assert network.http_servers[0].port == 6700
-    assert network.ws_servers[0].port == 6701
-    assert network.ws_clients[0].url == "ws://127.0.0.1:7000/ws"
+    assert network.http_servers == ()
+    assert network.http_clients == ()
+    assert network.ws_servers == ()
+    assert network.ws_clients == ()
     raw = json.loads(path.read_text(encoding="utf-8"))
-    assert raw["httpServers"][0]["accessToken"] == "legacy-token"
-    assert raw["wsClients"][0]["reconnectSeconds"] == 2.0
+    assert all(raw[kind] == [] for kind in ("httpServers", "httpClients", "wsServers", "wsClients"))
+
+
+def test_saved_account_network_is_preserved(tmp_path: Path):
+    config = make_config(tmp_path)
+    path = tmp_path / "data" / "accounts" / "wxid_robot" / "onebot.json"
+    path.parent.mkdir(parents=True)
+    existing = {
+        "heartbeatIntervalSeconds": 5,
+        "httpServers": [{"name": "saved", "host": "127.0.0.1", "port": 6700,
+                         "path": "/", "accessToken": "legacy-token", "enabled": True}],
+        "httpClients": [], "wsServers": [], "wsClients": [],
+    }
+    path.write_text(json.dumps(existing), encoding="utf-8")
+    network = load_or_create_account_network_config(path, config, "wxid_robot")
+    assert network.http_servers[0].name == "saved"
+    assert json.loads(path.read_text(encoding="utf-8")) == existing
 
 
 @pytest.mark.asyncio

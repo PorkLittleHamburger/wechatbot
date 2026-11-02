@@ -33,21 +33,16 @@ async def run(config_path: Path) -> int:
         if not server.started:
             raise RuntimeError("WebUI 服务未能启动")
         async with httpx.AsyncClient(base_url=f"http://{config.webui.host}:{config.webui.port}", timeout=5) as client:
-            login = await client.post("/api/login", json={"token": config.webui.access_token})
-            login.raise_for_status()
-            status = await client.get("/api/status")
-            status.raise_for_status()
-            payload = status.json()
-        runtime = payload["runtimes"][0] if payload.get("runtimes") else None
+            response = await client.get("/healthz")
+            response.raise_for_status()
+            payload = response.json()
         result = {
             "webui_status_ok": payload.get("ok") is True,
-            "runtime_present": runtime is not None,
-            "runtime_online": bool(runtime and runtime.get("online")),
-            "network_started": bool(runtime and runtime.get("network", {}).get("started")),
+            "runtimes_at_start": payload.get("runtimes"),
             "last_error": payload.get("lastError", ""),
         }
         print(json.dumps(result, ensure_ascii=False, indent=2))
-        return 0 if all(value for key, value in result.items() if key != "last_error") and not result["last_error"] else 2
+        return 0 if result["webui_status_ok"] and result["runtimes_at_start"] == 0 else 2
     finally:
         server.should_exit = True
         await asyncio.gather(task, return_exceptions=True)

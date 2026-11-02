@@ -405,13 +405,27 @@ pre.code .b{color:var(--warn)}
     <h1>WeChat OneBot</h1>
     <p class="lg-sub">Windows 个人微信协议端控制台</p>
     <form id="loginForm" autocomplete="off">
-      <label class="field"><span>WebUI Access Token</span>
-        <input id="token" class="input" type="password" placeholder="config.json 中的 webui.access_token" spellcheck="false">
+      <label class="field"><span id="credentialLabel">首次登录 Token</span>
+        <input id="credential" class="input" type="password" placeholder="启动窗口中的 WebUI Token" spellcheck="false">
       </label>
       <button class="btn primary block" id="btnLogin" type="submit">登录控制台</button>
       <p id="loginErr" class="form-error"></p>
     </form>
-    <div class="login-foot"><svg class="i"><use href="#i-lock"/></svg><span>管理页使用独立会话 Cookie；OneBot access token 不会暴露给浏览器，也不会发送给任何 OneBot 客户端。</span></div>
+    <div class="login-foot"><svg class="i"><use href="#i-lock"/></svg><span id="loginHint">首次验证后请设置管理密码。OneBot 凭据与管理页分离。</span></div>
+  </div>
+</div>
+<div id="setup" class="login hidden">
+  <div class="login-card">
+    <div class="brand-lg"><svg class="i"><use href="#i-lock"/></svg></div>
+    <div class="lg-badge">FIRST-TIME SETUP</div>
+    <h1>设置管理密码</h1>
+    <p class="lg-sub">以后使用此密码登录控制台，至少 8 个字符。</p>
+    <form id="setupForm" autocomplete="off">
+      <label class="field"><span>新密码</span><input id="newPassword" class="input" type="password" autocomplete="new-password"></label>
+      <label class="field"><span>确认密码</span><input id="confirmPassword" class="input" type="password" autocomplete="new-password"></label>
+      <button class="btn primary block" id="btnSetup" type="submit">保存密码并进入控制台</button>
+      <p id="setupErr" class="form-error"></p>
+    </form>
   </div>
 </div>
 
@@ -470,6 +484,7 @@ const VIEWS = {
 
 const S = {
   view: "overview",
+  setupRequired: true,
   status: null, runtime: null, account: null, selectedAccount: null,
   loginInfo: null, versionInfo: null,
   caps: null, catalog: null, catalogError: "", catalogLoading: false,
@@ -542,14 +557,30 @@ async function callAction(action, params = {}) {
 }
 
 /* ---------- auth ---------- */
-function showLogin() {
+async function showLogin() {
   if (S.es) { S.es.close(); S.es = null; }
   $("#app").classList.add("hidden");
+  $("#setup").classList.add("hidden");
   $("#login").classList.remove("hidden");
-  $("#token").focus();
+  try {
+    S.setupRequired = (await api("/api/auth-state")).setupRequired;
+    $("#credentialLabel").textContent = S.setupRequired ? "首次登录 Token" : "管理密码";
+    $("#credential").placeholder = S.setupRequired ? "启动窗口中的 WebUI Token" : "请输入管理密码";
+    $("#loginHint").textContent = S.setupRequired
+      ? "首次验证后请设置管理密码。OneBot 凭据与管理页分离。"
+      : "使用首次设置的密码登录。OneBot 凭据与管理页分离。";
+  } catch (error) { $("#loginErr").textContent = "无法读取登录状态：" + error.message; }
+  $("#credential").focus();
+}
+function showSetup() {
+  $("#login").classList.add("hidden");
+  $("#app").classList.add("hidden");
+  $("#setup").classList.remove("hidden");
+  $("#newPassword").focus();
 }
 function enterApp() {
   $("#login").classList.add("hidden");
+  $("#setup").classList.add("hidden");
   $("#app").classList.remove("hidden");
   setView(S.view || "overview");
   connectStream();
@@ -557,19 +588,36 @@ function enterApp() {
 
 $("#loginForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const token = $("#token").value.trim();
+  const credential = $("#credential").value;
   $("#loginErr").textContent = "";
-  if (!token) { $("#loginErr").textContent = "请输入 WebUI Access Token"; return; }
+  if (!credential) { $("#loginErr").textContent = S.setupRequired ? "请输入首次登录 Token" : "请输入管理密码"; return; }
   $("#btnLogin").disabled = true;
   try {
-    await api("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
-    $("#token").value = "";
-    await boot();
+    const payload = S.setupRequired ? { token: credential.trim() } : { password: credential };
+    const result = await api("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    $("#credential").value = "";
+    if (result.setupRequired) showSetup(); else await boot();
   } catch (error) {
     $("#loginErr").textContent = error.message || "登录失败";
   } finally {
     $("#btnLogin").disabled = false;
   }
+});
+
+$("#setupForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const password = $("#newPassword").value;
+  $("#setupErr").textContent = "";
+  if (password.length < 8) { $("#setupErr").textContent = "密码至少需要 8 个字符"; return; }
+  if (password !== $("#confirmPassword").value) { $("#setupErr").textContent = "两次输入的密码不一致"; return; }
+  $("#btnSetup").disabled = true;
+  try {
+    await api("/api/setup-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
+    $("#newPassword").value = ""; $("#confirmPassword").value = "";
+    S.setupRequired = false;
+    await boot();
+  } catch (error) { $("#setupErr").textContent = error.message || "保存密码失败"; }
+  finally { $("#btnSetup").disabled = false; }
 });
 
 $("#btnLogout").addEventListener("click", async () => {
@@ -1529,9 +1577,12 @@ function renderSettings(root) {
   }
   if (tab === "account") {
     panel.innerHTML = "<div class=\"card\"><div class=\"card-h\"><h2>账号安全</h2></div><div class=\"card-b\"><div class=\"kv\">" +
-      "<div><div class=\"k\">管理页认证</div><div class=\"v\">WebUI Token</div></div><div><div class=\"k\">会话有效期</div><div class=\"v\">12 小时</div></div>" +
+      "<div><div class=\"k\">管理页认证</div><div class=\"v\">管理密码</div></div><div><div class=\"k\">会话有效期</div><div class=\"v\">12 小时</div></div>" +
       "<div><div class=\"k\">Cookie</div><div class=\"v\">HttpOnly / SameSite=Strict</div></div><div><div class=\"k\">OneBot 凭据</div><div class=\"v\">与管理页分离</div></div></div>" +
-      "<div class=\"divider\"></div><button class=\"btn danger\" data-act=\"set-logout\">退出登录</button></div></div>"; return;
+      "<div class=\"divider\"></div><div class=\"grid cols-2\"><label class=\"field\"><span>当前密码</span><input id=\"currentPassword\" class=\"input\" type=\"password\" autocomplete=\"current-password\"></label>" +
+      "<label class=\"field\"><span>新密码（至少 8 个字符）</span><input id=\"changedPassword\" class=\"input\" type=\"password\" autocomplete=\"new-password\"></label>" +
+      "<label class=\"field\"><span>确认新密码</span><input id=\"confirmChangedPassword\" class=\"input\" type=\"password\" autocomplete=\"new-password\"></label></div>" +
+      "<div class=\"toolbar\" style=\"margin-top:12px\"><button class=\"btn\" data-act=\"change-password\">修改密码</button><button class=\"btn danger\" data-act=\"set-logout\">退出登录</button></div></div></div>"; return;
   }
   if (tab === "global") {
     const net = netOf();
@@ -1568,7 +1619,7 @@ function renderSettingsOverview(root) {
   root.innerHTML =
     "<div class=\"grid two\">" +
       "<div class=\"card\"><div class=\"card-h\"><h2>会话</h2></div><div class=\"card-b\">" +
-        "<div class=\"kv\"><div><div class=\"k\">登录方式</div><div class=\"v\">WebUI Token</div></div>" +
+        "<div class=\"kv\"><div><div class=\"k\">登录方式</div><div class=\"v\">管理密码</div></div>" +
         "<div><div class=\"k\">会话有效期</div><div class=\"v\">12 小时</div></div>" +
         "<div><div class=\"k\">Cookie</div><div class=\"v\">HttpOnly / SameSite=Strict</div></div>" +
         "<div><div class=\"k\">OneBot access token</div><div class=\"v\">不进入浏览器</div></div></div>" +
@@ -1726,6 +1777,18 @@ document.getElementById("view").addEventListener("click", async (event) => {
     if (act === "dbg-reload") { S.catalog = null; S.catalogError = ""; render(); return; }
     if (act === "sto-refresh") { S.storage = null; render(); return; }
     if (act === "sto-copy") { await copyText(el.dataset.path || ""); return; }
+    if (act === "change-password") {
+      const currentPassword = $("#currentPassword").value;
+      const newPassword = $("#changedPassword").value;
+      if (newPassword.length < 8) { toast("新密码至少需要 8 个字符", "bad"); return; }
+      if (newPassword !== $("#confirmChangedPassword").value) { toast("两次输入的新密码不一致", "bad"); return; }
+      el.disabled = true;
+      await api("/api/change-password", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }) });
+      $("#currentPassword").value = ""; $("#changedPassword").value = ""; $("#confirmChangedPassword").value = "";
+      el.disabled = false;
+      toast("管理密码已更新", "ok"); return;
+    }
     if (act === "set-logout") { $("#btnLogout").click(); return; }
   } catch (error) {
     toast(error.message || String(error), "bad", 5200);

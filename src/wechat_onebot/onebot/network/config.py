@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import os
-import secrets
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -208,23 +206,12 @@ class AccountNetworkConfig:
 
 
 def default_account_network_config(legacy: AppConfig, account: str) -> AccountNetworkConfig:
-    token = legacy.onebot.access_token or secrets.token_urlsafe(24)
-    if account == legacy.driver.wechat_account:
-        http_port = legacy.onebot.port
-    else:
-        digest = hashlib.sha1(account.encode("utf-8")).digest()
-        http_port = 12000 + (int.from_bytes(digest[:2], "big") % 2000) * 2
-    ws_port = http_port + 1 if http_port < 65535 else http_port - 1
-    ws_clients = tuple(
-        WsClientEndpoint(f"legacy-{index}", row.url, row.access_token or token, row.reconnect_seconds, row.enabled)
-        for index, row in enumerate(legacy.reverse_ws, 1)
-    )
     return AccountNetworkConfig(
         heartbeat_interval_seconds=legacy.onebot.heartbeat_interval_seconds,
-        http_servers=(HttpServerEndpoint("default", legacy.onebot.host, http_port, "/", token, True),),
+        http_servers=(),
         http_clients=(),
-        ws_servers=(WsServerEndpoint("default", legacy.onebot.host, ws_port, "/ws", token, True),),
-        ws_clients=ws_clients,
+        ws_servers=(),
+        ws_clients=(),
     )
 
 
