@@ -238,6 +238,9 @@ pre.code .b{color:#d7a5ff}
 .endpoint .ep-b{padding:12px 14px;display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
 .endpoint .ep-b .span2{grid-column:span 2}
 .endpoint .ep-f{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 14px;border-top:1px solid var(--line-soft);font-size:10.5px;color:var(--muted);font-family:var(--mono)}
+.ep-f-actions{display:flex;align-items:center;gap:12px}
+.ep-f .btn{font-family:var(--font)}
+.config-save-footer{display:flex;justify-content:flex-end;padding:8px 14px;border-top:1px solid var(--line-soft)}
 .endpoint.off{opacity:.6}
 /* ---------- events / debug split ---------- */
 .split{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.9fr);gap:14px;align-items:start}
@@ -1203,16 +1206,17 @@ function renderConnect(root) {
   const accountOptions = accounts.map((account) => "<option value=\"" + esc(account) + "\"" + (account === S.account ? " selected" : "") + ">" + esc(account) + "</option>").join("");
   const tabs = [{ kind: "general", title: "通用设置" }, ...NET_SECTIONS].map((sec) =>
     "<button class=\"tab " + (S.configTab === sec.kind ? "on" : "") + "\" data-act=\"net-tab\" data-kind=\"" + sec.kind + "\">" + esc(sec.title) + "</button>").join("");
+  const saveButton = "<button class=\"btn primary sm\" data-act=\"net-save\" title=\"保存当前账号的全部网络配置\"><svg class=\"i\"><use href=\"#i-check\"/></svg>保存配置</button>";
   const sections = NET_SECTIONS.filter((sec) => S.configTab === sec.kind).map((sec) => {
     const rows = (S.network[sec.kind] || []);
     return "<section class=\"section\"><div class=\"section-h\"><div><h2>" + esc(sec.title) + "</h2><p>" + esc(sec.desc) + "</p></div>" +
       "<button class=\"btn sm\" data-act=\"net-add\" data-kind=\"" + sec.kind + "\"><svg class=\"i\"><use href=\"#i-plus\"/></svg>新增</button></div>" +
-      "<div class=\"grid cols-2\">" + (rows.length ? rows.map((row, i) => endpointCard(sec.kind, i, row)).join("") : "<div class=\"card\"><div class=\"card-b\">" + emptyState("未配置 " + sec.title, "i-link") + "</div></div>") + "</div></section>";
+      "<div class=\"grid cols-2\">" + (rows.length ? rows.map((row, i) => endpointCard(sec.kind, i, row, i === rows.length - 1 ? saveButton : "")).join("") : "<div class=\"card\"><div class=\"card-b\">" + emptyState("未配置 " + sec.title, "i-link") + "</div><div class=\"config-save-footer\">" + saveButton + "</div></div>") + "</div></section>";
   }).join("");
   const general = S.configTab === "general" ?
     "<div class=\"grid cols-2\"><div class=\"card\"><div class=\"card-h\"><h2>通用设置</h2></div><div class=\"card-b\"><label class=\"field\"><span>心跳间隔（秒）</span>" +
     "<input class=\"input\" type=\"number\" min=\"0.5\" max=\"300\" step=\"0.5\" id=\"heartbeatInput\" value=\"" + esc(S.network.heartbeatIntervalSeconds ?? 5) + "\"></label>" +
-    "<p class=\"small muted\">保存后立即更新网络配置，无需重启账号。</p></div></div>" +
+    "<p class=\"small muted\">保存后立即更新网络配置，无需重启账号。</p></div><div class=\"config-save-footer\">" + saveButton + "</div></div>" +
     "<div class=\"card\"><div class=\"card-h\"><h2>当前运行时</h2></div><div class=\"card-b\"><div class=\"kv\">" +
     "<div><div class=\"k\">账号</div><div class=\"v\">" + esc(S.account) + "</div></div><div><div class=\"k\">状态</div><div class=\"v\">" + (rt.online ? "在线" : rt.started ? "离线" : "未启动") + "</div></div>" +
     "<div><div class=\"k\">事件连接</div><div class=\"v\">" + esc((rt.network && rt.network.connections) || 0) + "</div></div><div><div class=\"k\">self_id</div><div class=\"v\">" + esc(rt.self_id || "—") + "</div></div>" +
@@ -1226,7 +1230,6 @@ function renderConnect(root) {
       "<div style=\"flex:1\"></div>" +
       "<button class=\"btn ghost sm\" data-act=\"net-json\"><svg class=\"i\"><use href=\"#i-code\"/></svg>原始 JSON</button>" +
       "<button class=\"btn sm\" data-act=\"net-reload\"><svg class=\"i\"><use href=\"#i-refresh\"/></svg>重新读取</button>" +
-      "<button class=\"btn primary sm\" data-act=\"net-save\"><svg class=\"i\"><use href=\"#i-check\"/></svg>保存配置</button>" +
     "</div></div></div>" +
     "<div id=\"netRawWrap\" class=\"card" + (S.networkJsonOpen ? "" : " hidden") + "\"><div class=\"card-h\"><h2>原始 JSON</h2><div class=\"spacer\"></div><button class=\"btn sm\" data-act=\"net-json-apply\">应用到表单</button></div>" +
       "<div class=\"card-b\"><textarea class=\"input mono\" id=\"netRaw\" spellcheck=\"false\" style=\"height:300px\"></textarea></div></div>" +
@@ -1235,7 +1238,7 @@ function renderConnect(root) {
   $("#configAccount").addEventListener("change", (event) => selectAccount(event.target.value));
 }
 
-function endpointCard(kind, index, row) {
+function endpointCard(kind, index, row, saveButton) {
   const isServer = kind === "httpServers" || kind === "wsServers";
   const snap = ((S.runtime && S.runtime.network && S.runtime.network[kind]) || []).find((x) => x.name === row.name);
   const running = !!(snap && snap.started);
@@ -1252,7 +1255,7 @@ function endpointCard(kind, index, row) {
       "<button class=\"switch " + (row.enabled !== false ? "on" : "") + "\" data-act=\"net-toggle\" title=\"启用 / 禁用\"></button>" +
       "<button class=\"icon-btn\" data-act=\"net-del\" title=\"删除\"><svg class=\"i\"><use href=\"#i-trash\"/></svg></button></div>" +
     "<div class=\"ep-b\">" + fields + "</div>" +
-    "<div class=\"ep-f\"><span>" + esc(kind) + " · #" + (index + 1) + "</span><span>" + (kind === "wsClients" || kind === "httpClients" ? "出站" : "入站") + "</span></div></div>";
+    "<div class=\"ep-f\"><span>" + esc(kind) + " · #" + (index + 1) + "</span><div class=\"ep-f-actions\"><span>" + (kind === "wsClients" || kind === "httpClients" ? "出站" : "入站") + "</span>" + saveButton + "</div></div></div>";
 }
 
 function field(name, label, value, type, span2 = false) {
@@ -1951,7 +1954,11 @@ document.getElementById("view").addEventListener("click", async (event) => {
       if (badge) { badge.className = "badge"; badge.textContent = on ? "未启动" : "已禁用"; }
       return;
     }
-    if (act === "net-save") { await saveNetwork(); return; }
+    if (act === "net-save") {
+      const restore = busyButton(el, "保存中…");
+      try { await saveNetwork(); } finally { restore(); }
+      return;
+    }
     if (act === "net-reload") { S.network = null; S.networkJsonOpen = false; render(); return; }
     if (act === "net-json") {
       S.network = collectNetwork();
