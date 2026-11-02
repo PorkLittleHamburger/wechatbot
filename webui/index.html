@@ -1,0 +1,1764 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>WeChat OneBot · 控制台</title>
+<script>if (localStorage.getItem('wechat-onebot-theme') === 'dark') document.documentElement.classList.add('dark');</script>
+<style>
+:root{
+  --bg:#f7fafc; --rail:#edf4f8; --card:#ffffff; --card-2:#f5f9fb; --hover:#eaf4f9;
+  --line:#dbe6ed; --line-soft:#e8eef2; --text:#183046; --text-2:#516b7d; --muted:#71899a;
+  --accent:#168ec9; --accent-2:#087cb5; --accent-soft:#e3f3fc;
+  --ok:#178a63; --warn:#b37616; --bad:#c64c57; --info:#168ec9;
+  --field:#f9fcfd; --shade:#eff6fa; --accent-ink:#ffffff; --shadow:0 1px 2px rgba(20,48,70,.04),0 14px 30px -24px rgba(20,48,70,.35);
+  --r:12px; --r-sm:8px;
+  --font:"Inter","HarmonyOS Sans SC","Microsoft YaHei UI","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono","Cascadia Mono",Consolas,"Courier New",monospace;
+}
+html.dark{
+  --bg:#151b24; --rail:#101720; --card:#1e2833; --card-2:#23303d; --hover:#2a3a48;
+  --line:#334251; --line-soft:#2b3946; --text:#edf6fa; --text-2:#b0c3d0; --muted:#91a9b8;
+  --accent:#72c8f2; --accent-2:#9ad9f6; --accent-soft:#1c4157;
+  --ok:#6adeb2; --warn:#f3c369; --bad:#f28d99; --info:#72c8f2;
+  --field:#18232d; --shade:#253440; --accent-ink:#102330; --shadow:0 1px 2px rgba(0,0,0,.28),0 16px 34px -24px rgba(0,0,0,.7);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:13.5px/1.55 var(--font);overflow:hidden;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#2d3238;border-radius:8px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:#3b414a;background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+.hidden{display:none!important}
+svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+/* ---------- shell ---------- */
+.app{display:flex;height:100vh;height:100dvh}
+.rail{width:64px;flex:none;background:var(--rail);border-right:1px solid var(--line-soft);display:flex;flex-direction:column;align-items:center;padding:12px 0 14px;gap:10px}
+.rail-logo{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(145deg,#ff8a5b,#f2622c);color:#1b1c1e;box-shadow:0 6px 16px rgba(255,122,69,.22);margin-bottom:6px}
+.rail-logo svg{width:19px;height:19px;stroke-width:1.9}
+.rail-nav,.rail-bottom{display:flex;flex-direction:column;align-items:center;gap:6px;width:100%}
+.rail-bottom{margin-top:auto}
+.rail-btn{position:relative;width:40px;height:40px;border:0;background:transparent;border-radius:10px;color:#7b828b;display:grid;place-items:center;cursor:pointer;transition:background .15s,color .15s}
+.rail-btn:hover{background:#23262a;color:#d4d8dd}
+.rail-btn.active{background:var(--accent-soft);color:var(--accent)}
+.rail-btn.active::before{content:"";position:absolute;left:-12px;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:var(--accent)}
+.rail-btn::after{content:attr(data-label);position:absolute;left:50px;top:50%;transform:translateY(-50%) scale(.96);white-space:nowrap;background:#2b2f34;border:1px solid #34383e;color:#e9ebee;font-size:12px;padding:5px 9px;border-radius:7px;opacity:0;pointer-events:none;transition:.12s;z-index:60}
+.rail-btn:hover::after{opacity:1;transform:translateY(-50%) scale(1)}
+.rail-sep{width:24px;height:1px;background:var(--line);margin:4px 0}
+.workspace{flex:1;min-width:0;display:flex;flex-direction:column}
+/* ---------- header ---------- */
+.pagehead{flex:none;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding:26px 32px 18px;border-bottom:1px solid var(--line-soft)}
+.eyebrow{font-size:11px;letter-spacing:.16em;color:#6e747c;font-weight:600;text-transform:uppercase}
+.pagehead h1{margin:6px 0 2px;font-size:27px;line-height:1.2;font-weight:650;letter-spacing:-.01em}
+.pagehead p{margin:0;color:var(--muted);font-size:12.5px}
+.head-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.meta-chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border:1px solid var(--line);border-radius:7px;background:#1b1e21;color:#9aa1aa;font-size:11.5px;font-family:var(--mono)}
+.meta-chip b{color:#d6dae0;font-weight:600}
+.pill{display:inline-flex;align-items:center;gap:7px;height:27px;padding:0 11px;border-radius:7px;border:1px solid var(--line);background:#1b1e21;color:#a4abb4;font-size:12px;white-space:nowrap}
+.pill .dot{width:6px;height:6px;border-radius:50%;background:#6b7280}
+.pill.ok{color:#5ee09a;border-color:rgba(74,222,128,.28);background:rgba(74,222,128,.08)}
+.pill.ok .dot{background:var(--ok);box-shadow:0 0 8px rgba(74,222,128,.7)}
+.pill.bad{color:#fb8f8f;border-color:rgba(248,113,113,.28);background:rgba(248,113,113,.08)}
+.pill.bad .dot{background:var(--bad)}
+.account-chip{display:flex;align-items:center;gap:9px;height:38px;padding:0 12px 0 6px;border:1px solid var(--line);border-radius:10px;background:#1b1e21;cursor:pointer;transition:.15s}
+.account-chip:hover{background:#21252a;border-color:#343940}
+.avatar{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:linear-gradient(150deg,#ff9a70,#ef5f2c);color:#211a16;font-weight:700;font-size:12px;flex:none}
+.avatar.lg{width:54px;height:54px;border-radius:14px;font-size:22px}
+.avatar.sm{width:22px;height:22px;border-radius:7px;font-size:10px}
+.account-chip .ac-name{font-size:12.5px;font-weight:600;line-height:1.25;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.account-chip .ac-id{font-size:10.5px;color:var(--muted);font-family:var(--mono);line-height:1.2;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+/* ---------- pages ---------- */
+.pages{flex:1;min-height:0;overflow:auto;padding:22px 32px 56px}
+.view{max-width:1320px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.grid{display:grid;gap:14px}
+.metrics{grid-template-columns:repeat(4,minmax(0,1fr))}
+.two{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}
+.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+/* ---------- card ---------- */
+.card{background:var(--card);border:1px solid var(--line-soft);border-radius:var(--r);min-width:0}
+.card.accent{border-left:2px solid var(--accent)}
+.card-h{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line-soft)}
+.card-h h2{margin:0;font-size:13.5px;font-weight:600;letter-spacing:.01em}
+.card-h .spacer{flex:1}
+.card-h .hint{font-size:11.5px;color:var(--muted)}
+.card-b{padding:16px 18px}
+.card-b.tight{padding:8px 10px}
+.metric{padding:15px 16px;display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden}
+.metric .m-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.metric .m-label{font-size:11.5px;color:var(--muted);letter-spacing:.03em}
+.metric .m-icon{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:#262a2f;color:#8e959e}
+.metric .m-icon svg{width:14px;height:14px}
+.metric .m-value{font-size:20px;font-weight:650;letter-spacing:-.01em;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.metric .m-sub{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.metric .m-value.ok{color:#6ee7a4}
+.metric .m-value.bad{color:#fb8f8f}
+.mono{font-family:var(--mono)}
+.muted{color:var(--muted)}
+.dim{color:var(--text-2)}
+.small{font-size:11.5px}
+.divider{height:1px;background:var(--line-soft);margin:12px 0}
+/* ---------- buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:33px;padding:0 13px;border-radius:var(--r-sm);border:1px solid var(--line);background:#23262a;color:#dfe3e8;font-size:12.5px;cursor:pointer;transition:.15s;white-space:nowrap}
+.btn:hover{background:#2a2e33;border-color:#363b42}
+.btn svg{width:14px;height:14px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#1d1512;font-weight:650}
+.btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
+.btn.ghost{background:transparent;border-color:transparent;color:#9aa1aa}
+.btn.ghost:hover{background:#262a2f;color:#e3e6ea}
+.btn.danger{color:#fb8f8f}
+.btn.danger:hover{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.3)}
+.btn.sm{height:28px;padding:0 10px;font-size:12px;border-radius:7px}
+.btn.block{width:100%;height:38px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.icon-btn{width:30px;height:30px;border:1px solid transparent;background:transparent;border-radius:7px;color:#8b929b;display:inline-grid;place-items:center;cursor:pointer;transition:.15s}
+.icon-btn:hover{background:#262a2f;color:#e3e6ea}
+.icon-btn svg{width:15px;height:15px}
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* ---------- forms ---------- */
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field>span{font-size:11px;color:var(--muted);letter-spacing:.02em;display:flex;gap:5px;align-items:center}
+.field>span .req{color:var(--accent)}
+.input,select.input,textarea.input{width:100%;height:33px;padding:0 10px;border:1px solid var(--line);border-radius:7px;background:#15181b;color:var(--text);font-size:12.5px;outline:none;transition:.15s}
+textarea.input{height:auto;padding:10px;font-family:var(--mono);font-size:12px;line-height:1.55;resize:vertical}
+.input:focus{border-color:rgba(255,122,69,.55);box-shadow:0 0 0 3px rgba(255,122,69,.1)}
+.input::placeholder{color:#5d646d}
+select.input{appearance:none;background-image:linear-gradient(45deg,transparent 50%,#7b828b 50%),linear-gradient(135deg,#7b828b 50%,transparent 50%);background-position:calc(100% - 15px) 14px,calc(100% - 10px) 14px;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:26px}
+.switch{width:38px;height:21px;border-radius:999px;background:#31353b;position:relative;cursor:pointer;border:0;flex:none;transition:background .18s}
+.switch::after{content:"";position:absolute;top:2.5px;left:2.5px;width:16px;height:16px;border-radius:50%;background:#c7ccd2;transition:transform .18s,background .18s}
+.switch.on{background:var(--accent)}
+.switch.on::after{transform:translateX(17px);background:#fff}
+.check{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--text-2);cursor:pointer;user-select:none}
+.check input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+.search{position:relative;flex:1;min-width:160px;max-width:320px}
+.search svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:#6d747d;stroke-width:1.8}
+.search .input{padding-left:29px;height:31px}
+.form-error{min-height:16px;margin:8px 0 0;font-size:12px;color:#fb8f8f}
+/* ---------- badges / chips ---------- */
+.badge{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:5px;background:#272b30;color:#9aa1aa;font-size:10.5px;font-family:var(--mono);letter-spacing:.02em;white-space:nowrap}
+.badge.ok{background:rgba(74,222,128,.1);color:#68e3a2}
+.badge.warn{background:rgba(251,191,36,.1);color:#f4c85c}
+.badge.bad{background:rgba(248,113,113,.1);color:#fb9b9b}
+.badge.info{background:rgba(122,162,255,.12);color:#9bb8ff}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;border:1px solid var(--line);background:#1a1d20;color:#aab1ba;font-size:11px;font-family:var(--mono)}
+.dot{width:6px;height:6px;border-radius:50%;background:#6b7280;flex:none}
+.dot.ok{background:var(--ok);box-shadow:0 0 7px rgba(74,222,128,.55)}
+.dot.bad{background:var(--bad)}
+.dot.warn{background:var(--warn)}
+.dot.idle{background:#565d66}
+/* ---------- list rows ---------- */
+.rows{display:flex;flex-direction:column}
+.row{display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--line-soft);min-width:0}
+.row:last-child{border-bottom:0}
+.row:hover{background:#212429}
+.row .r-main{flex:1;min-width:0}
+.row .r-title{font-size:12.5px;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .r-sub{font-size:11px;color:var(--muted);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .r-right{display:flex;align-items:center;gap:8px;flex:none;font-size:11.5px;color:var(--muted)}
+.empty{padding:34px 18px;text-align:center;color:#666d76;font-size:12.5px}
+.empty .e-icon{width:38px;height:38px;margin:0 auto 10px;border-radius:11px;background:#24282d;display:grid;place-items:center;color:#6d747d}
+.empty .e-icon svg{width:18px;height:18px}
+/* ---------- code ---------- */
+pre.code{margin:0;padding:14px 16px;background:#15181b;border:1px solid var(--line-soft);border-radius:10px;font-family:var(--mono);font-size:11.5px;line-height:1.65;color:#c8d0d9;overflow:auto;max-height:520px;white-space:pre;tab-size:2}
+pre.code .k{color:#ffb08c}
+pre.code .s{color:#9ad5a3}
+pre.code .n{color:#9bb8ff}
+pre.code .b{color:#d7a5ff}
+/* ---------- toasts ---------- */
+.toasts{position:fixed;right:22px;bottom:22px;display:flex;flex-direction:column;gap:9px;z-index:200;max-width:360px}
+.toast{display:flex;gap:9px;align-items:flex-start;padding:11px 14px;border-radius:10px;background:#23272c;border:1px solid #343940;border-left:2px solid var(--accent);box-shadow:0 14px 34px rgba(0,0,0,.42);font-size:12.5px;animation:tin .18s ease-out}
+.toast.ok{border-left-color:var(--ok)}.toast.bad{border-left-color:var(--bad)}
+.toast svg{width:15px;height:15px;margin-top:1px;color:var(--accent)}
+.toast.ok svg{color:var(--ok)}.toast.bad svg{color:var(--bad)}
+@keyframes tin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* ---------- login ---------- */
+.login{height:100vh;height:100dvh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 16% 10%,rgba(255,122,69,.14),transparent 46%),radial-gradient(circle at 84% 90%,rgba(122,162,255,.07),transparent 44%),#101214}
+.login-card{width:min(392px,100%);background:#1b1e21;border:1px solid var(--line);border-radius:16px;padding:30px 28px 22px;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.brand-lg{width:46px;height:46px;border-radius:13px;background:linear-gradient(145deg,#ff8a5b,#f2622c);display:grid;place-items:center;color:#1d1512;margin-bottom:16px;box-shadow:0 10px 26px rgba(255,122,69,.25)}
+.brand-lg svg{width:23px;height:23px;stroke-width:1.9}
+.login-card h1{margin:0;font-size:22px;font-weight:650;letter-spacing:-.01em}
+.lg-sub{margin:4px 0 20px;color:var(--muted);font-size:12.5px}
+.lg-badge{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;color:#8f969f;border:1px solid var(--line);border-radius:5px;padding:2px 7px;font-family:var(--mono);margin-bottom:14px}
+.login-card .field{margin-bottom:12px}
+.login-foot{display:flex;gap:7px;align-items:flex-start;margin-top:18px;padding-top:14px;border-top:1px solid var(--line-soft);font-size:11px;color:#6f767f;line-height:1.6}
+.login-foot svg{width:13px;height:13px;margin-top:2px}
+/* ---------- misc ---------- */
+.kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px}
+.kv .k{font-size:10.5px;color:var(--muted);letter-spacing:.04em;margin-bottom:2px}
+.kv .v{font-size:12.5px;font-family:var(--mono);word-break:break-all}
+.note{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:9px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);color:#e0c47c;font-size:11.5px;line-height:1.6}
+.note svg{width:14px;height:14px;margin-top:1px;flex:none}
+.section{display:flex;flex-direction:column;gap:10px}
+.section-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:2px 2px 0}
+.section-h h2{margin:0;font-size:13.5px;font-weight:600}
+.section-h p{margin:2px 0 0;font-size:11.5px;color:var(--muted)}
+.acct{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.acct .ac-meta{min-width:0;flex:1}
+.acct .ac-meta h2{margin:0;font-size:17px;font-weight:650}
+.acct .ac-meta p{margin:3px 0 0;font-size:11.5px;color:var(--muted);font-family:var(--mono);word-break:break-all}
+.scroll{max-height:352px;overflow:auto}
+.scroll.tall{max-height:calc(100vh - 320px)}
+/* ---------- endpoints ---------- */
+.endpoint .ep-h{display:flex;align-items:center;gap:9px;padding:10px 12px;border-bottom:1px solid var(--line-soft)}
+.endpoint .ghost-input{flex:1;min-width:0;border:0;background:transparent;font-size:12.5px;font-weight:600;color:#e3e6ea;outline:none;padding:2px 4px;border-radius:5px}
+.endpoint .ghost-input:focus{background:#15181b;box-shadow:0 0 0 1px var(--line)}
+.endpoint .ep-b{padding:12px 14px;display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.endpoint .ep-b .span2{grid-column:span 2}
+.endpoint .ep-f{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 14px;border-top:1px solid var(--line-soft);font-size:10.5px;color:var(--muted);font-family:var(--mono)}
+.endpoint.off{opacity:.6}
+/* ---------- events / debug split ---------- */
+.split{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.9fr);gap:14px;align-items:start}
+.debug{display:grid;grid-template-columns:270px minmax(0,1fr);gap:14px;align-items:start}
+.event-list{max-height:calc(100vh - 310px);overflow:auto;min-height:220px}
+.event-row{display:grid;grid-template-columns:60px 76px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--line-soft);cursor:pointer;font-size:12px}
+.event-row:last-child{border-bottom:0}
+.event-row:hover{background:#212429}
+.event-row.sel{background:rgba(255,122,69,.07)}
+.event-time{font-family:var(--mono);font-size:10.5px;color:#6e757e}
+.event-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#d2d7dd}
+.event-meta{font-size:10px;color:#6e757e;font-family:var(--mono);text-align:right}
+.act-list{max-height:calc(100vh - 268px);overflow:auto;padding:6px}
+.act-group{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#666d76;padding:11px 10px 5px}
+.act-item{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:7px;cursor:pointer;border:1px solid transparent;min-width:0}
+.act-item:hover{background:#24282d}
+.act-item.sel{background:rgba(255,122,69,.09);border-color:rgba(255,122,69,.22)}
+.act-item .a-name{font-family:var(--mono);font-size:11.5px;color:#c9d0d8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.act-item.sel .a-name{color:#ffb79a}
+.resp-h{display:flex;align-items:center;gap:9px;padding:9px 14px;border-bottom:1px solid var(--line-soft);font-size:11px;color:var(--muted);font-family:var(--mono);flex-wrap:wrap}
+.resp-b{padding:12px 14px}
+.tab-row{display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--line-soft);padding:0 14px}
+.tab{height:34px;padding:0 10px;border:0;background:transparent;color:#8b929b;font-size:12px;cursor:pointer;border-bottom:2px solid transparent}
+.tab:hover{color:#dfe3e8}
+.tab.on{color:#ffb79a;border-bottom-color:var(--accent)}
+@media (max-width:1120px){
+  .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .two,.split,.debug{grid-template-columns:minmax(0,1fr)}
+  .cols-3{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .event-list,.act-list{max-height:420px}
+}
+@media (max-width:760px){
+  .pagehead{padding:18px 16px 14px;flex-direction:column;align-items:flex-start}
+  .rows{padding:0}
+  .pages{padding:16px 14px 40px}
+  .rail{width:54px}
+  .cols-2,.cols-3{grid-template-columns:minmax(0,1fr)}
+  .head-right{justify-content:flex-start}
+  .metric .m-value{font-size:17px}
+}
+/* SnowLuma-style protocol console: light canvas, blue controls, expandable rail. */
+html{color-scheme:light}
+html.dark{color-scheme:dark}
+body{background:var(--bg);color:var(--text)}
+::-webkit-scrollbar-thumb{background:var(--line);border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:var(--muted);background-clip:content-box}
+.rail{width:64px;align-items:stretch;padding:10px 0 14px;gap:8px;transition:width .2s ease;overflow:hidden;z-index:30;border-color:var(--line)}
+.rail:hover,.rail.pinned{width:230px}
+.rail-brand{display:flex;align-items:center;gap:11px;white-space:nowrap;padding:2px 12px 12px;border-bottom:1px solid var(--line-soft);height:58px}
+.rail-logo,.brand-lg{background:var(--accent-soft);color:var(--accent);border:1px solid var(--line);box-shadow:none}
+.rail-logo{margin:0;flex:none}
+.rail-brand-copy{opacity:0;min-width:140px;transition:opacity .16s}
+.rail:hover .rail-brand-copy,.rail.pinned .rail-brand-copy{opacity:1}
+.rail-brand-copy strong{display:block;font-size:13px;line-height:1.3}
+.rail-brand-copy small{display:block;color:var(--muted);font-size:10px;white-space:nowrap}
+.rail-nav,.rail-bottom{align-items:stretch;gap:4px;padding:0 8px}
+.rail-btn{width:100%;height:46px;display:flex;justify-content:flex-start;gap:12px;padding:0 13px;color:var(--muted);white-space:nowrap}
+.rail-btn svg{width:17px;height:17px}
+.rail-btn:hover{background:var(--hover);color:var(--text)}
+.rail-btn.active{background:var(--accent-soft);color:var(--accent)}
+.rail-btn.active::before{left:-8px;top:11px;bottom:11px;width:3px}
+.rail-btn span{opacity:0;transition:opacity .16s;display:flex;flex-direction:column;text-align:left;line-height:1.25}
+.rail-btn span strong{font-size:12px;font-weight:650}
+.rail-btn span small{font-size:10px;color:var(--muted)}
+.rail:hover .rail-btn span,.rail.pinned .rail-btn span{opacity:1}
+.rail-btn::after{left:53px;background:var(--card);border-color:var(--line);color:var(--text);box-shadow:var(--shadow)}
+.rail:hover .rail-btn::after,.rail.pinned .rail-btn::after{display:none}
+.rail-sep{margin:4px 12px}
+.rail-pin{display:none;margin:3px 10px 0;padding:5px;border:0;background:none;color:var(--muted);cursor:pointer;text-align:left}
+.rail:hover .rail-pin,.rail.pinned .rail-pin{display:block}
+.pagehead{border-color:var(--line-soft);background:var(--card);padding:21px 30px 17px}
+.eyebrow{color:var(--accent)}
+.pages{padding:24px 30px 55px}
+.card,.login-card{box-shadow:var(--shadow);border-color:var(--line)}
+.card-h,.row,.resp-h,.tab-row{border-color:var(--line-soft)}
+.metric .m-icon,.empty .e-icon{background:var(--shade);color:var(--accent)}
+.metric .m-value.ok,.pill.ok{color:var(--ok)}
+.metric .m-value.bad,.pill.bad{color:var(--bad)}
+.meta-chip,.pill,.account-chip,.badge,.chip,.btn,.toast{background:var(--card-2);border-color:var(--line);color:var(--text-2)}
+.account-chip:hover{background:var(--hover);border-color:var(--line)}
+.pill .dot,.dot.idle{background:var(--muted);box-shadow:none}
+.meta-chip b{color:var(--text)}
+.pill.ok,.badge.ok{background:color-mix(in srgb,var(--ok) 11%,var(--card));border-color:color-mix(in srgb,var(--ok) 30%,var(--line));color:var(--ok)}
+.pill.bad,.badge.bad{background:color-mix(in srgb,var(--bad) 9%,var(--card));border-color:color-mix(in srgb,var(--bad) 25%,var(--line));color:var(--bad)}
+.badge.warn{background:color-mix(in srgb,var(--warn) 10%,var(--card));color:var(--warn)}
+.badge.bad{background:color-mix(in srgb,var(--bad) 9%,var(--card));color:var(--bad)}
+.badge.info{background:var(--accent-soft);color:var(--accent)}
+.avatar{background:var(--accent-soft);color:var(--accent);border:1px solid var(--line)}
+.btn{color:var(--text)}
+.btn:hover,.icon-btn:hover,.row:hover,.event-row:hover,.act-item:hover{background:var(--hover);border-color:var(--line)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
+.btn.ghost{color:var(--text-2)}
+.btn.ghost:hover{background:var(--hover);color:var(--text)}
+.btn.danger{color:var(--bad)}
+.btn.danger:hover{background:color-mix(in srgb,var(--bad) 9%,var(--card));border-color:var(--bad)}
+.icon-btn{color:var(--muted)}
+.icon-btn:hover{color:var(--text)}
+.input,select.input,textarea.input,.endpoint .ghost-input:focus{background:var(--field);color:var(--text);border-color:var(--line)}
+select.input{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%)}
+.input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.input::placeholder{color:var(--muted)}
+.endpoint .ghost-input{color:var(--text)}
+.endpoint .ghost-input:focus{box-shadow:0 0 0 1px var(--accent)}
+.switch{background:var(--line)}
+.switch::after{background:var(--card)}
+.check{color:var(--text-2)}
+.search svg{color:var(--muted)}
+.form-error{color:var(--bad)}
+.chip{background:var(--field);color:var(--text-2)}
+.empty{color:var(--muted)}
+pre.code{background:var(--field);color:var(--text);border-color:var(--line)}
+pre.code.muted{color:var(--muted)}
+pre.code .k{color:var(--accent)}
+pre.code .s{color:var(--ok)}
+pre.code .n{color:var(--info)}
+pre.code .b{color:var(--warn)}
+.toast{background:var(--card);box-shadow:var(--shadow)}
+.login{background:radial-gradient(circle at 18% 8%,var(--accent-soft),transparent 42%),var(--bg)}
+.login-card{background:var(--card)}
+.lg-badge,.login-foot{color:var(--muted);border-color:var(--line-soft)}
+.note{background:color-mix(in srgb,var(--warn) 8%,var(--card));border-color:color-mix(in srgb,var(--warn) 28%,var(--line));color:var(--text-2)}
+.event-row.sel,.act-item.sel{background:var(--accent-soft);border-color:var(--line)}
+.event-title,.act-item .a-name,.act-item.sel .a-name{color:var(--text)}
+.event-time,.event-meta,.act-group{color:var(--muted)}
+.tab{color:var(--muted)}
+.tab:hover{color:var(--text)}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.page-tabs{display:flex;gap:4px;padding:5px;background:var(--card-2);border:1px solid var(--line);border-radius:12px;overflow-x:auto}
+.page-tabs .tab{border:0;border-radius:8px;padding:0 12px;white-space:nowrap}
+.page-tabs .tab.on{background:var(--card);box-shadow:var(--shadow);color:var(--accent)}
+.surface-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.surface-header h2{font-size:15px;margin:0}
+.surface-header p{font-size:11.5px;color:var(--muted);margin:2px 0 0}
+.process-card{display:flex;flex-direction:column;gap:14px;padding:17px}
+.process-card .process-top{display:flex;gap:12px;align-items:center}
+.process-card .process-actions{display:flex;gap:7px;flex-wrap:wrap;border-top:1px solid var(--line-soft);padding-top:12px}
+.log-line{display:grid;grid-template-columns:75px 70px 150px minmax(0,1fr);gap:10px;padding:8px 13px;border-bottom:1px solid var(--line-soft);font-family:var(--mono);font-size:11.5px}
+.log-line:hover{background:var(--hover)}
+.log-line .level{font-weight:650;color:var(--info)}
+.log-line.warn .level{color:var(--warn)}
+.log-line.error .level{color:var(--bad)}
+.log-line .message{white-space:pre-wrap;word-break:break-word}
+.settings-layout{display:grid;grid-template-columns:190px minmax(0,1fr);gap:16px;align-items:start}
+.settings-nav{display:flex;flex-direction:column;gap:5px;padding:8px}
+.settings-nav button{border:0;background:none;color:var(--text-2);padding:9px 11px;border-radius:8px;text-align:left;cursor:pointer}
+.settings-nav button:hover{background:var(--hover)}
+.settings-nav button.active{background:var(--accent-soft);color:var(--accent);font-weight:650}
+@media(max-width:760px){
+  .rail,.rail:hover,.rail.pinned{width:54px}
+  .rail-brand{padding-left:8px}
+  .rail-btn{padding-left:10px}
+  .rail-btn span,.rail:hover .rail-btn span,.rail.pinned .rail-btn span{display:none}
+  .settings-layout{grid-template-columns:1fr}
+  .settings-nav{flex-direction:row;overflow:auto}
+  .log-line{grid-template-columns:56px 52px minmax(0,1fr)}
+  .log-line .scope{display:none}
+}
+</style>
+</head>
+<body>
+<svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-logo" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-9 8.5 8.5 8.5 0 0 1-3.5-.75L3 21l1.75-5.5A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
+  <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v5.6L4.6 18A2 2 0 0 0 6.4 21h11.2a2 2 0 0 0 1.8-3L14 8.6V3"/><path d="M7.6 14h8.8"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-msg" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-9 8.5 8.5 8.5 0 0 1-3.5-.75L3 21l1.75-5.5A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></symbol>
+</svg>
+
+<div id="login" class="login">
+  <div class="login-card">
+    <div class="brand-lg"><svg class="i"><use href="#i-logo"/></svg></div>
+    <div class="lg-badge">ONEBOT v11 · PROTOCOL RUNTIME</div>
+    <h1>WeChat OneBot</h1>
+    <p class="lg-sub">Windows 个人微信协议端控制台</p>
+    <form id="loginForm" autocomplete="off">
+      <label class="field"><span>WebUI Access Token</span>
+        <input id="token" class="input" type="password" placeholder="config.json 中的 webui.access_token" spellcheck="false">
+      </label>
+      <button class="btn primary block" id="btnLogin" type="submit">登录控制台</button>
+      <p id="loginErr" class="form-error"></p>
+    </form>
+    <div class="login-foot"><svg class="i"><use href="#i-lock"/></svg><span>管理页使用独立会话 Cookie；OneBot access token 不会暴露给浏览器，也不会发送给任何 OneBot 客户端。</span></div>
+  </div>
+</div>
+
+<div id="app" class="app hidden">
+  <nav class="rail">
+    <div class="rail-brand"><div class="rail-logo" title="WeChat OneBot"><svg class="i"><use href="#i-logo"/></svg></div><div class="rail-brand-copy"><strong>WeChat OneBot</strong><small>OneBot v11 控制台</small></div></div>
+    <div class="rail-nav">
+      <button class="rail-btn" data-view="overview" data-label="总览"><svg class="i"><use href="#i-grid"/></svg><span><strong>总览</strong><small>主机与服务状态</small></span></button>
+      <button class="rail-btn" data-view="account" data-label="进程与账号"><svg class="i"><use href="#i-cpu"/></svg><span><strong>进程与账号</strong><small>微信实例与运行时</small></span></button>
+      <button class="rail-btn" data-view="connect" data-label="节点配置"><svg class="i"><use href="#i-link"/></svg><span><strong>节点配置</strong><small>OneBot 协议端点</small></span></button>
+      <button class="rail-btn" data-view="events" data-label="日志"><svg class="i"><use href="#i-list"/></svg><span><strong>日志</strong><small>运行日志与事件</small></span></button>
+      <button class="rail-btn" data-view="debug" data-label="调试"><svg class="i"><use href="#i-flask"/></svg><span><strong>调试</strong><small>动作与实时活动</small></span></button>
+    </div>
+    <div class="rail-bottom">
+      <div class="rail-sep"></div>
+      <button class="rail-btn" data-view="settings" data-label="系统设置"><svg class="i"><use href="#i-settings"/></svg><span><strong>系统设置</strong><small>外观、存储与安全</small></span></button>
+      <button class="rail-btn" id="btnLogout" data-label="退出登录"><svg class="i"><use href="#i-logout"/></svg><span><strong>退出登录</strong><small>结束管理会话</small></span></button>
+      <button class="rail-pin" id="railPin" type="button">钉住侧栏展开</button>
+    </div>
+  </nav>
+  <div class="workspace">
+    <header class="pagehead">
+      <div>
+        <div class="eyebrow" id="hdrEyebrow">OVERVIEW</div>
+        <h1 id="hdrTitle">概览</h1>
+        <p id="hdrSub">账号、协议端通道与运行状态总览</p>
+      </div>
+      <div class="head-right">
+        <span class="pill" id="hdrStatus"><i class="dot"></i><span id="hdrStatusText">检测中</span></span>
+        <span class="meta-chip">self_id <b id="hdrSelf">—</b></span>
+        <span class="meta-chip">PID <b id="hdrPid">—</b></span>
+        <button class="icon-btn" id="btnRefresh" title="刷新状态"><svg class="i"><use href="#i-refresh"/></svg></button>
+        <div class="account-chip" id="hdrAccount" title="查看账号">
+          <div class="avatar" id="hdrAvatar">W</div>
+          <div><div class="ac-name" id="hdrNick">未绑定</div><div class="ac-id" id="hdrWxid">—</div></div>
+        </div>
+      </div>
+    </header>
+    <div class="pages"><div class="view" id="view"></div></div>
+  </div>
+</div>
+<div id="toasts" class="toasts"></div>
+<script>
+"use strict";
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+const VIEWS = {
+  overview: { eyebrow: "OVERVIEW", title: "总览", sub: "账号、连接和服务运行状态" },
+  account:  { eyebrow: "PROCESSES", title: "进程与账号", sub: "微信实例、账号运行时与联系人" },
+  connect:  { eyebrow: "CONFIGURATION", title: "节点配置", sub: "按账号管理 OneBot v11 协议端点" },
+  events:   { eyebrow: "LOGS", title: "日志", sub: "运行日志与 OneBot 上行事件" },
+  debug:    { eyebrow: "DEBUG", title: "调试", sub: "动作测试、消息编排、活动与接口目录" },
+  settings: { eyebrow: "SETTINGS", title: "系统设置", sub: "外观、数据、存储和账号安全" }
+};
+
+const S = {
+  view: "overview",
+  status: null, runtime: null, account: null, selectedAccount: null,
+  loginInfo: null, versionInfo: null,
+  caps: null, catalog: null, catalogError: "", catalogLoading: false,
+  network: null, networkJsonOpen: false, configTab: "general",
+  events: [], eventFilter: "all", eventQuery: "", selectedEvent: null, eventsAuto: true,
+  logTab: "runtime", logs: null, logQuery: "", logLevel: "all", logAuto: true,
+  processes: null, processError: "", processSort: "status",
+  friends: null, groups: null, friendQuery: "", groupQuery: "",
+  storage: null,
+  action: null, actionParams: {}, actionJsonMode: false, actionResult: null, actionBusy: false, confirmWrite: false, actionQuery: "", debugTab: "tester", apiQuery: "",
+  composeType: "private", composeTarget: "", composeMessage: "", composeResult: null,
+  settingsTab: "appearance",
+  eventsTimer: null, es: null, lastErrorShown: ""
+};
+
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function initial(name) { return (String(name || "W").trim().slice(0, 1) || "W").toUpperCase(); }
+function fmtBytes(n) {
+  const v = Number(n) || 0; if (!v) return "0 B";
+  const units = ["B", "KB", "MB", "GB"]; let i = 0; let x = v;
+  while (x >= 1024 && i < units.length - 1) { x /= 1024; i += 1; }
+  return (i > 0 && x < 10 ? x.toFixed(1) : Math.round(x)) + " " + units[i];
+}
+function fmtTime(ts) {
+  if (!ts) return "—";
+  const d = typeof ts === "number" ? new Date(ts > 1e12 ? ts : ts * 1000) : new Date(ts);
+  return d.toLocaleTimeString("zh-CN", { hour12: false });
+}
+function fmtDateTime(ts) {
+  if (!ts) return "—";
+  const d = typeof ts === "number" ? new Date(ts > 1e12 ? ts : ts * 1000) : new Date(ts);
+  return d.toLocaleString("zh-CN", { hour12: false });
+}
+function toast(message, kind = "info", ms = 3600) {
+  const box = document.createElement("div");
+  box.className = "toast " + (kind === "ok" ? "ok" : kind === "bad" ? "bad" : "");
+  const icon = kind === "ok" ? "i-check" : kind === "bad" ? "i-alert" : "i-msg";
+  box.innerHTML = "<svg class=\"i\"><use href=\"#" + icon + "\"/></svg><div>" + esc(message) + "</div>";
+  $("#toasts").appendChild(box);
+  setTimeout(() => box.remove(), ms);
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); toast("已复制到剪贴板", "ok", 1800); }
+  catch (e) { toast("复制失败，请手动选择文本", "bad"); }
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { credentials: "same-origin", cache: "no-store", ...opts });
+  const ct = res.headers.get("content-type") || "";
+  const body = ct.includes("application/json") ? await res.json() : await res.text();
+  if (!res.ok) {
+    const err = new Error(typeof body === "string" ? body : (body.message || body.detail || ("HTTP " + res.status)));
+    err.status = res.status;
+    throw err;
+  }
+  return body;
+}
+
+async function callAction(action, params = {}) {
+  if (!S.account) throw new Error("账号尚未就绪");
+  const started = performance.now();
+  const body = await api("/api/accounts/" + encodeURIComponent(S.account) + "/action", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, params: params || {}, echo: Date.now() })
+  });
+  body._elapsed = Math.round(performance.now() - started);
+  return body;
+}
+
+/* ---------- auth ---------- */
+function showLogin() {
+  if (S.es) { S.es.close(); S.es = null; }
+  $("#app").classList.add("hidden");
+  $("#login").classList.remove("hidden");
+  $("#token").focus();
+}
+function enterApp() {
+  $("#login").classList.add("hidden");
+  $("#app").classList.remove("hidden");
+  setView(S.view || "overview");
+  connectStream();
+}
+
+$("#loginForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const token = $("#token").value.trim();
+  $("#loginErr").textContent = "";
+  if (!token) { $("#loginErr").textContent = "请输入 WebUI Access Token"; return; }
+  $("#btnLogin").disabled = true;
+  try {
+    await api("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
+    $("#token").value = "";
+    await boot();
+  } catch (error) {
+    $("#loginErr").textContent = error.message || "登录失败";
+  } finally {
+    $("#btnLogin").disabled = false;
+  }
+});
+
+$("#btnLogout").addEventListener("click", async () => {
+  try { await api("/api/logout", { method: "POST" }); }
+  catch (error) { toast("退出登录失败：" + error.message, "bad"); return; }
+  S.loginInfo = null; S.caps = null; S.catalog = null;
+  showLogin();
+});
+$("#hdrAccount").addEventListener("click", () => setView("account"));
+$("#btnRefresh").addEventListener("click", async () => { await refreshStatus(); toast("状态已刷新", "ok", 1500); });
+
+/* ---------- status ---------- */
+function applyStatus(payload) {
+  S.status = payload;
+  const runtimes = payload.runtimes || [];
+  S.runtime = S.selectedAccount
+    ? (runtimes.find((r) => r.account === S.selectedAccount) || null)
+    : (runtimes.find((r) => r.account === payload.configuredAccount) || runtimes[0] || null);
+  S.account = S.selectedAccount || (S.runtime ? S.runtime.account : (payload.configuredAccount || null));
+  updateChrome();
+  if (payload.lastError && payload.lastError !== S.lastErrorShown) {
+    S.lastErrorShown = payload.lastError;
+    toast(payload.lastError, "bad", 6000);
+  }
+  if (S.view === "overview") syncOverview();
+  if (S.view === "account") syncAccount();
+  if (S.view === "connect") syncConnectStates();
+}
+
+function selectAccount(account) {
+  if (!account || account === S.account) return;
+  S.selectedAccount = account;
+  S.loginInfo = null; S.versionInfo = null; S.caps = null; S.catalog = null; S.catalogError = "";
+  S.friends = null; S.groups = null; S.network = null; S.storage = null;
+  S.events = []; S.selectedEvent = null;
+  applyStatus(S.status);
+  render();
+}
+
+function updateChrome() {
+  const rt = S.runtime;
+  const online = !!(rt && rt.online);
+  const started = !!(rt && rt.started);
+  const pill = $("#hdrStatus");
+  pill.className = "pill" + (online ? " ok" : (started ? " bad" : ""));
+  $("#hdrStatusText").textContent = online ? "在线" : (started ? "离线" : "未启动");
+  $("#hdrSelf").textContent = rt && rt.self_id ? rt.self_id : "—";
+  $("#hdrPid").textContent = rt && rt.pid ? rt.pid : "—";
+  const nickname = (S.loginInfo && S.loginInfo.nickname && S.loginInfo.nickname.trim()) || (S.account || "未绑定");
+  $("#hdrNick").textContent = nickname;
+  $("#hdrWxid").textContent = S.account || "—";
+  $("#hdrAvatar").textContent = initial(nickname);
+}
+
+async function refreshStatus() {
+  try { applyStatus(await api("/api/status")); }
+  catch (error) { if (error.status === 401) showLogin(); else toast(error.message, "bad"); }
+}
+
+function connectStream() {
+  if (S.es) S.es.close();
+  S.es = new EventSource("/api/events");
+  S.es.onmessage = (event) => {
+    try { applyStatus(JSON.parse(event.data)); } catch (e) {}
+  };
+  S.es.onerror = () => {};
+}
+
+/* ---------- router ---------- */
+function setView(view) {
+  if (!VIEWS[view]) view = "overview";
+  S.view = view;
+  $$(".rail-btn[data-view]").forEach((btn) => btn.classList.toggle("active", btn.dataset.view === view));
+  const meta = VIEWS[view];
+  $("#hdrEyebrow").textContent = meta.eyebrow;
+  $("#hdrTitle").textContent = meta.title;
+  $("#hdrSub").textContent = meta.sub;
+  render();
+}
+function render() {
+  const view = $("#view");
+  if (S.view === "overview") renderOverview(view);
+  else if (S.view === "account") renderProcesses(view);
+  else if (S.view === "connect") renderConnect(view);
+  else if (S.view === "events") renderEvents(view);
+  else if (S.view === "debug") renderDebug(view);
+  else renderSettings(view);
+}
+$$(".rail-btn[data-view]").forEach((btn) => btn.addEventListener("click", () => setView(btn.dataset.view)));
+const rail = $(".rail");
+rail.classList.toggle("pinned", localStorage.getItem("wechat-onebot-sidebar-pinned") === "1");
+$("#railPin").textContent = rail.classList.contains("pinned") ? "取消钉住侧栏" : "钉住侧栏展开";
+$("#railPin").addEventListener("click", () => {
+  const pinned = rail.classList.toggle("pinned");
+  localStorage.setItem("wechat-onebot-sidebar-pinned", pinned ? "1" : "0");
+  $("#railPin").textContent = pinned ? "取消钉住侧栏" : "钉住侧栏展开";
+});
+
+/* ---------- shared bits ---------- */
+function channelRow(title, sub, ok, stateText) {
+  return "<div class=\"row\"><span class=\"dot " + (ok ? "ok" : "idle") + "\"></span>" +
+    "<div class=\"r-main\"><div class=\"r-title\">" + esc(title) + "</div><div class=\"r-sub\">" + esc(sub) + "</div></div>" +
+    "<div class=\"r-right\"><span class=\"badge " + (ok ? "ok" : "") + "\">" + esc(stateText) + "</span></div></div>";
+}
+function emptyState(text, icon = "i-list") {
+  return "<div class=\"empty\"><div class=\"e-icon\"><svg class=\"i\"><use href=\"#" + icon + "\"/></svg></div>" + esc(text) + "</div>";
+}
+
+async function loadCaps(force = false) {
+  if (!S.account) return;
+  if (S.caps && !force) return;
+  if (S.catalogLoading || (S.catalogError && !force)) return;
+  const account = S.account;
+  S.catalogLoading = true;
+  try {
+    const body = await callAction("get_capabilities");
+    if (S.account !== account) return;
+    if (body && body.status === "ok") {
+      S.caps = body.data || null;
+      S.catalog = (body.data && body.data.action_catalog) || null;
+      if (!S.catalog) S.catalogError = "运行时未提供动作目录";
+      if (S.view === "overview") fillOverviewCaps();
+    } else S.catalogError = "账号 Runtime 未就绪，启动后可读取动作目录";
+  } catch (error) {
+    if (S.account === account) S.catalogError = error.message;
+  } finally {
+    S.catalogLoading = false;
+    if (S.account === account && S.view === "debug") render();
+  }
+}
+async function loadLoginInfo() {
+  if (!S.account) return;
+  try {
+    const body = await callAction("get_login_info");
+    if (body && body.status === "ok") { S.loginInfo = body.data || null; updateChrome(); }
+  } catch (error) {}
+}
+
+/* ---------- overview ---------- */
+function netOf() { return (S.runtime && S.runtime.network) || {}; }
+
+function renderOverview(root) {
+  const rt = S.runtime;
+  const net = netOf();
+  const http = (net.httpServers || [])[0];
+  const ws = (net.wsServers || [])[0];
+  const clients = net.wsClients || [];
+  root.innerHTML =
+    "<div class=\"grid metrics\">" +
+      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">运行状态</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-cpu\"/></svg></span></div>" +
+        "<div class=\"m-value\" id=\"ovOnline\">—</div><div class=\"m-sub\" id=\"ovOnlineSub\">—</div></div>" +
+      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">账号</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-user\"/></svg></span></div>" +
+        "<div class=\"m-value\" id=\"ovAccount\">—</div><div class=\"m-sub mono\" id=\"ovAccountSub\">—</div></div>" +
+      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">OneBot self_id</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-logo\"/></svg></span></div>" +
+        "<div class=\"m-value mono\" id=\"ovSelf\">—</div><div class=\"m-sub\" id=\"ovSelfSub\">协议 v11</div></div>" +
+      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">消息存储</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-db\"/></svg></span></div>" +
+        "<div class=\"m-value\" id=\"ovMsg\">—</div><div class=\"m-sub\" id=\"ovMsgSub\">—</div></div>" +
+    "</div>" +
+    "<div class=\"grid two\">" +
+      "<div class=\"card\"><div class=\"card-h\"><h2>协议端通道</h2><div class=\"spacer\"></div>" +
+        "<button class=\"btn ghost sm\" data-act=\"goto\" data-view=\"connect\">连接配置<svg class=\"i\"><use href=\"#i-arrow\"/></svg></button></div>" +
+        "<div class=\"rows\" id=\"ovChannels\"></div></div>" +
+      "<div class=\"card\"><div class=\"card-h\"><h2>能力矩阵</h2><div class=\"spacer\"></div><span class=\"hint\" id=\"ovCapsHint\">—</span></div>" +
+        "<div class=\"card-b\"><div class=\"chips\" id=\"ovCaps\"><span class=\"chip\">加载中…</span></div>" +
+        "<div class=\"divider\"></div><div class=\"kv\"><div><div class=\"k\">驱动</div><div class=\"v\" id=\"ovDriver\">—</div></div>" +
+        "<div><div class=\"k\">可调用动作</div><div class=\"v\" id=\"ovActions\">—</div></div></div></div></div>" +
+    "</div>" +
+    "<div class=\"card\"><div class=\"card-h\"><h2>最近事件</h2><div class=\"spacer\"></div>" +
+      "<button class=\"btn ghost sm\" data-act=\"goto\" data-view=\"events\">全部事件<svg class=\"i\"><use href=\"#i-arrow\"/></svg></button></div>" +
+      "<div class=\"rows\" id=\"ovEvents\">" + emptyState("加载中…") + "</div></div>";
+  syncOverview();
+  fillOverviewCaps();
+  loadOverviewEvents();
+  if (!S.caps) loadCaps();
+  if (!S.loginInfo) loadLoginInfo();
+}
+
+function syncOverview() {
+  const rt = S.runtime; if (!$("#ovOnline")) return;
+  if (!rt) {
+    $("#ovOnline").textContent = "未启动";
+    $("#ovOnlineSub").textContent = "driver: " + ((S.status && S.status.driver) || "—");
+    $("#ovAccount").textContent = S.account || "—";
+    $("#ovAccountSub").textContent = S.account ? "已配置账号" : "未配置";
+    $("#ovChannels").innerHTML = emptyState("账号 Runtime 未启动");
+    $("#ovDriver").textContent = (S.status && S.status.driver) || "—";
+    $("#ovMsgSub").textContent = "账号 Runtime 未启动";
+    return;
+  }
+  const net = netOf();
+  const online = !!rt.online;
+  $("#ovOnline").textContent = online ? "在线" : (rt.started ? "离线" : "未启动");
+  $("#ovOnline").className = "m-value " + (online ? "ok" : "bad");
+  $("#ovOnlineSub").textContent = "driver: " + (S.status && S.status.driver || "—");
+  const nick = (S.loginInfo && S.loginInfo.nickname && S.loginInfo.nickname.trim()) || "微信账号";
+  $("#ovAccount").textContent = nick || "—";
+  $("#ovAccountSub").textContent = rt.account || "—";
+  $("#ovSelf").textContent = rt.self_id || "—";
+  $("#ovSelfSub").textContent = "PID " + (rt.pid || "—");
+  $("#ovMsg").textContent = String(rt.message_count ?? 0);
+  $("#ovMsgSub").textContent = "条持久化消息";
+  const http = (net.httpServers || [])[0];
+  const ws = (net.wsServers || [])[0];
+  const clients = net.wsClients || [];
+  const enabledClients = clients.filter((c) => c.enabled !== false).length;
+  $("#ovChannels").innerHTML =
+    channelRow("HTTP 服务端", http ? (http.host + ":" + http.port + http.path) : "未配置", !!(http && http.started), http && http.started ? "监听中" : "未启动") +
+    channelRow("正向 WebSocket", ws ? (ws.host + ":" + ws.port + ws.path) : "未配置", !!(ws && ws.started), ws && ws.started ? (ws.connections || 0) + " 连接" : "未启动") +
+    channelRow("反向 WebSocket 客户端", enabledClients ? clients.filter((c) => c.enabled !== false).map((c) => c.name).join(", ") : "未配置", enabledClients > 0 && (net.connections || 0) > 0, enabledClients ? enabledClients + " 个" : "未配置") +
+    channelRow("事件连接总数", "wsServers + wsClients 当前在线连接", (net.connections || 0) > 0, String(net.connections || 0) + " 连接");
+  $("#ovDriver").textContent = (S.status && S.status.driver) || "—";
+  $("#ovActions").textContent = S.caps ? String((S.caps.actions || []).length) : "—";
+}
+
+function fillOverviewCaps() {
+  const box = $("#ovCaps"); if (!box) return;
+  if (!S.caps) { box.innerHTML = "<span class=\"chip\">运行时未就绪</span>"; return; }
+  const caps = S.caps.capabilities || [];
+  $("#ovCapsHint").textContent = caps.length + " 项能力";
+  box.innerHTML = caps.length ? caps.map((c) => "<span class=\"chip\">" + esc(c) + "</span>").join("") : "<span class=\"chip\">无</span>";
+  $("#ovActions").textContent = String((S.caps.actions || []).length);
+}
+
+async function loadOverviewEvents() {
+  if (!S.account) { const el = $("#ovEvents"); if (el) el.innerHTML = emptyState("账号未就绪"); return; }
+  try {
+    const body = await api("/api/accounts/" + encodeURIComponent(S.account) + "/events");
+    const rows = (body.events || []).slice(-7).reverse();
+    const el = $("#ovEvents"); if (!el) return;
+    el.innerHTML = rows.length ? rows.map((ev) => {
+      const kind = ev.post_type || "event";
+      const detail = ev.post_type === "message" ? ((ev.sender && ev.sender.nickname) || "") + " · " + (ev.message_type || "") : (ev.sub_type || ev.notice_type || ev.request_type || "");
+      return "<div class=\"row\"><span class=\"badge " + badgeClass(kind) + "\">" + esc(kind) + "</span>" +
+        "<div class=\"r-main\"><div class=\"r-title\">" + esc(summarize(ev)) + "</div><div class=\"r-sub\">" + esc(detail) + "</div></div>" +
+        "<div class=\"r-right mono\">" + esc(fmtTime(ev.time)) + "</div></div>";
+    }).join("") : emptyState("暂无事件");
+  } catch (error) {
+    const el = $("#ovEvents"); if (el) el.innerHTML = emptyState(error.message || "读取失败");
+  }
+}
+
+function badgeClass(kind) {
+  return kind === "message" ? "info" : kind === "meta_event" ? "" : kind === "notice" ? "warn" : kind === "request" ? "ok" : "";
+}
+function summarize(ev) {
+  if (!ev || typeof ev !== "object") return "—";
+  if (ev.post_type === "message") {
+    const raw = ev.raw_message || (typeof ev.message === "string" ? ev.message : (Array.isArray(ev.message) ? ev.message.map((s) => s.type === "text" ? (s.data && s.data.text) || "" : "[" + s.type + "]").join("") : ""));
+    return raw || "[消息]";
+  }
+  if (ev.post_type === "meta_event") return "meta_event · " + (ev.meta_event_type || "heartbeat");
+  if (ev.post_type === "notice") return (ev.notice_type || "notice") + (ev.sub_type ? " · " + ev.sub_type : "");
+  if (ev.post_type === "request") return (ev.request_type || "request");
+  return ev.post_type || "event";
+}
+
+/* ---------- processes and account ---------- */
+function renderProcesses(root) {
+  renderAccount(root);
+  root.insertAdjacentHTML("afterbegin",
+    "<div class=\"surface-header\"><div><h2>微信实例</h2><p>只读查看已配置账号与运行状态；登录账号扫描仅在手动点击时执行。</p></div>" +
+    "<div class=\"toolbar\"><select class=\"input\" id=\"procSort\" style=\"width:116px\"><option value=\"status\">按状态</option><option value=\"pid\">按 PID</option><option value=\"name\">按账号</option></select>" +
+    "<button class=\"btn sm\" data-act=\"proc-refresh\">刷新状态</button><button class=\"btn sm\" data-act=\"proc-scan\">扫描已登录账号</button></div></div>" +
+    "<div id=\"procBody\" class=\"grid cols-2\"></div>");
+  $("#procSort").value = S.processSort;
+  $("#procSort").addEventListener("change", (event) => { S.processSort = event.target.value; drawProcesses(); });
+  drawProcesses();
+  if (!S.processes) loadProcesses(false);
+}
+
+async function loadProcesses(scan) {
+  try {
+    const result = await api("/api/processes" + (scan ? "?scan=true" : ""));
+    S.processes = result.processes;
+    S.processError = result.error || "";
+  } catch (error) {
+    S.processError = error.message;
+  }
+  if (S.view === "account") drawProcesses();
+}
+
+function drawProcesses() {
+  const box = $("#procBody"); if (!box) return;
+  const rows = [...(S.processes || [])];
+  if (S.processSort === "pid") rows.sort((a, b) => (a.pid || 0) - (b.pid || 0));
+  else if (S.processSort === "name") rows.sort((a, b) => String(a.account || "").localeCompare(String(b.account || "")));
+  else rows.sort((a, b) => Number(!!b.online) - Number(!!a.online) || Number(!!b.running) - Number(!!a.running));
+  const warning = S.processError ? "<div class=\"note\" style=\"grid-column:1/-1\">" + esc(S.processError) + "</div>" : "";
+  box.innerHTML = warning + (rows.length ? rows.map((row) =>
+    "<div class=\"card process-card\"><div class=\"process-top\"><div class=\"avatar lg\">" + esc(initial(row.nickname || row.account)) + "</div>" +
+    "<div style=\"flex:1;min-width:0\"><strong>" + esc(row.nickname || row.account || "未知账号") + "</strong><div class=\"small muted mono\">" + esc(row.account || "未识别") + "</div></div>" +
+    "<span class=\"badge " + (row.online ? "ok" : row.running ? "warn" : "") + "\">" + (row.online ? "在线" : row.running ? "已启动" : "未启动") + "</span></div>" +
+    "<div class=\"kv\"><div><div class=\"k\">PID</div><div class=\"v\">" + esc(row.pid || "—") + "</div></div><div><div class=\"k\">来源</div><div class=\"v\">" + (row.configured ? "已配置" : "已发现") + "</div></div></div>" +
+    "<div class=\"process-actions\"><button class=\"btn sm\" data-act=\"proc-select\" data-account=\"" + esc(row.account || "") + "\">查看账号</button>" +
+    (row.running ? "<span class=\"small muted\">Runtime 已接入</span>" : "<span class=\"small muted\">等待 Runtime 接入</span>") + "</div></div>").join("") : emptyState(S.processes ? "未发现微信账号" : "正在读取实例状态…", "i-cpu"));
+}
+
+/* ---------- account ---------- */
+function renderAccount(root) {
+  const rt = S.runtime;
+  const nick = (S.loginInfo && S.loginInfo.nickname && S.loginInfo.nickname.trim()) || (S.account || "未绑定");
+  const wxid = S.account || "—";
+  const online = !!(rt && rt.online);
+  root.innerHTML =
+    "<div class=\"card accent\"><div class=\"card-b\"><div class=\"acct\">" +
+      "<div class=\"avatar lg\">" + esc(initial(nick)) + "</div>" +
+      "<div class=\"ac-meta\"><h2>" + esc(nick) + "</h2><p>" + esc(wxid) + "</p>" +
+        "<div class=\"toolbar\" style=\"margin-top:9px\"><span class=\"pill " + (online ? "ok" : "bad") + "\"><i class=\"dot\"></i>" + (online ? "在线" : (rt && rt.started ? "离线" : "未启动")) + "</span>" +
+        "<span class=\"badge\">driver " + esc((S.status && S.status.driver) || "—") + "</span>" +
+        "<span class=\"badge\">self_id " + esc((rt && rt.self_id) || "—") + "</span>" +
+        "<span class=\"badge\">PID " + esc((rt && rt.pid) || "—") + "</span></div></div>" +
+      "<div class=\"toolbar\"><button class=\"btn primary\" data-act=\"acct-start\"><svg class=\"i\"><use href=\"#i-play\"/></svg>启动</button>" +
+        "<button class=\"btn\" data-act=\"acct-restart\"><svg class=\"i\"><use href=\"#i-refresh\"/></svg>重启</button>" +
+        "<button class=\"btn danger\" data-act=\"acct-stop\"><svg class=\"i\"><use href=\"#i-stop\"/></svg>停止</button></div>" +
+    "</div></div></div>" +
+    "<div class=\"grid metrics\">" +
+      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">协议端版本</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-cpu\"/></svg></span></div><div class=\"m-value mono\" id=\"acVer\">" + esc((S.versionInfo && S.versionInfo.app_version) || "—") + "</div><div class=\"m-sub\">app version</div></div>" +
+      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">消息存储</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-db\"/></svg></span></div><div class=\"m-value\" id=\"acMsg\">" + esc(rt ? rt.message_count : 0) + "</div><div class=\"m-sub\">条持久化消息</div></div>" +
+      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">好友</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-user\"/></svg></span></div><div class=\"m-value\" id=\"acFriends\">" + (S.friends ? S.friends.length : "—") + "</div><div class=\"m-sub\">get_friend_list</div></div>" +
+      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">群聊</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-msg\"/></svg></span></div><div class=\"m-value\" id=\"acGroups\">" + (S.groups ? S.groups.length : "—") + "</div><div class=\"m-sub\">get_group_list</div></div>" +
+    "</div>" +
+    "<div class=\"grid cols-2\">" +
+      "<div class=\"card\"><div class=\"card-h\"><h2>好友</h2><div class=\"spacer\"></div><span class=\"hint\" id=\"acFriendHint\">" + (S.friends ? S.friends.length + " 位" : "—") + "</span>" +
+        "<button class=\"btn ghost sm\" data-act=\"acct-friends\"><svg class=\"i\"><use href=\"#i-refresh\"/></svg>读取</button></div>" +
+        "<div class=\"card-b\" style=\"padding-bottom:8px\"><div class=\"search\"><svg class=\"i\"><use href=\"#i-search\"/></svg>" +
+        "<input class=\"input\" id=\"friendSearch\" placeholder=\"搜索昵称 / 备注 / user_id\"></div></div>" +
+        "<div class=\"rows scroll\" id=\"friendList\">" + emptyState("点击“读取”获取好友列表", "i-user") + "</div></div>" +
+      "<div class=\"card\"><div class=\"card-h\"><h2>群聊</h2><div class=\"spacer\"></div><span class=\"hint\" id=\"acGroupHint\">" + (S.groups ? S.groups.length + " 个" : "—") + "</span>" +
+        "<button class=\"btn ghost sm\" data-act=\"acct-groups\"><svg class=\"i\"><use href=\"#i-refresh\"/></svg>读取</button></div>" +
+        "<div class=\"card-b\" style=\"padding-bottom:8px\"><div class=\"search\"><svg class=\"i\"><use href=\"#i-search\"/></svg>" +
+        "<input class=\"input\" id=\"groupSearch\" placeholder=\"搜索群名 / group_id\"></div></div>" +
+        "<div class=\"rows scroll\" id=\"groupList\">" + emptyState("点击“读取”获取群列表", "i-msg") + "</div></div>" +
+    "</div>";
+  const fs = $("#friendSearch");
+  if (fs) fs.addEventListener("input", () => { S.friendQuery = fs.value; renderFriendList(); });
+  const gs = $("#groupSearch");
+  if (gs) gs.addEventListener("input", () => { S.groupQuery = gs.value; renderGroupList(); });
+  if (S.friends) renderFriendList(); else maybeLoadFriends();
+  if (S.groups) renderGroupList(); else maybeLoadGroups();
+  if (!S.loginInfo) loadLoginInfo();
+  loadVersionInfo();
+}
+
+function syncAccount() {
+  const rt = S.runtime; const pill = document.querySelector("#view .acct .pill");
+  if (pill && rt) {
+    pill.className = "pill " + (rt.online ? "ok" : "bad");
+    pill.innerHTML = "<i class=\"dot\"></i>" + (rt.online ? "在线" : (rt.started ? "离线" : "未启动"));
+  }
+  const m = $("#acMsg"); if (m && rt) m.textContent = String(rt.message_count ?? 0);
+}
+
+async function maybeLoadFriends() {
+  if (!S.account || S.friends) return;
+  try { await loadFriends(); } catch (e) {}
+}
+async function maybeLoadGroups() {
+  if (!S.account || S.groups) return;
+  try { await loadGroups(); } catch (e) {}
+}
+async function loadFriends() {
+  const body = await callAction("get_friend_list");
+  if (body.status !== "ok") throw new Error(body.message || ("retcode " + body.retcode));
+  S.friends = body.data || [];
+  const hint = $("#acFriendHint"); if (hint) hint.textContent = S.friends.length + " 位";
+  const metric = $("#acFriends"); if (metric) metric.textContent = String(S.friends.length);
+  renderFriendList();
+}
+async function loadGroups() {
+  const body = await callAction("get_group_list");
+  if (body.status !== "ok") throw new Error(body.message || ("retcode " + body.retcode));
+  S.groups = body.data || [];
+  const hint = $("#acGroupHint"); if (hint) hint.textContent = S.groups.length + " 个";
+  const metric = $("#acGroups"); if (metric) metric.textContent = String(S.groups.length);
+  renderGroupList();
+}
+function renderFriendList() {
+  const box = $("#friendList"); if (!box) return;
+  const q = S.friendQuery.trim().toLowerCase();
+  const rows = (S.friends || []).filter((f) => !q || String(f.nickname || "").toLowerCase().includes(q) || String(f.remark || "").toLowerCase().includes(q) || String(f.user_id).includes(q));
+  box.innerHTML = rows.length ? rows.map((f) =>
+    "<div class=\"row\"><div class=\"avatar sm\">" + esc(initial(f.nickname || f.remark)) + "</div>" +
+    "<div class=\"r-main\"><div class=\"r-title\">" + esc(f.remark || f.nickname || "未命名") + "</div>" +
+    "<div class=\"r-sub\">" + esc(f.nickname || "") + "</div></div>" +
+    "<div class=\"r-right mono\">" + esc(f.user_id) + "</div></div>").join("") : emptyState(q ? "没有匹配的好友" : "好友列表为空", "i-user");
+}
+function renderGroupList() {
+  const box = $("#groupList"); if (!box) return;
+  const q = S.groupQuery.trim().toLowerCase();
+  const rows = (S.groups || []).filter((g) => !q || String(g.group_name || "").toLowerCase().includes(q) || String(g.group_id).includes(q));
+  box.innerHTML = rows.length ? rows.map((g) =>
+    "<div class=\"row\"><div class=\"avatar sm\">" + esc(initial(g.group_name)) + "</div>" +
+    "<div class=\"r-main\"><div class=\"r-title\">" + esc(g.group_name || "未命名群") + "</div>" +
+    "<div class=\"r-sub\">" + esc(g.group_id) + "</div></div>" +
+    "<div class=\"r-right\">" + (g.member_count ? esc(g.member_count) + " 人" : "") + "</div></div>").join("") : emptyState(q ? "没有匹配的群" : "群列表为空", "i-msg");
+}
+async function loadVersionInfo() {
+  if (S.versionInfo || !S.account) return;
+  try {
+    const body = await callAction("get_version_info");
+    if (body.status === "ok") { S.versionInfo = body.data; const el = $("#acVer"); if (el && body.data) el.textContent = body.data.app_version || "—"; }
+  } catch (e) {}
+}
+</script>
+<script>
+"use strict";
+/* ================= 连接 ================= */
+const NET_SECTIONS = [
+  { kind: "httpServers", title: "HTTP 服务端", desc: "向 OneBot 客户端提供 HTTP API 与 /healthz" },
+  { kind: "wsServers", title: "正向 WebSocket 服务端", desc: "OneBot 客户端主动连接本协议端" },
+  { kind: "httpClients", title: "HTTP 客户端（事件上报）", desc: "向外部 HTTP 地址推送事件" },
+  { kind: "wsClients", title: "反向 WebSocket 客户端", desc: "由本协议端主动连接外部 OneBot 服务" }
+];
+
+function renderConnect(root) {
+  if (!S.account) { root.innerHTML = "<div class=\"card\"><div class=\"card-b\">" + emptyState("尚未绑定微信账号，无法读取网络配置") + "</div></div>"; return; }
+  if (!S.network) {
+    root.innerHTML = "<div class=\"card\"><div class=\"card-b\">" + emptyState("读取网络配置…", "i-link") + "</div></div>";
+    loadNetwork();
+    return;
+  }
+  const rt = S.runtime || {};
+  const accounts = [...new Set([S.account, S.status && S.status.configuredAccount, ...((S.status && S.status.runtimes) || []).map((row) => row.account)].filter(Boolean))];
+  const accountOptions = accounts.map((account) => "<option value=\"" + esc(account) + "\"" + (account === S.account ? " selected" : "") + ">" + esc(account) + "</option>").join("");
+  const tabs = [{ kind: "general", title: "通用设置" }, ...NET_SECTIONS].map((sec) =>
+    "<button class=\"tab " + (S.configTab === sec.kind ? "on" : "") + "\" data-act=\"net-tab\" data-kind=\"" + sec.kind + "\">" + esc(sec.title) + "</button>").join("");
+  const sections = NET_SECTIONS.filter((sec) => S.configTab === sec.kind).map((sec) => {
+    const rows = (S.network[sec.kind] || []);
+    return "<section class=\"section\"><div class=\"section-h\"><div><h2>" + esc(sec.title) + "</h2><p>" + esc(sec.desc) + "</p></div>" +
+      "<button class=\"btn sm\" data-act=\"net-add\" data-kind=\"" + sec.kind + "\"><svg class=\"i\"><use href=\"#i-plus\"/></svg>新增</button></div>" +
+      "<div class=\"grid cols-2\">" + (rows.length ? rows.map((row, i) => endpointCard(sec.kind, i, row)).join("") : "<div class=\"card\"><div class=\"card-b\">" + emptyState("未配置 " + sec.title, "i-link") + "</div></div>") + "</div></section>";
+  }).join("");
+  const general = S.configTab === "general" ?
+    "<div class=\"grid cols-2\"><div class=\"card\"><div class=\"card-h\"><h2>通用设置</h2></div><div class=\"card-b\"><label class=\"field\"><span>心跳间隔（秒）</span>" +
+    "<input class=\"input\" type=\"number\" min=\"0.5\" max=\"300\" step=\"0.5\" id=\"heartbeatInput\" value=\"" + esc(S.network.heartbeatIntervalSeconds ?? 5) + "\"></label>" +
+    "<p class=\"small muted\">修改后保存配置，并重启账号 Runtime 生效。</p></div></div>" +
+    "<div class=\"card\"><div class=\"card-h\"><h2>当前运行时</h2></div><div class=\"card-b\"><div class=\"kv\">" +
+    "<div><div class=\"k\">账号</div><div class=\"v\">" + esc(S.account) + "</div></div><div><div class=\"k\">状态</div><div class=\"v\">" + (rt.online ? "在线" : rt.started ? "离线" : "未启动") + "</div></div>" +
+    "<div><div class=\"k\">事件连接</div><div class=\"v\">" + esc((rt.network && rt.network.connections) || 0) + "</div></div><div><div class=\"k\">self_id</div><div class=\"v\">" + esc(rt.self_id || "—") + "</div></div>" +
+    "</div></div></div></div>" : "";
+  root.innerHTML =
+    "<div class=\"note\"><svg class=\"i\"><use href=\"#i-alert\"/></svg><div>网络配置按账号保存在 <span class=\"mono\">data/accounts/&lt;账号&gt;/onebot.json</span>。保存后需重启账号 Runtime 才会应用新的监听端口与连接。</div></div>" +
+    "<div class=\"surface-header\"><div><h2>账号配置</h2><p>按账号分别管理 HTTP 和 WebSocket 连接。</p></div><select id=\"configAccount\" class=\"input\" style=\"width:min(320px,100%)\">" + accountOptions + "</select></div>" +
+    "<div class=\"page-tabs\">" + tabs + "</div>" +
+    "<div class=\"card\"><div class=\"card-b\"><div class=\"toolbar\">" +
+      "<span class=\"small muted\">账号 <b class=\"mono\">" + esc(S.account) + "</b> · 事件连接 <b class=\"mono\">" + esc((rt.network && rt.network.connections) || 0) + "</b></span>" +
+      "<div style=\"flex:1\"></div>" +
+      "<button class=\"btn ghost sm\" data-act=\"net-json\"><svg class=\"i\"><use href=\"#i-code\"/></svg>原始 JSON</button>" +
+      "<button class=\"btn sm\" data-act=\"net-reload\"><svg class=\"i\"><use href=\"#i-refresh\"/></svg>重新读取</button>" +
+      "<button class=\"btn sm\" data-act=\"net-restart\"><svg class=\"i\"><use href=\"#i-play\"/></svg>重启账号</button>" +
+      "<button class=\"btn primary sm\" data-act=\"net-save\"><svg class=\"i\"><use href=\"#i-check\"/></svg>保存配置</button>" +
+    "</div></div></div>" +
+    "<div id=\"netRawWrap\" class=\"card" + (S.networkJsonOpen ? "" : " hidden") + "\"><div class=\"card-h\"><h2>原始 JSON</h2><div class=\"spacer\"></div><button class=\"btn sm\" data-act=\"net-json-apply\">应用到表单</button></div>" +
+      "<div class=\"card-b\"><textarea class=\"input mono\" id=\"netRaw\" spellcheck=\"false\" style=\"height:300px\"></textarea></div></div>" +
+    general + sections;
+  if (S.networkJsonOpen) fillRawJson();
+  $("#configAccount").addEventListener("change", (event) => selectAccount(event.target.value));
+}
+
+function endpointCard(kind, index, row) {
+  const isServer = kind === "httpServers" || kind === "wsServers";
+  const snap = ((S.runtime && S.runtime.network && S.runtime.network[kind]) || []).find((x) => x.name === row.name);
+  const running = !!(snap && snap.started);
+  const fields =
+    (isServer
+      ? field("host", "监听地址", row.host, "text") + field("port", "端口", row.port, "number") +
+        field("path", "路径", row.path, "text") + field("accessToken", "Access Token", row.accessToken, "password", true)
+      : field("url", "目标地址", row.url, "text", true) + field("accessToken", "Access Token", row.accessToken, "password") +
+        (kind === "httpClients" ? field("timeoutSeconds", "超时（秒）", row.timeoutSeconds, "number") : field("reconnectSeconds", "重连间隔（秒）", row.reconnectSeconds, "number")));
+  return "<div class=\"card endpoint" + (row.enabled === false ? " off" : "") + "\" data-kind=\"" + kind + "\" data-index=\"" + index + "\">" +
+    "<div class=\"ep-h\"><span class=\"dot " + (running && row.enabled !== false ? "ok" : "idle") + "\"></span>" +
+      "<input class=\"ghost-input\" data-f=\"name\" value=\"" + esc(row.name) + "\" placeholder=\"名称\">" +
+      (row.enabled === false ? "<span class=\"badge\">已禁用</span>" : (running ? "<span class=\"badge ok\">运行中</span>" : "<span class=\"badge\">未启动</span>")) +
+      "<button class=\"switch " + (row.enabled !== false ? "on" : "") + "\" data-act=\"net-toggle\" title=\"启用 / 禁用\"></button>" +
+      "<button class=\"icon-btn\" data-act=\"net-del\" title=\"删除\"><svg class=\"i\"><use href=\"#i-trash\"/></svg></button></div>" +
+    "<div class=\"ep-b\">" + fields + "</div>" +
+    "<div class=\"ep-f\"><span>" + esc(kind) + " · #" + (index + 1) + "</span><span>" + (kind === "wsClients" || kind === "httpClients" ? "出站" : "入站") + "</span></div></div>";
+}
+
+function field(name, label, value, type, span2 = false) {
+  return "<label class=\"field" + (span2 ? " span2" : "") + "\"><span>" + esc(label) + "</span>" +
+    "<input class=\"input\" data-f=\"" + name + "\" type=\"" + type + "\" value=\"" + esc(value ?? "") + "\" spellcheck=\"false\" autocomplete=\"off\"></label>";
+}
+
+async function loadNetwork() {
+  if (!S.account) return;
+  const account = S.account;
+  try {
+    const data = await api("/api/accounts/" + encodeURIComponent(account) + "/network");
+    if (S.account !== account) return;
+    S.network = data;
+    if (S.view === "connect") render();
+  } catch (error) {
+    const root = $("#view");
+    if (S.view === "connect" && root) root.innerHTML = "<div class=\"card\"><div class=\"card-b\">" + emptyState("读取网络配置失败：" + error.message) + "</div></div>";
+  }
+}
+
+function collectNetwork() {
+  const heartbeat = $("#heartbeatInput");
+  const out = { heartbeatIntervalSeconds: heartbeat ? Number(heartbeat.value) : (S.network.heartbeatIntervalSeconds ?? 5),
+    httpServers: S.network.httpServers || [], httpClients: S.network.httpClients || [], wsServers: S.network.wsServers || [], wsClients: S.network.wsClients || [] };
+  if (NET_SECTIONS.some((sec) => sec.kind === S.configTab)) out[S.configTab] = [];
+  $$("#view .endpoint").forEach((card) => {
+    const kind = card.dataset.kind;
+    const val = (name) => { const el = card.querySelector("[data-f=\"" + name + "\"]"); return el ? el.value.trim() : ""; };
+    const number = (name) => { const raw = val(name); return raw === "" ? "" : Number(raw); };
+    const on = card.querySelector(".switch").classList.contains("on");
+    if (kind === "httpServers" || kind === "wsServers") {
+      out[kind].push({ name: val("name"), host: val("host"), port: number("port"), path: val("path"), accessToken: val("accessToken"), enabled: on });
+    } else if (kind === "httpClients") {
+      out[kind].push({ name: val("name"), url: val("url"), accessToken: val("accessToken"), timeoutSeconds: number("timeoutSeconds"), enabled: on });
+    } else {
+      out[kind].push({ name: val("name"), url: val("url"), accessToken: val("accessToken"), reconnectSeconds: number("reconnectSeconds"), enabled: on });
+    }
+  });
+  return out;
+}
+
+function fillRawJson() {
+  const area = $("#netRaw"); if (!area) return;
+  area.value = JSON.stringify(collectNetwork(), null, 2);
+}
+
+async function saveNetwork() {
+  if (!S.account) return;
+  const payload = collectNetwork();
+  try {
+    const result = await api("/api/accounts/" + encodeURIComponent(S.account) + "/network", {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+    });
+    if (result.saved !== true) { toast(result.message || "保存失败", "bad", 5200); return; }
+    toast(result.message || "网络配置已保存", "ok", 4600);
+    S.network = payload;
+    if (S.view === "connect") render();
+  } catch (error) { toast("保存失败：" + error.message, "bad", 5200); }
+}
+
+function defaultEndpoint(kind, count) {
+  if (kind === "httpServers") return { name: "http-" + (count + 1), host: "127.0.0.1", port: 6702, path: "/", accessToken: "", enabled: true };
+  if (kind === "wsServers") return { name: "ws-" + (count + 1), host: "127.0.0.1", port: 6703, path: "/ws", accessToken: "", enabled: true };
+  if (kind === "httpClients") return { name: "http-client-" + (count + 1), url: "http://127.0.0.1:8080/", accessToken: "", timeoutSeconds: 5, enabled: true };
+  return { name: "ws-client-" + (count + 1), url: "ws://127.0.0.1:8080/onebot/v11/ws", accessToken: "", reconnectSeconds: 1, enabled: true };
+}
+
+function syncConnectStates() {
+  if (!S.network || S.view !== "connect") return;
+  $$("#view .endpoint").forEach((card) => {
+    const kind = card.dataset.kind; const nameInput = card.querySelector("[data-f=\"name\"]");
+    const name = nameInput ? nameInput.value.trim() : "";
+    const snap = ((S.runtime && S.runtime.network && S.runtime.network[kind]) || []).find((x) => x.name === name);
+    const dot = card.querySelector(".ep-h .dot");
+    const badge = card.querySelectorAll(".ep-h .badge")[0];
+    const running = !!(snap && snap.started);
+    if (dot) dot.className = "dot " + (running ? "ok" : "idle");
+    if (badge) { badge.className = "badge" + (running ? " ok" : ""); badge.textContent = running ? "运行中" : "未启动"; }
+  });
+}
+
+/* ================= 日志与事件 ================= */
+function renderEvents(root) {
+  root.innerHTML = "<div class=\"page-tabs\"><button class=\"tab " + (S.logTab === "runtime" ? "on" : "") + "\" data-act=\"log-tab\" data-tab=\"runtime\">运行日志</button>" +
+    "<button class=\"tab " + (S.logTab === "events" ? "on" : "") + "\" data-act=\"log-tab\" data-tab=\"events\">OneBot 事件</button></div><div id=\"logBody\"></div>";
+  if (S.logTab === "runtime") renderRuntimeLogs($("#logBody"));
+  else renderEventActivity($("#logBody"));
+}
+
+function renderRuntimeLogs(root) {
+  root.innerHTML =
+    "<div class=\"card\"><div class=\"card-b\"><div class=\"toolbar\">" +
+    "<select class=\"input\" id=\"logLevel\" style=\"width:125px\"><option value=\"all\">全部级别</option><option value=\"debug\">DEBUG</option><option value=\"info\">INFO</option><option value=\"warning\">WARNING</option><option value=\"error\">ERROR</option></select>" +
+    "<div class=\"search\"><svg class=\"i\"><use href=\"#i-search\"/></svg><input class=\"input\" id=\"logQuery\" placeholder=\"搜索范围或内容\" value=\"" + esc(S.logQuery) + "\"></div>" +
+    "<label class=\"check\"><input type=\"checkbox\" id=\"logAuto\"" + (S.logAuto ? " checked" : "") + ">自动刷新</label><div style=\"flex:1\"></div>" +
+    "<span class=\"small muted\" id=\"logCount\">—</span><button class=\"btn sm\" data-act=\"log-export\">导出当前结果</button><button class=\"btn sm\" data-act=\"log-refresh\">刷新</button>" +
+    "</div></div></div><div class=\"card\" style=\"margin-top:14px\"><div class=\"card-h\"><h2>运行日志</h2><div class=\"spacer\"></div><span class=\"hint\">最近 200 条受控诊断摘要</span></div><div id=\"runtimeLogList\" class=\"scroll tall\"></div></div>";
+  $("#logLevel").value = S.logLevel;
+  $("#logLevel").addEventListener("change", (event) => { S.logLevel = event.target.value; drawRuntimeLogs(); });
+  $("#logQuery").addEventListener("input", (event) => { S.logQuery = event.target.value; drawRuntimeLogs(); });
+  $("#logAuto").addEventListener("change", (event) => { S.logAuto = event.target.checked; });
+  drawRuntimeLogs();
+  loadRuntimeLogs();
+}
+
+async function loadRuntimeLogs() {
+  try {
+    const result = await api("/api/logs");
+    S.logs = result.logs;
+    if (S.view === "events" && S.logTab === "runtime") drawRuntimeLogs();
+  } catch (error) {
+    const box = $("#runtimeLogList");
+    if (box && S.logTab === "runtime") box.innerHTML = emptyState("读取日志失败：" + error.message, "i-list");
+  }
+}
+
+function filteredRuntimeLogs() {
+  const q = S.logQuery.trim().toLowerCase();
+  return (S.logs || []).filter((row) => {
+    const level = String(row.level || "").toLowerCase();
+    return (S.logLevel === "all" || level === S.logLevel) &&
+      (!q || String(row.scope || "").toLowerCase().includes(q) || String(row.message || "").toLowerCase().includes(q));
+  });
+}
+
+function drawRuntimeLogs() {
+  const box = $("#runtimeLogList"); if (!box) return;
+  const rows = filteredRuntimeLogs();
+  const count = $("#logCount"); if (count) count.textContent = rows.length + " / " + (S.logs || []).length;
+  box.innerHTML = rows.length ? rows.slice().reverse().map((row) => {
+    const level = String(row.level || "info").toLowerCase();
+    return "<div class=\"log-line " + (level === "warning" ? "warn" : level === "error" || level === "critical" ? "error" : "") + "\"><span>" + esc(fmtTime(row.time)) + "</span>" +
+      "<span class=\"level\">" + esc(level.toUpperCase()) + "</span><span class=\"scope\">" + esc(row.scope || "—") + "</span><span class=\"message\">" + esc(row.message || "") + "</span></div>";
+  }).join("") : emptyState(S.logs ? "暂无匹配的运行日志" : "正在读取运行日志…", "i-list");
+}
+
+function exportRuntimeLogs() {
+  const rows = filteredRuntimeLogs();
+  const content = rows.map((row) => [row.time, row.level, row.scope, row.message].join(" ")).join("\n") + "\n";
+  const url = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
+  const link = document.createElement("a"); link.href = url; link.download = "wechat-onebot-logs.txt"; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function renderEventActivity(root) {
+  root.innerHTML =
+    "<div class=\"card\"><div class=\"card-b\"><div class=\"toolbar\">" +
+      "<select class=\"input\" id=\"evFilter\" style=\"width:150px\">" +
+        ["all", "message", "meta_event", "notice", "request"].map((k) => "<option value=\"" + k + "\"" + (S.eventFilter === k ? " selected" : "") + ">" + (k === "all" ? "全部事件" : k) + "</option>").join("") +
+      "</select>" +
+      "<div class=\"search\"><svg class=\"i\"><use href=\"#i-search\"/></svg><input class=\"input\" id=\"evQuery\" placeholder=\"搜索事件内容\" value=\"" + esc(S.eventQuery) + "\"></div>" +
+      "<label class=\"check\"><input type=\"checkbox\" id=\"evAuto\"" + (S.eventsAuto ? " checked" : "") + ">自动刷新</label>" +
+      "<div style=\"flex:1\"></div><span class=\"hint small muted\" id=\"evCount\">—</span>" +
+      "<button class=\"btn sm\" data-act=\"ev-refresh\"><svg class=\"i\"><use href=\"#i-refresh\"/></svg>刷新</button>" +
+    "</div></div></div>" +
+    "<div class=\"split\">" +
+      "<div class=\"card\"><div class=\"card-h\"><h2>事件流</h2><div class=\"spacer\"></div><span class=\"hint\" id=\"evHint\">—</span></div>" +
+        "<div class=\"event-list\" id=\"evList\">" + emptyState("加载中…") + "</div></div>" +
+      "<div class=\"card\"><div class=\"card-h\"><h2>事件详情</h2><div class=\"spacer\"></div>" +
+        "<button class=\"btn ghost sm\" data-act=\"ev-copy\"><svg class=\"i\"><use href=\"#i-copy\"/></svg>复制</button></div>" +
+        "<div class=\"card-b\" id=\"evDetail\">" + emptyState("选择左侧事件查看完整 JSON", "i-code") + "</div></div>" +
+    "</div>";
+  $("#evFilter").addEventListener("change", (event) => { S.eventFilter = event.target.value; renderEventList(); });
+  $("#evQuery").addEventListener("input", (event) => { S.eventQuery = event.target.value; renderEventList(); });
+  $("#evAuto").addEventListener("change", (event) => { S.eventsAuto = event.target.checked; });
+  loadEvents();
+}
+
+async function loadEvents(silent = false) {
+  if (!S.account) { const el = $("#evList"); if (el) el.innerHTML = emptyState("账号未就绪"); return; }
+  try {
+    const body = await api("/api/accounts/" + encodeURIComponent(S.account) + "/events");
+    S.events = body.events || [];
+    renderEventList();
+  } catch (error) {
+    if (!silent) { const el = $("#evList"); if (el) el.innerHTML = emptyState("读取事件失败：" + error.message); }
+  }
+}
+
+function eventMatches(ev, q) {
+  if (!q) return true;
+  try { return JSON.stringify(ev).toLowerCase().includes(q); } catch (e) { return false; }
+}
+
+function renderEventList() {
+  const box = $("#evList"); if (!box) return;
+  const q = S.eventQuery.trim().toLowerCase();
+  const rows = S.events.filter((ev) => (S.eventFilter === "all" || ev.post_type === S.eventFilter) && eventMatches(ev, q));
+  const hint = $("#evHint"); if (hint) hint.textContent = rows.length + " / " + S.events.length;
+  const count = $("#evCount"); if (count) count.textContent = "共 " + S.events.length + " 条";
+  box.innerHTML = rows.length ? rows.map((ev) => {
+    const idx = S.events.indexOf(ev);
+    const sel = S.selectedEvent === idx ? " sel" : "";
+    const meta = ev.post_type === "message" ? ((ev.message_type || "") + " · " + (ev.user_id || (ev.sender && ev.sender.user_id) || "")) : (ev.sub_type || ev.notice_type || ev.request_type || "");
+    return "<div class=\"event-row" + sel + "\" data-act=\"ev-row\" data-idx=\"" + idx + "\">" +
+      "<span class=\"event-time\">" + esc(fmtTime(ev.time)) + "</span>" +
+      "<span class=\"badge " + badgeClass(ev.post_type) + "\">" + esc(ev.post_type || "event") + "</span>" +
+      "<span class=\"event-title\">" + esc(summarize(ev)) + "</span>" +
+      "<span class=\"event-meta\">" + esc(meta) + "</span></div>";
+  }).join("") : emptyState("没有匹配的事件");
+  if (S.selectedEvent !== null) renderEventDetail();
+}
+
+function renderEventDetail() {
+  const box = $("#evDetail"); if (!box) return;
+  const ev = S.events[S.selectedEvent];
+  if (!ev) { box.innerHTML = emptyState("选择左侧事件查看完整 JSON", "i-code"); return; }
+  box.innerHTML = "<div class=\"toolbar\" style=\"margin-bottom:10px\">" +
+      "<span class=\"badge " + badgeClass(ev.post_type) + "\">" + esc(ev.post_type || "event") + "</span>" +
+      "<span class=\"badge\">" + esc(fmtDateTime(ev.time)) + "</span>" +
+      "<span class=\"badge\">self_id " + esc(ev.self_id || "—") + "</span></div>" +
+    "<pre class=\"code\" style=\"max-height:calc(100vh - 380px)\">" + esc(JSON.stringify(ev, null, 2)) + "</pre>";
+}
+</script>
+<script>
+"use strict";
+/* ================= 调试 ================= */
+function isReadOnly(def) { return !!(def && (def.read_only || /^(get_|can_)/.test(def.name || ""))); }
+
+const ACTION_GROUPS = [
+  { name: "消息发送", test: (n) => n.startsWith("send_") },
+  { name: "消息记录", test: (n) => n.includes("msg") && !n.startsWith("send_") },
+  { name: "群聊", test: (n) => n.startsWith("get_group") },
+  { name: "好友", test: (n) => n.startsWith("get_friend") },
+  { name: "能力探测", test: (n) => n.startsWith("can_") },
+  { name: "系统与账号", test: () => true }
+];
+
+function renderDebug(root) {
+  const tabs = [["tester", "动作测试"], ["compose", "消息编排"], ["activity", "实时活动"], ["api", "接口目录"]];
+  root.innerHTML = "<div class=\"page-tabs\">" + tabs.map(([key, label]) =>
+    "<button class=\"tab " + (S.debugTab === key ? "on" : "") + "\" data-act=\"debug-tab\" data-tab=\"" + key + "\">" + label + "</button>").join("") +
+    "</div><div id=\"debugBody\"></div>";
+  const body = $("#debugBody");
+  if (S.debugTab === "tester") renderActionTester(body);
+  else if (S.debugTab === "compose") renderComposer(body);
+  else if (S.debugTab === "activity") renderEventActivity(body);
+  else renderApiBrowser(body);
+}
+
+function renderActionTester(root) {
+  if (!S.catalog) {
+    root.innerHTML = "<div class=\"card\"><div class=\"card-b\">" + emptyState(S.catalogError || (S.account ? "正在读取动作目录…" : "账号未就绪，无法读取动作目录"), "i-flask") +
+      (S.catalogError ? "<div style=\"text-align:center\"><button class=\"btn sm\" data-act=\"dbg-reload\">重试</button></div>" : "") + "</div></div>";
+    if (S.account && !S.catalogLoading && !S.catalogError) loadCaps();
+    return;
+  }
+  root.innerHTML =
+    "<div class=\"debug\">" +
+      "<div class=\"card\"><div class=\"card-b\" style=\"padding:10px\"><div class=\"search\" style=\"max-width:none\">" +
+        "<svg class=\"i\"><use href=\"#i-search\"/></svg><input class=\"input\" id=\"dbgQuery\" placeholder=\"搜索动作\" value=\"" + esc(S.actionQuery) + "\"></div></div>" +
+        "<div class=\"act-list\" id=\"actList\"></div></div>" +
+      "<div class=\"grid\" id=\"dbgPanel\" style=\"gap:14px\"></div>" +
+    "</div>";
+  $("#dbgQuery").addEventListener("input", (event) => { S.actionQuery = event.target.value; renderActionList(); });
+  renderActionList();
+  renderDebugPanel();
+}
+
+function renderComposer(root) {
+  root.innerHTML =
+    "<div class=\"grid two\"><div class=\"card\"><div class=\"card-h\"><h2>OneBot 消息编排</h2></div><div class=\"card-b\" style=\"display:grid;gap:13px\">" +
+    "<div class=\"grid cols-2\"><label class=\"field\"><span>消息类型</span><select id=\"composeType\" class=\"input\"><option value=\"private\">私聊</option><option value=\"group\">群聊</option></select></label>" +
+    "<label class=\"field\"><span>OneBot 目标 ID</span><input id=\"composeTarget\" class=\"input mono\" inputmode=\"numeric\" placeholder=\"user_id 或 group_id\" value=\"" + esc(S.composeTarget) + "\"></label></div>" +
+    "<label class=\"field\"><span>消息内容</span><textarea id=\"composeMessage\" class=\"input\" style=\"height:150px\" placeholder=\"文本，或 OneBot 消息段 JSON 数组\">" + esc(S.composeMessage) + "</textarea></label>" +
+    "<label class=\"check\"><input id=\"composeConfirm\" type=\"checkbox\">我确认向真实微信联系人或群发送该消息</label>" +
+    "<div class=\"toolbar\"><span class=\"small muted\">通过 WebUI 动作接口调用标准 OneBot 发送动作</span><div style=\"flex:1\"></div><button class=\"btn primary\" data-act=\"compose-send\">发送消息</button></div>" +
+    "</div></div><div class=\"card\"><div class=\"card-h\"><h2>发送回包</h2></div><div class=\"card-b\"><pre class=\"code\" id=\"composeResult\">" + esc(S.composeResult ? JSON.stringify(S.composeResult, null, 2) : "尚未发送") + "</pre></div></div></div>";
+  $("#composeType").value = S.composeType;
+  $("#composeType").addEventListener("change", (event) => { S.composeType = event.target.value; });
+  $("#composeTarget").addEventListener("input", (event) => { S.composeTarget = event.target.value; });
+  $("#composeMessage").addEventListener("input", (event) => { S.composeMessage = event.target.value; });
+}
+
+async function sendComposedMessage() {
+  const target = Number(S.composeTarget.trim());
+  if (!Number.isSafeInteger(target) || target <= 0) throw new Error("目标 ID 必须是正整数");
+  if (!S.composeMessage.trim()) throw new Error("请输入消息内容");
+  if (!$("#composeConfirm").checked) throw new Error("发送前请勾选确认");
+  let message = S.composeMessage;
+  if (message.trim().startsWith("[") || message.trim().startsWith("{")) {
+    try { message = JSON.parse(message); } catch (error) { throw new Error("消息段 JSON 无效：" + error.message); }
+  }
+  const action = S.composeType === "group" ? "send_group_msg" : "send_private_msg";
+  const params = S.composeType === "group" ? { group_id: target, message } : { user_id: target, message };
+  S.composeResult = await callAction(action, params);
+  const box = $("#composeResult"); if (box) box.textContent = JSON.stringify(S.composeResult, null, 2);
+  toast(S.composeResult.status === "ok" ? "消息已发送" : "发送失败：" + (S.composeResult.message || S.composeResult.retcode), S.composeResult.status === "ok" ? "ok" : "bad");
+}
+
+function renderApiBrowser(root) {
+  if (!S.catalog) {
+    root.innerHTML = "<div class=\"card\"><div class=\"card-b\">" + emptyState(S.catalogError || "正在读取动作目录…", "i-code") +
+      (S.catalogError ? "<div style=\"text-align:center\"><button class=\"btn sm\" data-act=\"dbg-reload\">重试</button></div>" : "") + "</div></div>";
+    if (S.account && !S.catalogLoading && !S.catalogError) loadCaps(); return;
+  }
+  const q = S.apiQuery.trim().toLowerCase();
+  const rows = S.catalog.filter((row) => row.name.toLowerCase().includes(q) || String(row.summary || "").toLowerCase().includes(q));
+  root.innerHTML = "<div class=\"card\"><div class=\"card-b\"><div class=\"toolbar\"><div class=\"search\"><svg class=\"i\"><use href=\"#i-search\"/></svg>" +
+    "<input id=\"apiQuery\" class=\"input\" placeholder=\"搜索 OneBot 动作\" value=\"" + esc(S.apiQuery) + "\"></div><span class=\"small muted\">" + rows.length + " / " + S.catalog.length + " 个动作</span></div></div></div>" +
+    "<div class=\"grid cols-2\">" + rows.map((row) => "<div class=\"card\"><div class=\"card-h\"><h2 class=\"mono\">" + esc(row.name) + "</h2><div class=\"spacer\"></div>" +
+    "<span class=\"badge " + (isReadOnly(row) ? "ok" : "warn") + "\">" + (isReadOnly(row) ? "只读" : "写操作") + "</span></div><div class=\"card-b\">" +
+    "<p class=\"small dim\">" + esc(row.summary || "") + "</p><div class=\"chips\">" + Object.entries(row.params || {}).map(([name, spec]) =>
+      "<span class=\"chip\">" + esc(name) + (spec.required ? " *" : "") + "</span>").join("") + "</div><div style=\"margin-top:12px\"><button class=\"btn sm\" data-act=\"api-try\" data-name=\"" + esc(row.name) + "\">试一下</button></div></div></div>").join("") + "</div>";
+  $("#apiQuery").addEventListener("input", (event) => { S.apiQuery = event.target.value; renderApiBrowser(root); $("#apiQuery").focus(); });
+}
+
+function renderActionList() {
+  const box = $("#actList"); if (!box) return;
+  const q = S.actionQuery.trim().toLowerCase();
+  const items = (S.catalog || []).filter((a) => !q || a.name.includes(q) || (a.summary || "").toLowerCase().includes(q));
+  const groups = ACTION_GROUPS.map((g) => ({ name: g.name, rows: [] }));
+  items.forEach((a) => { const g = ACTION_GROUPS.find((x) => x.test(a.name)) || ACTION_GROUPS[ACTION_GROUPS.length - 1]; groups.find((x) => x.name === g.name).rows.push(a); });
+  box.innerHTML = groups.filter((g) => g.rows.length).map((g) =>
+    "<div class=\"act-group\">" + esc(g.name) + "</div>" + g.rows.map((a) =>
+      "<div class=\"act-item" + (S.action === a.name ? " sel" : "") + "\" data-act=\"dbg-select\" data-name=\"" + esc(a.name) + "\">" +
+      "<span class=\"dot " + (isReadOnly(a) ? "ok" : "warn") + "\"></span>" +
+      "<span class=\"a-name\">" + esc(a.name) + "</span></div>").join("")).join("") || emptyState("没有匹配的动作");
+}
+
+function renderDebugPanel() {
+  const box = $("#dbgPanel"); if (!box) return;
+  const def = (S.catalog || []).find((a) => a.name === S.action);
+  if (!def) {
+    box.innerHTML = "<div class=\"card\"><div class=\"card-b\">" + emptyState("从左侧选择一个动作开始调试", "i-flask") + "</div></div>";
+    return;
+  }
+  const paramNames = Object.keys(def.params || {});
+  let form;
+  if (S.actionJsonMode) {
+    form = "<textarea class=\"input mono\" id=\"dbgJson\" spellcheck=\"false\" style=\"height:150px\">" + esc(JSON.stringify(S.actionParams || {}, null, 2)) + "</textarea>";
+  } else if (!paramNames.length) {
+    form = "<div class=\"note\"><svg class=\"i\"><use href=\"#i-code\"/></svg><div>该动作不需要参数，直接发送即可。</div></div>";
+  } else {
+    form = "<div class=\"grid cols-2\">" + paramNames.map((name) => {
+      const spec = def.params[name] || {};
+      const value = S.actionParams ? S.actionParams[name] : undefined;
+      const label = "<span>" + esc(name) + (spec.required ? "<span class=\"req\">*</span>" : "") + "</span>";
+      if (spec.kind === "bool") {
+        return "<label class=\"field\">" + label + "<select class=\"input\" data-param=\"" + esc(name) + "\" data-kind=\"bool\">" +
+          "<option value=\"\">默认</option><option value=\"true\"" + (value === true ? " selected" : "") + ">true</option><option value=\"false\"" + (value === false ? " selected" : "") + ">false</option></select></label>";
+      }
+      if (name === "message") {
+        const text = value === undefined ? "" : (typeof value === "string" ? value : JSON.stringify(value, null, 2));
+        return "<label class=\"field span2\" style=\"grid-column:span 2\">" + label + "<textarea class=\"input\" data-param=\"message\" data-kind=\"str\" style=\"height:96px\" placeholder=\"文本，或消息段 JSON 数组\">" + esc(text) + "</textarea></label>";
+      }
+      return "<label class=\"field\">" + label + "<input class=\"input\" data-param=\"" + esc(name) + "\" data-kind=\"" + esc(spec.kind || "str") + "\" value=\"" + esc(value ?? "") + "\" placeholder=\"" + esc(spec.description || "") + "\" spellcheck=\"false\"></label>";
+    }).join("") + "</div>";
+  }
+  const confirm = isReadOnly(def) ? "" :
+    "<label class=\"check\" style=\"margin-top:12px\"><input type=\"checkbox\" id=\"confirmWrite\"" + (S.confirmWrite ? " checked" : "") + ">我确认这是一次写操作（会真实发送或修改微信数据）</label>";
+  const result = S.actionResult;
+  const resp = result
+    ? "<div class=\"resp-h\"><span class=\"badge " + (result.status === "ok" ? "ok" : "bad") + "\">" + esc(result.status === "ok" ? "成功" : "失败") + "</span>" +
+      "<span>retcode " + esc(result.retcode ?? "—") + "</span><span>" + esc(result._elapsed ?? 0) + " ms</span>" +
+      "<span>" + esc(fmtBytes(new Blob([JSON.stringify(result)]).size)) + "</span><div style=\"flex:1\"></div>" +
+      "<button class=\"btn ghost sm\" data-act=\"dbg-copy\">复制</button></div>" +
+      "<div class=\"resp-b\"><pre class=\"code\" style=\"max-height:360px\">" + esc(JSON.stringify(result, null, 2)) + "</pre></div>"
+    : "<div class=\"resp-h\"><span class=\"badge\">WAITING</span><span>尚未执行</span></div><div class=\"resp-b\"><pre class=\"code muted\" style=\"max-height:120px\">" + esc("// 发送后在此显示 OneBot v11 响应\n{\n  \"status\": \"ok\",\n  \"retcode\": 0,\n  \"data\": {}\n}") + "</pre></div>";
+  box.innerHTML =
+    "<div class=\"card\"><div class=\"card-h\"><h2 class=\"mono\" style=\"color:var(--accent)\">" + esc(def.name) + "</h2>" +
+      "<span class=\"badge " + (isReadOnly(def) ? "ok" : "warn") + "\">" + (isReadOnly(def) ? "只读" : "写操作") + "</span>" +
+      "<span class=\"hint\">" + esc(def.summary || "") + "</span><div class=\"spacer\"></div>" +
+      "<button class=\"btn ghost sm\" data-act=\"dbg-example\">填充示例</button>" +
+      "<button class=\"btn ghost sm\" data-act=\"dbg-json\">" + (S.actionJsonMode ? "表单模式" : "原始 JSON") + "</button>" +
+      "<button class=\"btn primary sm\" data-act=\"dbg-run\"" + (S.actionBusy ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-send\"/></svg>" + (S.actionBusy ? "发送中…" : "发送") + "</button></div>" +
+      "<div class=\"card-b\"><div id=\"dbgParams\">" + form + "</div>" + confirm + "</div></div>" +
+    "<div class=\"card\">" + resp + "</div>";
+  const cw = $("#confirmWrite");
+  if (cw) cw.addEventListener("change", (event) => { S.confirmWrite = event.target.checked; });
+}
+
+function collectActionParams() {
+  if (S.actionJsonMode) {
+    const raw = $("#dbgJson") ? $("#dbgJson").value.trim() : "{}";
+    const parsed = JSON.parse(raw || "{}");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("参数必须是 JSON 对象");
+    return parsed;
+  }
+  const params = {};
+  $$("#dbgParams [data-param]").forEach((el) => {
+    const name = el.dataset.param; const kind = el.dataset.kind; const raw = el.value.trim();
+    if (raw === "") return;
+    if (kind === "bool") { params[name] = raw === "true"; return; }
+    if (kind === "int" || kind === "signed_int32") {
+      const num = Number(raw); if (!Number.isFinite(num)) throw new Error(name + " 必须是数字"); params[name] = num; return;
+    }
+    if (name === "message" && (raw.startsWith("[") || raw.startsWith("{"))) {
+      try { params[name] = JSON.parse(raw); return; } catch (e) { throw new Error("message 看起来是 JSON，但解析失败"); }
+    }
+    params[name] = raw;
+  });
+  return params;
+}
+
+async function runDebugAction() {
+  const def = (S.catalog || []).find((a) => a.name === S.action); if (!def) return;
+  let params;
+  try { params = collectActionParams(); } catch (error) { toast(error.message, "bad"); return; }
+  if (!isReadOnly(def) && !S.confirmWrite) { toast("写操作需要先勾选确认", "bad", 3200); return; }
+  S.actionBusy = true; S.actionParams = params; renderDebugPanel();
+  try {
+    const body = await callAction(def.name, params);
+    S.actionResult = body;
+    toast(body.status === "ok" ? "动作执行成功" : ("动作执行失败：" + (body.message || ("retcode " + body.retcode))), body.status === "ok" ? "ok" : "bad", 3000);
+  } catch (error) {
+    S.actionResult = { status: "failed", retcode: -1, message: error.message, data: null };
+    toast("调用失败：" + error.message, "bad", 4200);
+  } finally { S.actionBusy = false; if (S.view === "debug") renderDebugPanel(); }
+}
+
+/* ================= 存储 ================= */
+function renderStorage(root) {
+  if (!S.runtime) { root.innerHTML = "<div class=\"card\"><div class=\"card-b\">" + emptyState("账号 Runtime 未启动，暂无法读取存储统计", "i-db") + "</div></div>"; return; }
+  root.innerHTML = "<div id=\"stoBody\">" + emptyState("读取存储统计…", "i-db") + "</div>";
+  loadStorage();
+}
+async function loadStorage() {
+  if (!S.account) { const b = $("#stoBody"); if (b) b.innerHTML = emptyState("账号未就绪"); return; }
+  try { S.storage = await api("/api/accounts/" + encodeURIComponent(S.account) + "/storage"); }
+  catch (error) { const b = $("#stoBody"); if (b) b.innerHTML = emptyState("读取失败：" + error.message, "i-db"); return; }
+  if (S.view === "settings" && S.settingsTab === "storage") drawStorage();
+}
+function drawStorage() {
+  const b = $("#stoBody"); const st = S.storage; if (!b || !st) return;
+  const msgs = st.messages || {};
+  b.innerHTML =
+    "<div class=\"grid metrics\">" +
+      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">消息记录</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-msg\"/></svg></span></div><div class=\"m-value\">" + esc(msgs.message_count ?? 0) + "</div><div class=\"m-sub\">SQLite 持久化</div></div>" +
+      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">媒体文件</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-db\"/></svg></span></div><div class=\"m-value\">" + esc(st.mediaFileCount ?? 0) + "</div><div class=\"m-sub\">账号隔离目录</div></div>" +
+      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">媒体占用</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-db\"/></svg></span></div><div class=\"m-value\">" + esc(fmtBytes(st.mediaBytes)) + "</div><div class=\"m-sub\">上限由配置控制</div></div>" +
+      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">账号 Runtime</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-cpu\"/></svg></span></div><div class=\"m-value\" style=\"font-size:15px\">" + esc(S.runtime && S.runtime.pid ? "PID " + S.runtime.pid : "未运行") + "</div><div class=\"m-sub\">" + esc(S.account || "—") + "</div></div>" +
+    "</div>" +
+    "<div class=\"card\"><div class=\"card-h\"><h2>落盘路径</h2><div class=\"spacer\"></div><button class=\"btn ghost sm\" data-act=\"sto-refresh\"><svg class=\"i\"><use href=\"#i-refresh\"/></svg>刷新</button></div>" +
+      "<div class=\"rows\"><div class=\"row\"><span class=\"dot ok\"></span><div class=\"r-main\"><div class=\"r-title\">账号目录</div><div class=\"r-sub\">" + esc(st.accountDir || "—") + "</div></div><button class=\"icon-btn\" data-act=\"sto-copy\" data-path=\"" + esc(st.accountDir || "") + "\"><svg class=\"i\"><use href=\"#i-copy\"/></svg></button></div>" +
+      "<div class=\"row\"><span class=\"dot ok\"></span><div class=\"r-main\"><div class=\"r-title\">媒体目录</div><div class=\"r-sub\">" + esc(st.mediaDir || "—") + "</div></div><button class=\"icon-btn\" data-act=\"sto-copy\" data-path=\"" + esc(st.mediaDir || "") + "\"><svg class=\"i\"><use href=\"#i-copy\"/></svg></button></div></div></div>" +
+    "<div class=\"card\"><div class=\"card-h\"><h2>消息统计</h2></div><div class=\"card-b\"><div class=\"kv\">" +
+      Object.entries(msgs).map(([k, v]) => "<div><div class=\"k\">" + esc(k) + "</div><div class=\"v\">" + esc(v) + "</div></div>").join("") +
+    "</div></div></div>";
+}
+
+/* ================= 设置 ================= */
+const SETTINGS_TABS = [
+  { key: "appearance", label: "外观", group: "控制台" },
+  { key: "data", label: "数据与格式", group: "控制台" },
+  { key: "account", label: "账号安全", group: "控制台" },
+  { key: "global", label: "全局配置", group: "协议端" },
+  { key: "storage", label: "存储管理", group: "协议端" },
+  { key: "notifications", label: "事件上报", group: "协议端" },
+  { key: "system", label: "服务", group: "平台" },
+  { key: "advanced", label: "高级", group: "平台" },
+  { key: "developer", label: "开发者", group: "平台" },
+  { key: "about", label: "关于", group: "平台" }
+];
+function renderSettings(root) {
+  let group = "";
+  const nav = SETTINGS_TABS.map((tab) => {
+    const heading = tab.group === group ? "" : (group = tab.group, "<div class=\"small muted\" style=\"padding:10px 10px 4px\">" + esc(group) + "</div>");
+    return heading + "<button class=\"" + (S.settingsTab === tab.key ? "active" : "") + "\" data-act=\"settings-tab\" data-tab=\"" + tab.key + "\">" + tab.label + "</button>";
+  }).join("");
+  root.innerHTML = "<div class=\"settings-layout\"><div class=\"card settings-nav\">" + nav + "</div><div id=\"settingsBody\"></div></div>";
+  const panel = $("#settingsBody");
+  const tab = S.settingsTab;
+  if (tab === "storage") { renderStorage(panel); return; }
+  if (tab === "about") { renderSettingsOverview(panel); return; }
+  if (tab === "appearance") {
+    panel.innerHTML = "<div class=\"card\"><div class=\"card-h\"><h2>外观</h2></div><div class=\"card-b\"><div class=\"section\"><div><strong>主题</strong><p class=\"small muted\">使用 SnowLuma 同类的蓝色控制台配色。</p></div>" +
+      "<div class=\"toolbar\"><button class=\"btn " + (!document.documentElement.classList.contains("dark") ? "primary" : "") + "\" data-act=\"theme-select\" data-theme=\"light\">浅色</button>" +
+      "<button class=\"btn " + (document.documentElement.classList.contains("dark") ? "primary" : "") + "\" data-act=\"theme-select\" data-theme=\"dark\">深色</button></div>" +
+      "<div class=\"divider\"></div><div><strong>侧栏</strong><p class=\"small muted\">悬停展开；也可钉住显示完整导航。</p></div>" +
+      "<button class=\"btn\" data-act=\"sidebar-toggle\">" + (rail.classList.contains("pinned") ? "取消钉住" : "钉住侧栏展开") + "</button></div></div></div>"; return;
+  }
+  if (tab === "data") {
+    panel.innerHTML = "<div class=\"card\"><div class=\"card-h\"><h2>数据与格式</h2></div><div class=\"card-b\"><div class=\"kv\">" +
+      "<div><div class=\"k\">协议</div><div class=\"v\">OneBot v11</div></div><div><div class=\"k\">事件时间</div><div class=\"v\">浏览器本地时间</div></div>" +
+      "<div><div class=\"k\">事件窗口</div><div class=\"v\">最近 100 条</div></div><div><div class=\"k\">运行日志</div><div class=\"v\">最近 200 条</div></div></div>" +
+      "<div class=\"divider\"></div><button class=\"btn\" data-act=\"goto\" data-view=\"events\">查看日志与事件</button></div></div>"; return;
+  }
+  if (tab === "account") {
+    panel.innerHTML = "<div class=\"card\"><div class=\"card-h\"><h2>账号安全</h2></div><div class=\"card-b\"><div class=\"kv\">" +
+      "<div><div class=\"k\">管理页认证</div><div class=\"v\">WebUI Token</div></div><div><div class=\"k\">会话有效期</div><div class=\"v\">12 小时</div></div>" +
+      "<div><div class=\"k\">Cookie</div><div class=\"v\">HttpOnly / SameSite=Strict</div></div><div><div class=\"k\">OneBot 凭据</div><div class=\"v\">与管理页分离</div></div></div>" +
+      "<div class=\"divider\"></div><button class=\"btn danger\" data-act=\"set-logout\">退出登录</button></div></div>"; return;
+  }
+  if (tab === "global") {
+    const net = netOf();
+    panel.innerHTML = "<div class=\"card\"><div class=\"card-h\"><h2>协议端配置</h2></div><div class=\"card-b\"><div class=\"kv\">" +
+      "<div><div class=\"k\">驱动</div><div class=\"v\">" + esc((S.status && S.status.driver) || "—") + "</div></div>" +
+      "<div><div class=\"k\">HTTP 服务端</div><div class=\"v\">" + esc((net.httpServers || []).length) + "</div></div>" +
+      "<div><div class=\"k\">WebSocket 服务端</div><div class=\"v\">" + esc((net.wsServers || []).length) + "</div></div>" +
+      "<div><div class=\"k\">反向 WebSocket</div><div class=\"v\">" + esc((net.wsClients || []).length) + "</div></div></div>" +
+      "<div class=\"divider\"></div><button class=\"btn primary\" data-act=\"goto\" data-view=\"connect\">编辑节点配置</button></div></div>"; return;
+  }
+  if (tab === "notifications") {
+    const clients = netOf().httpClients || [];
+    panel.innerHTML = "<div class=\"card\"><div class=\"card-h\"><h2>OneBot 事件上报</h2></div><div class=\"card-b\"><p class=\"small dim\">通过 HTTP 客户端向外部 OneBot 接收端上报事件。</p>" +
+      "<div class=\"rows\">" + (clients.length ? clients.map((row) => channelRow(row.name, row.url, row.started, row.started ? "运行中" : "未启动")).join("") : emptyState("尚未配置 HTTP 事件上报", "i-link")) +
+      "</div><div class=\"divider\"></div><button class=\"btn\" data-act=\"goto-http-clients\">配置 HTTP 客户端</button></div></div>"; return;
+  }
+  if (tab === "system") {
+    panel.innerHTML = "<div class=\"card\"><div class=\"card-h\"><h2>服务状态</h2></div><div class=\"card-b\"><div class=\"kv\">" +
+      "<div><div class=\"k\">运行实例</div><div class=\"v\">" + esc(((S.status && S.status.runtimes) || []).length) + "</div></div>" +
+      "<div><div class=\"k\">当前账号</div><div class=\"v\">" + esc(S.account || "—") + "</div></div>" +
+      "<div><div class=\"k\">最后错误</div><div class=\"v\">" + esc((S.status && S.status.lastError) || "无") + "</div></div></div>" +
+      "<div class=\"divider\"></div><button class=\"btn\" data-act=\"goto\" data-view=\"account\">查看微信实例</button></div></div>"; return;
+  }
+  if (tab === "advanced" || tab === "developer") {
+    panel.innerHTML = "<div class=\"card\"><div class=\"card-h\"><h2>" + (tab === "advanced" ? "高级" : "开发者") + "</h2></div><div class=\"card-b\">" +
+      "<p class=\"small dim\">使用 OneBot v11 的 HTTP、正向 WebSocket 或反向 WebSocket 接口接入外部客户端。</p>" +
+      "<div class=\"toolbar\"><button class=\"btn\" data-act=\"goto\" data-view=\"connect\">连接配置</button>" +
+      "<button class=\"btn\" data-act=\"goto-debug-api\">接口目录</button><button class=\"btn\" data-act=\"goto\" data-view=\"events\">运行日志</button></div></div></div>"; return;
+  }
+}
+
+function renderSettingsOverview(root) {
+  const st = S.status || {};
+  root.innerHTML =
+    "<div class=\"grid two\">" +
+      "<div class=\"card\"><div class=\"card-h\"><h2>会话</h2></div><div class=\"card-b\">" +
+        "<div class=\"kv\"><div><div class=\"k\">登录方式</div><div class=\"v\">WebUI Token</div></div>" +
+        "<div><div class=\"k\">会话有效期</div><div class=\"v\">12 小时</div></div>" +
+        "<div><div class=\"k\">Cookie</div><div class=\"v\">HttpOnly / SameSite=Strict</div></div>" +
+        "<div><div class=\"k\">OneBot access token</div><div class=\"v\">不进入浏览器</div></div></div>" +
+        "<div class=\"divider\"></div><button class=\"btn danger\" data-act=\"set-logout\"><svg class=\"i\"><use href=\"#i-logout\"/></svg>退出登录</button>" +
+      "</div></div>" +
+      "<div class=\"card\"><div class=\"card-h\"><h2>关于</h2></div><div class=\"card-b\"><div class=\"kv\">" +
+        "<div><div class=\"k\">应用</div><div class=\"v\">" + esc(st.app || "WeChat OneBot") + "</div></div>" +
+        "<div><div class=\"k\">版本</div><div class=\"v\">" + esc(st.version || "—") + "</div></div>" +
+        "<div><div class=\"k\">协议</div><div class=\"v\">OneBot v11</div></div>" +
+        "<div><div class=\"k\">驱动</div><div class=\"v\">" + esc(st.driver || "—") + "</div></div>" +
+        "<div><div class=\"k\">self_id</div><div class=\"v\">" + esc((S.runtime && S.runtime.self_id) || "—") + "</div></div>" +
+        "<div><div class=\"k\">账号</div><div class=\"v\">" + esc(S.account || "—") + "</div></div>" +
+      "</div></div></div>" +
+    "</div>" +
+    "<div class=\"card\"><div class=\"card-h\"><h2>安全边界</h2></div><div class=\"card-b\" style=\"display:grid;gap:10px\">" +
+      "<div class=\"note\"><svg class=\"i\"><use href=\"#i-lock\"/></svg><div>OneBot 凭据与 WebUI 凭据相互独立，OneBot 客户端无法读取管理页会话。</div></div>" +
+      "<div class=\"note\"><svg class=\"i\"><use href=\"#i-alert\"/></svg><div>调试台中的写操作（send_private_msg / send_group_msg / send_msg）默认拦截，必须勾选确认后才会真正发送。</div></div>" +
+      "<div class=\"note\"><svg class=\"i\"><use href=\"#i-cpu\"/></svg><div>消息收发由原生桥接完成，不使用 OCR、截图识别、坐标点击或键鼠模拟。</div></div>" +
+    "</div></div>";
+}
+
+/* ================= 交互 ================= */
+async function startRuntime(base) {
+  const result = await api(base + "/start", { method: "POST" });
+  if (result.ok !== true) throw new Error(result.error || "账号 Runtime 启动失败");
+}
+
+document.getElementById("view").addEventListener("click", async (event) => {
+  const el = event.target.closest("[data-act]"); if (!el) return;
+  const act = el.dataset.act;
+  try {
+    if (act === "goto") { setView(el.dataset.view); return; }
+    if (act === "goto-http-clients") { S.configTab = "httpClients"; setView("connect"); return; }
+    if (act === "goto-debug-api") { S.debugTab = "api"; setView("debug"); return; }
+    if (act === "settings-tab") { S.settingsTab = el.dataset.tab; render(); return; }
+    if (act === "theme-select") {
+      const dark = el.dataset.theme === "dark";
+      document.documentElement.classList.toggle("dark", dark);
+      localStorage.setItem("wechat-onebot-theme", dark ? "dark" : "light");
+      render(); return;
+    }
+    if (act === "sidebar-toggle") { $("#railPin").click(); render(); return; }
+    if (act === "log-tab") { S.logTab = el.dataset.tab; render(); return; }
+    if (act === "log-refresh") { await loadRuntimeLogs(); return; }
+    if (act === "log-export") { exportRuntimeLogs(); return; }
+    if (act === "debug-tab") { S.debugTab = el.dataset.tab; render(); return; }
+    if (act === "compose-send") { el.disabled = true; try { await sendComposedMessage(); } finally { el.disabled = false; } return; }
+    if (act === "api-try") {
+      const def = (S.catalog || []).find((row) => row.name === el.dataset.name); if (!def) return;
+      S.action = def.name; S.actionParams = JSON.parse(JSON.stringify((def.examples && def.examples[0]) || {}));
+      S.actionJsonMode = false; S.actionResult = null; S.confirmWrite = false; S.debugTab = "tester"; render(); return;
+    }
+    if (act === "acct-start" || act === "acct-stop" || act === "acct-restart") {
+      if (!S.account) return;
+      const base = "/api/accounts/" + encodeURIComponent(S.account);
+      if (act === "acct-stop" && !confirm("停止账号 Runtime 会断开全部 OneBot 连接，继续？")) return;
+      if (act === "acct-restart" && !confirm("重启账号 Runtime 会短暂断开全部 OneBot 连接，继续？")) return;
+      el.disabled = true;
+      if (act === "acct-stop") { await api(base + "/stop", { method: "POST" }); toast("账号 Runtime 已停止", "ok"); }
+      else if (act === "acct-start") { await startRuntime(base); toast("账号 Runtime 已启动", "ok"); }
+      else { await api(base + "/stop", { method: "POST" }); await new Promise((r) => setTimeout(r, 800)); await startRuntime(base); toast("账号 Runtime 已重启", "ok"); }
+      await refreshStatus(); ensureRuntimeData();
+      return;
+    }
+    if (act === "acct-friends") { el.disabled = true; await loadFriends(); toast("好友列表已更新", "ok"); el.disabled = false; return; }
+    if (act === "acct-groups") { el.disabled = true; await loadGroups(); toast("群列表已更新", "ok"); el.disabled = false; return; }
+    if (act === "proc-refresh" || act === "proc-scan") { el.disabled = true; await loadProcesses(act === "proc-scan"); el.disabled = false; return; }
+    if (act === "proc-select") { selectAccount(el.dataset.account); return; }
+    if (act === "net-tab") { S.network = collectNetwork(); S.configTab = el.dataset.kind; render(); return; }
+    if (act === "net-add") {
+      S.network = collectNetwork();
+      const kind = el.dataset.kind; S.network[kind] = S.network[kind] || [];
+      S.network[kind].push(defaultEndpoint(kind, S.network[kind].length)); render(); return;
+    }
+    if (act === "net-del") {
+      const card = el.closest(".endpoint"); const kind = card.dataset.kind; const index = Number(card.dataset.index);
+      if (!confirm("删除该通道配置？")) return;
+      S.network = collectNetwork();
+      S.network[kind].splice(index, 1); render(); return;
+    }
+    if (act === "net-toggle") {
+      const card = el.closest(".endpoint");
+      const on = el.classList.toggle("on");
+      card.classList.toggle("off", !on);
+      const badge = card.querySelector(".ep-h .badge");
+      if (badge) { badge.className = "badge"; badge.textContent = on ? "未启动" : "已禁用"; }
+      return;
+    }
+    if (act === "net-save") { await saveNetwork(); return; }
+    if (act === "net-reload") { S.network = null; S.networkJsonOpen = false; render(); return; }
+    if (act === "net-restart") {
+      if (!S.account) return;
+      if (!confirm("重启账号 Runtime 以应用网络配置？当前 OneBot 连接会短暂断开。")) return;
+      const base = "/api/accounts/" + encodeURIComponent(S.account);
+      await api(base + "/stop", { method: "POST" }); await new Promise((r) => setTimeout(r, 800));
+      await startRuntime(base); await refreshStatus(); toast("账号 Runtime 已重启", "ok"); return;
+    }
+    if (act === "net-json") {
+      S.network = collectNetwork();
+      S.networkJsonOpen = !S.networkJsonOpen; render();
+      return;
+    }
+    if (act === "net-json-apply") {
+      try {
+        const parsed = JSON.parse($("#netRaw").value || "{}");
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) ||
+            NET_SECTIONS.some(({ kind }) => parsed[kind] !== undefined &&
+              (!Array.isArray(parsed[kind]) || parsed[kind].some((row) => !row || typeof row !== "object" || Array.isArray(row))))) {
+          throw new Error("网络配置必须是 JSON 对象，通道必须是对象数组");
+        }
+        S.network = parsed; S.networkJsonOpen = false; render(); toast("JSON 已应用到表单，尚未保存", "ok");
+      } catch (error) { toast("JSON 无效：" + error.message, "bad"); }
+      return;
+    }
+    if (act === "ev-refresh") { await loadEvents(); toast("事件已刷新", "ok", 1500); return; }
+    if (act === "ev-row") {
+      $$("#evList .event-row").forEach((r) => r.classList.toggle("sel", r === el));
+      S.selectedEvent = Number(el.dataset.idx); renderEventDetail(); return;
+    }
+    if (act === "ev-copy") {
+      const ev = S.events[S.selectedEvent]; if (!ev) { toast("请先选择事件", "bad"); return; }
+      await copyText(JSON.stringify(ev, null, 2)); return;
+    }
+    if (act === "dbg-select") {
+      const name = el.dataset.name; const def = (S.catalog || []).find((a) => a.name === name); if (!def) return;
+      S.action = name; S.actionResult = null; S.actionJsonMode = false; S.confirmWrite = false;
+      const example = (def.examples && def.examples[0]) || {};
+      S.actionParams = JSON.parse(JSON.stringify(example));
+      $$("#actList .act-item").forEach((r) => r.classList.toggle("sel", r === el));
+      renderDebugPanel(); return;
+    }
+    if (act === "dbg-run") { await runDebugAction(); return; }
+    if (act === "dbg-example") {
+      const def = (S.catalog || []).find((a) => a.name === S.action); if (!def) return;
+      const example = (def.examples && def.examples[0]) || {};
+      S.actionParams = JSON.parse(JSON.stringify(example)); S.actionJsonMode = false; renderDebugPanel();
+      toast("已填充示例参数", "ok", 1600); return;
+    }
+    if (act === "dbg-json") {
+      try { S.actionParams = collectActionParams(); }
+      catch (error) { toast(error.message, "bad"); return; }
+      S.actionJsonMode = !S.actionJsonMode; renderDebugPanel(); return;
+    }
+    if (act === "dbg-copy") { if (S.actionResult) await copyText(JSON.stringify(S.actionResult, null, 2)); return; }
+    if (act === "dbg-reload") { S.catalog = null; S.catalogError = ""; render(); return; }
+    if (act === "sto-refresh") { S.storage = null; render(); return; }
+    if (act === "sto-copy") { await copyText(el.dataset.path || ""); return; }
+    if (act === "set-logout") { $("#btnLogout").click(); return; }
+  } catch (error) {
+    toast(error.message || String(error), "bad", 5200);
+    el.disabled = false;
+  }
+});
+
+function ensureRuntimeData() {
+  S.friends = null; S.groups = null; S.storage = null; S.caps = null; S.catalog = null; S.catalogError = "";
+  S.loginInfo = null; S.versionInfo = null; S.processes = null;
+  S.events = []; S.selectedEvent = null; S.network = null;
+  if (S.view === "overview" || S.view === "account" || S.view === "connect") render();
+}
+
+/* ================= 启动 ================= */
+let polling = false;
+function startPolling() {
+  if (polling) return; polling = true;
+  let busy = false;
+  setInterval(async () => {
+    if (document.hidden || busy) return;
+    busy = true;
+    try {
+      if (S.view === "overview") await loadOverviewEvents();
+      if (S.view === "events" && S.logTab === "runtime" && S.logAuto) await loadRuntimeLogs();
+      if (((S.view === "events" && S.logTab === "events") || (S.view === "debug" && S.debugTab === "activity")) && S.eventsAuto) await loadEvents(true);
+      if (S.view === "connect" && S.network) syncConnectStates();
+    } finally { busy = false; }
+  }, 5000);
+}
+
+async function boot() {
+  try {
+    applyStatus(await api("/api/status"));
+    enterApp();
+    startPolling();
+    loadLoginInfo();
+    loadCaps();
+  } catch (error) {
+    showLogin();
+    if (error.status !== 401) $("#loginErr").textContent = "无法连接 WebUI 服务：" + error.message;
+  }
+}
+boot();
+</script>
+</body>
+</html>

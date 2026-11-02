@@ -1,0 +1,12 @@
+[
+  {
+    "RelativePath": "native\\build_text\\text_bridge.dll",
+    "Length": 102912,
+    "SHA256": "AD614A0A833C0C08374141F078A3A8BCFD388F325EE024364B1C462B70824BFD"
+  },
+  {
+    "RelativePath": "native\\build\\selftest_bridge.dll",
+    "Length": 37888,
+    "SHA256": "457E87F9B12AE0C18203DE372DE0EF870440D76D5007B005350064C59DB0D387"
+  }
+]

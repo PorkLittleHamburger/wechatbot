@@ -1,0 +1,32 @@
+{
+  "onebot": {
+    "host": "127.0.0.1",
+    "port": 6700,
+    "access_token": "change-this-token",
+    "heartbeat_interval_seconds": 5.0
+  },
+  "reverse_ws": [],
+  "driver": {
+    "type": "helper",
+    "helper_root": "vendor/helper",
+    "wechat_account": null,
+    "wechat_pid": null,
+    "nickname": "",
+    "wechat_data_directory": null,
+    "supported_versions": [
+      "4.1.15.13",
+      "4.1.15.56"
+    ]
+  },
+  "storage": {
+    "data_dir": "data",
+    "media_dir": "data/media",
+    "max_media_bytes": 52428800
+  },
+  "webui": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 5099,
+    "access_token": "change-this-webui-token"
+  }
+}
