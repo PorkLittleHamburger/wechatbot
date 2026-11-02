@@ -12,6 +12,8 @@ from wechat_onebot.core.runtime import RuntimeManager
 from wechat_onebot.webui import create_webui_app
 from wechat_onebot.bridge.models import WeChatLogin
 from wechat_onebot.webui import server as webui_server
+from wechat_onebot.core import runtime as runtime_module
+import pytest
 
 
 def make_config(tmp_path: Path) -> AppConfig:
@@ -138,6 +140,55 @@ def test_process_scan_error_retains_configured_account(tmp_path: Path, monkeypat
         assert response.json()["error"] == "只读账号扫描失败"
         assert response.json()["processes"][0]["account"] == "wxid_robot"
         assert "secret-token" not in response.text
+
+
+def test_webui_selects_fresh_logged_in_account_without_starting_runtime(tmp_path: Path, monkeypatch):
+    config = make_config(tmp_path)
+    config = replace(config, driver=replace(config.driver, type="helper", wechat_account="", wechat_pid=None))
+    config.path.write_text(json.dumps({"driver": {"type": "helper", "wechat_account": None,
+                                                 "wechat_pid": None, "nickname": ""}}), encoding="utf-8")
+    manager = RuntimeManager(config)
+    monkeypatch.setattr(webui_server, "discover_logged_accounts", lambda _root: [
+        WeChatLogin(pid=456, wxid="wxid_selected", nickname="Selected")])
+    with TestClient(create_webui_app(config, manager, start_runtime=False)) as client:
+        assert client.post("/api/account-selection", json={"account": "wxid_selected"}).status_code == 401
+        client.post("/api/login", json={"token": "webui-token"})
+        assert client.post("/api/account-selection", json={"account": "wxid_missing"}).status_code == 409
+        selected = client.post("/api/account-selection", json={"account": "wxid_selected"})
+        assert selected.status_code == 200
+        assert selected.json() == {"ok": True, "account": "wxid_selected", "pid": 456,
+                                   "nickname": "Selected"}
+        assert client.get("/api/status").json()["configuredAccount"] == "wxid_selected"
+        assert manager.snapshot() == []
+        saved = json.loads(config.path.read_text(encoding="utf-8"))["driver"]
+        assert (saved["wechat_account"], saved["wechat_pid"], saved["nickname"]) == (
+            "wxid_selected", 456, "Selected")
+
+
+@pytest.mark.asyncio
+async def test_runtime_uses_current_account_pid_after_reboot(tmp_path: Path, monkeypatch):
+    config = make_config(tmp_path)
+    config = replace(config, driver=replace(config.driver, type="helper", wechat_pid=123))
+    monkeypatch.setattr(runtime_module, "discover_logged_accounts", lambda _root: [
+        WeChatLogin(pid=456, wxid="wxid_robot")])
+    observed = []
+
+    class FakeRuntime:
+        account = "wxid_robot"
+
+        async def start(self):
+            pass
+
+        async def stop(self):
+            pass
+
+    fake = FakeRuntime()
+    monkeypatch.setattr(runtime_module.AccountRuntime, "create", classmethod(
+        lambda _cls, _config, *, account, pid: (observed.append((account, pid)), fake)[1]))
+    manager = RuntimeManager(config)
+    assert await manager.start_account("wxid_robot", pid=123) is fake
+    assert observed == [("wxid_robot", 456)]
+    await manager.stop_all()
 
 
 def test_logs_auth_bounded_and_redacted(tmp_path: Path):

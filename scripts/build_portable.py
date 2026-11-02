@@ -8,7 +8,6 @@ import time
 from pathlib import Path
 
 from wechat_onebot import __version__
-from wechat_onebot.config import AppConfig
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,15 +32,15 @@ def main() -> int:
     copy_tree(ROOT / "vendor", target / "vendor")
     copy_tree(ROOT / "webui", target / "webui")
     (target / "scripts").mkdir()
-    for name in ("run_real.ps1", "run_mock.ps1", "wechat-onebot.ps1"):
+    for name in ("run_real.ps1", "run_mock.ps1", "wechat-onebot.ps1", "autostart.ps1"):
         shutil.copy2(ROOT / "scripts" / name, target / "scripts" / name)
-    for name in ("README.md", "THIRD_PARTY_NOTICES.md", "pyproject.toml", "config.example.json"):
+    for name in ("README.md", "THIRD_PARTY_NOTICES.md", "pyproject.toml", "config.example.json",
+                 "start.cmd", "enable-autostart.cmd", "disable-autostart.cmd"):
         shutil.copy2(ROOT / name, target / name)
     if (ROOT / "docs").is_dir():
         copy_tree(ROOT / "docs", target / "docs")
 
-    app_config = AppConfig.load(ROOT / "config.json")
-    helper_root = app_config.driver.helper_root
+    helper_root = ROOT / "vendor" / "helper"
     helper_hashes = {}
     for path in (helper_root / "native" / "build_text", helper_root / "native" / "build"):
         if path.is_dir():
@@ -56,18 +55,19 @@ def main() -> int:
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "helper_commit": (helper_root / "VENDORED_COMMIT.txt").read_text(encoding="utf-8").strip(),
         "native_hashes": helper_hashes,
-        "entrypoint": "scripts/run_real.ps1",
+        "entrypoint": "start.cmd",
         "config_example": "config.example.json",
     }
     (target / "BUILD_MANIFEST.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
                                                  encoding="utf-8")
     (target / "START_HERE.txt").write_text(
         "WeChat OneBot portable build\n"
-        "1. Copy config.example.json to config.json and edit tokens.\n"
-        "2. Run scripts/run_real.ps1 from an elevated PowerShell.\n"
-        "3. WebUI: http://127.0.0.1:5099\n"
-        "4. OneBot HTTP: http://127.0.0.1:6700\n"
-        "5. OneBot WS: ws://127.0.0.1:6701/ws\n"
+        "1. Install Python 3.11+ and sign in to a supported Windows WeChat build.\n"
+        "2. Double-click start.cmd; first launch installs dependencies and creates random credentials.\n"
+        "3. Open http://127.0.0.1:5099 and sign in with the printed WebUI token.\n"
+        "4. Scan logged-in accounts in the WebUI, select one, then click Start.\n"
+        "5. Double-click enable-autostart.cmd to start at Windows logon.\n"
+        "   Use disable-autostart.cmd to remove the scheduled task.\n"
         "The helper native bridge is non-commercial and requires the pinned WeChat build.\n",
         encoding="utf-8",
     )

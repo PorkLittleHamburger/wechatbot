@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from ..config import AppConfig, account_directories
+from ..bridge import discover_logged_accounts
 from ..driver import create_driver
 from ..driver.base import Driver
 from ..ids import IdMapper
@@ -107,7 +108,7 @@ class RuntimeManager:
     async def start_configured_account(self) -> AccountRuntime | None:
         account = self.config.driver.wechat_account
         if not account:
-            self.last_error = "尚未绑定微信账号，请先运行 bind"
+            self.last_error = "尚未选择微信账号，请在 WebUI 的进程与账号页面扫描并选择"
             return None
         try:
             runtime = await self.start_account(account, self.config.driver.wechat_pid)
@@ -126,6 +127,12 @@ class RuntimeManager:
         return await runtime.service.dispatch(action, params, echo)
 
     async def start_account(self, account: str, pid: int | None = None) -> AccountRuntime:
+        if self.config.driver.type == "helper":
+            discovered = await asyncio.to_thread(discover_logged_accounts, self.config.driver.helper_root)
+            matches = [row for row in discovered if row.wxid == account]
+            if len(matches) != 1:
+                raise RuntimeError("目标账号未登录或无法唯一识别，请在 WebUI 重新扫描")
+            pid = matches[0].pid
         async with self._lock:
             if account in self._runtimes:
                 raise RuntimeError(f"账号 runtime 已存在: {account}")

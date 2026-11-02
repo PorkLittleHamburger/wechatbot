@@ -278,7 +278,7 @@ class AppConfig:
         )
 
 
-def update_account(path: str | Path, *, account: str, pid: int | None) -> None:
+def update_account(path: str | Path, *, account: str, pid: int | None, nickname: str = "") -> None:
     target = Path(path).resolve()
     raw = json.loads(target.read_text(encoding="utf-8-sig"))
     if not isinstance(raw, dict):
@@ -288,4 +288,5 @@ def update_account(path: str | Path, *, account: str, pid: int | None) -> None:
         raise ConfigError("driver 必须是 JSON 对象")
     driver["wechat_account"] = account
     driver["wechat_pid"] = pid
+    driver["nickname"] = nickname
     _atomic_write_json(target, raw)

@@ -173,7 +173,7 @@ def command_bind(args: argparse.Namespace) -> int:
             print("序号无效。")
             return 1
         selected = accounts[int(choice) - 1]
-    update_account(config.path, account=selected.wxid, pid=selected.pid)
+    update_account(config.path, account=selected.wxid, pid=selected.pid, nickname=selected.nickname)
     print(f"已绑定 {selected.nickname or selected.wxid} ({selected.wxid})，未注入微信。")
     return 0
 

@@ -143,7 +143,7 @@ class HelperDriver(Driver):
         if sys.platform != "win32":
             raise DriverError("helper 原生驱动只支持 Windows")
         if not self.config.driver.wechat_account:
-            raise DriverError("尚未绑定微信账号，请先运行 `python -m wechat_onebot bind`")
+            raise DriverError("尚未选择微信账号，请在 WebUI 的进程与账号页面选择")
         helper_root = self.config.driver.helper_root
         if not (helper_root / "native").is_dir():
             raise DriverError(f"未找到 helper 原生目录: {helper_root / 'native'}")

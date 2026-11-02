@@ -15,7 +15,9 @@ from typing import Any
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse, StreamingResponse
 
-from ..config import AppConfig, account_directories
+from dataclasses import replace
+
+from ..config import AppConfig, account_directories, update_account
 from ..onebot.network import AccountNetworkConfig, load_or_create_account_network_config, save_account_network_config
 from ..core.runtime import RuntimeManager
 from ..bridge import discover_logged_accounts
@@ -195,6 +197,41 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
         if error:
             result["error"] = error
         return result
+
+    @app.post("/api/account-selection")
+    async def account_selection(request: Request):
+        nonlocal config
+        if not authorized(request):
+            return Response("未登录", status_code=401)
+        try:
+            body = await request.json()
+        except ValueError:
+            return Response("请求体必须是 JSON", status_code=400)
+        if not isinstance(body, dict) or not isinstance(body.get("account"), str):
+            return Response("请选择有效账号", status_code=400)
+        account = body["account"].strip()
+        if not account:
+            return Response("请选择有效账号", status_code=400)
+        if config.driver.type == "helper":
+            try:
+                discovered = await asyncio.to_thread(discover_logged_accounts, config.driver.helper_root)
+            except Exception:
+                return Response("只读账号扫描失败", status_code=503)
+            matches = [row for row in discovered if row.wxid == account]
+            if len(matches) != 1:
+                return Response("账号未登录或无法唯一识别，请重新扫描", status_code=409)
+            selected = matches[0]
+            pid, nickname = selected.pid, selected.nickname
+        else:
+            if account != config.driver.wechat_account:
+                return Response("Mock 模式只能选择已配置账号", status_code=409)
+            pid, nickname = config.driver.wechat_pid, config.driver.nickname
+        update_account(config.path, account=account, pid=pid, nickname=nickname)
+        config = replace(config, driver=replace(config.driver, wechat_account=account,
+                                                wechat_pid=pid, nickname=nickname))
+        manager.config = config
+        manager.last_error = ""
+        return {"ok": True, "account": account, "pid": pid, "nickname": nickname}
 
     @app.get("/api/logs")
     async def logs(request: Request):

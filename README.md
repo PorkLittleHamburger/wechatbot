@@ -14,7 +14,7 @@ Windows 11 个人微信的 OneBot v11 协议端。设计目标：
 - `4.1.15.13`
 - `4.1.15.56`
 
-本机检测到的版本为 `4.1.15.56`。微信升级或重装为其他版本后，原生桥接会拒绝加载。
+安装前请确认目标电脑微信版本在上述列表内。微信升级或重装为其他版本后，原生桥接会拒绝加载。
 
 ## 重要限制
 
@@ -36,15 +36,23 @@ Windows 11 个人微信的 OneBot v11 协议端。设计目标：
 - Mock 驱动和自动化测试
 - 原生 helper 驱动适配
 
-协议核心、账号级 Runtime、OneBot 网络适配器、WebUI 和真实账号入站验证已完成。已实测私聊文本、图片、文件和群原生 `@`；下一阶段主要是第三方 Bot 框架端到端兼容、重连压力和便携包验收。
+协议核心、账号级 Runtime、OneBot 网络适配器和 WebUI 已实现。项目测试记录包含私聊文本、图片、文件和群原生 `@` 的入站验证；不同电脑、微信构建和账号环境仍需各自验收。
 
-## 安装
+## 便携包一键启动
+
+适用于 Windows 11 x64。先安装 Python 3.11 或更新版本并加入 PATH，登录受支持版本的电脑微信，然后解压便携包并双击根目录的 `start.cmd`。首次启动会自动创建虚拟环境、安装依赖和生成带随机 WebUI / OneBot Token 的 `config.json`。启动窗口会显示 WebUI 地址和登录 Token；请妥善保管。首次安装需要联网获取 Python 依赖，并会出现管理员权限提示。
+
+进入 WebUI 的“进程与账号”，点击“扫描已登录账号”，选中目标账号后点击“设为机器人账号”。保存绑定本身不会加载桥接；需要连接时再点击“启动”。每次启动 Runtime 都会按账号重新识别当前 PID，以适应电脑重启后的 PID 变化。
+
+双击 `enable-autostart.cmd` 可创建当前 Windows 管理员用户登录时触发的高权限计划任务；双击 `disable-autostart.cmd` 可移除。开机自启会启动管理服务，若微信尚未登录，可稍后在 WebUI 扫描并启动账号。移动或删除解压目录前，请先移除任务；移动后需重新启用。查看任务状态可运行 `powershell -File .\scripts\autostart.ps1 -Status`。
+
+## 从源码安装
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -U pip
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
-Copy-Item .\config.example.json .\config.json
+python -c "from wechat_onebot.config import ensure_config; ensure_config('config.json')"
 ```
 
 修改 `config.json` 中至少以下配置：
@@ -56,21 +64,7 @@ Copy-Item .\config.example.json .\config.json
 
 ## 账号绑定
 
-先在管理员 PowerShell 中登录电脑微信，再执行：
-
-```powershell
-.\.venv\Scripts\python.exe -m wechat_onebot bind
-```
-
-该命令只读取当前已登录账号的资料并写入配置，不会注入微信。读取受保护微信进程需要管理员权限。
-
-同时运行多个微信实例时，使用 `--account` 非交互选择已经绑定的账号：
-
-```powershell
-.\.venv\Scripts\python.exe -m wechat_onebot bind --account wxid_example
-```
-
-只存在一个已登录实例时可以省略该参数。
+首选 WebUI 的“进程与账号”页面。扫描是只读操作，选择时会复查账号与 PID，再写入本地 `config.json`；该操作不会注入或发送消息。命令行 `bind` 仍供自动化与故障排查使用。
 
 ## 检查环境
 
@@ -110,7 +104,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_mock.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```
 
-脚本会运行打包器，在 `dist/` 下生成带固定 helper 提交、原生 DLL SHA-256 清单、启动脚本和 zip 的便携目录。便携包首次运行时会自动创建 `.venv`、安装依赖并复制 `config.example.json`。
+脚本会运行打包器，在 `dist/` 下生成带固定 helper 提交、原生 DLL SHA-256 清单、一键启动和开机自启脚本的便携目录与 zip。便携包不包含任何安装者的 `config.json`、消息或登录数据。
 
 ## 协议测试
 
@@ -136,29 +130,14 @@ docs/                         架构、SnowLuma 对齐、预检和兼容性说�
 
 ## 管理页
 
-启动 Mock 模式后打开：
+启动服务后打开：
 
 ```powershell
 .\.venv\Scripts\python.exe -m wechat_onebot --config .\config.json run --mock
 ```
 
-浏览器访问 `http://127.0.0.1:5099/`，使用 `webui.access_token` 登录。管理页采用 SnowLuma 风格的浅色蓝调界面，可切换深色主题并展开侧栏。六个主视图为总览、进程与账号、节点配置、日志、调试、系统设置；设置中包含存储管理。进程页默认只读取已有 Runtime 状态，只有手动点击“扫描已登录账号”才进行只读扫描。日志页显示受控诊断摘要及 OneBot 事件；调试页包含动作测试、消息编排、实时活动和接口目录，真实发送需要显式勾选确认。管理页通过独立的 HttpOnly 会话 Cookie 访问 Runtime API；OneBot access token 不会进入浏览器。
+浏览器访问 `http://127.0.0.1:5099/`，使用 `webui.access_token` 登录。管理页采用浅色蓝调界面，可切换深色主题并展开侧栏。六个主视图为总览、进程与账号、节点配置、日志、调试、系统设置；设置中包含存储管理。进程页提供只读扫描与账号绑定；保存绑定后可单独启动 Runtime。日志页显示受控诊断摘要及 OneBot 事件；调试页包含动作测试、消息编排、实时活动和接口目录，真实发送需要显式勾选确认。管理页通过独立的 HttpOnly 会话 Cookie 访问 Runtime API；OneBot access token 不会进入浏览器。
 
 ## 原生桥接预检
 
-2026-11-01 至 2026-11-02 已在专用测试账号和第二个真实账号之间完成受限预检：
-
-- 原生桥接成功加载并在结束时正常卸载；进程模块与 watchdog 检查均无残留
-- 账号在线状态读取成功，好友列表读取成功（40 个）
-- 向“文件传输助手”发送测试文本，原生接口返回接受
-- 完整栈预检通过 `AccountRuntime → OneBot action registry → native bridge` 发送成功
-- 真实账号下 HTTP `6700` 与 WS `6701` 适配器预检通过
-- 完整 WebUI `5099`、Runtime、网络适配器联合预检通过
-- 第二账号发来的私聊文本、真实 JPEG 图片和真实 XLSX 文件均生成正确 OneBot 段
-- 群聊中使用微信原生 `@` 选择器时收到 `to_me=true` 和 `at` 段
-- 图片和文件均完成内容校验并落入账号隔离媒体目录
-- 同一媒体消息的临时 monitor 占位事件已抑制，避免先发 `[图片]` 再发 `image` 的重复上报
-
-账号识别和原生桥接需要管理员权限。预检使用 `scripts/run_bind_and_preflight_elevated.ps1` 或现场采集脚本，会触发一次 UAC。详细结果见 `docs/live-preflight.md`。
-
-本机已实际运行两个独立微信实例；绑定和采集均通过账号/PID 隔离选择目标实例，不依赖窗口标题或前台窗口。
+项目保留了一次 Windows 11 测试环境的原生桥接与 OneBot 联调记录，涵盖账号识别、消息收发、媒体保存和群原生 `@`。这份记录仅说明该环境中的测试结果，不保证其他微信版本、账号或电脑上行为相同。详情见 `docs/live-preflight.md`；新安装应先运行 `doctor`，再按自身环境验证。

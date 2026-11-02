@@ -864,6 +864,7 @@ function drawProcesses() {
     "<span class=\"badge " + (row.online ? "ok" : row.running ? "warn" : "") + "\">" + (row.online ? "在线" : row.running ? "已启动" : "未启动") + "</span></div>" +
     "<div class=\"kv\"><div><div class=\"k\">PID</div><div class=\"v\">" + esc(row.pid || "—") + "</div></div><div><div class=\"k\">来源</div><div class=\"v\">" + (row.configured ? "已配置" : "已发现") + "</div></div></div>" +
     "<div class=\"process-actions\"><button class=\"btn sm\" data-act=\"proc-select\" data-account=\"" + esc(row.account || "") + "\">查看账号</button>" +
+    (!row.configured ? "<button class=\"btn primary sm\" data-act=\"proc-bind\" data-account=\"" + esc(row.account || "") + "\">设为机器人账号</button>" : "<span class=\"badge ok\">当前绑定</span>") +
     (row.running ? "<span class=\"small muted\">Runtime 已接入</span>" : "<span class=\"small muted\">等待 Runtime 接入</span>") + "</div></div>").join("") : emptyState(S.processes ? "未发现微信账号" : "正在读取实例状态…", "i-cpu"));
 }
 
@@ -881,9 +882,9 @@ function renderAccount(root) {
         "<span class=\"badge\">driver " + esc((S.status && S.status.driver) || "—") + "</span>" +
         "<span class=\"badge\">self_id " + esc((rt && rt.self_id) || "—") + "</span>" +
         "<span class=\"badge\">PID " + esc((rt && rt.pid) || "—") + "</span></div></div>" +
-      "<div class=\"toolbar\"><button class=\"btn primary\" data-act=\"acct-start\"><svg class=\"i\"><use href=\"#i-play\"/></svg>启动</button>" +
-        "<button class=\"btn\" data-act=\"acct-restart\"><svg class=\"i\"><use href=\"#i-refresh\"/></svg>重启</button>" +
-        "<button class=\"btn danger\" data-act=\"acct-stop\"><svg class=\"i\"><use href=\"#i-stop\"/></svg>停止</button></div>" +
+      "<div class=\"toolbar\"><button class=\"btn primary\" data-act=\"acct-start\"" + (!S.account ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-play\"/></svg>启动</button>" +
+        "<button class=\"btn\" data-act=\"acct-restart\"" + (!S.account ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-refresh\"/></svg>重启</button>" +
+        "<button class=\"btn danger\" data-act=\"acct-stop\"" + (!S.account ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-stop\"/></svg>停止</button></div>" +
     "</div></div></div>" +
     "<div class=\"grid metrics\">" +
       "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">协议端版本</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-cpu\"/></svg></span></div><div class=\"m-value mono\" id=\"acVer\">" + esc((S.versionInfo && S.versionInfo.app_version) || "—") + "</div><div class=\"m-sub\">app version</div></div>" +
@@ -1636,6 +1637,16 @@ document.getElementById("view").addEventListener("click", async (event) => {
     if (act === "acct-groups") { el.disabled = true; await loadGroups(); toast("群列表已更新", "ok"); el.disabled = false; return; }
     if (act === "proc-refresh" || act === "proc-scan") { el.disabled = true; await loadProcesses(act === "proc-scan"); el.disabled = false; return; }
     if (act === "proc-select") { selectAccount(el.dataset.account); return; }
+    if (act === "proc-bind") {
+      const account = el.dataset.account;
+      if (!confirm("将 " + account + " 设为机器人账号？这一步只保存绑定，不启动原生桥接。")) return;
+      el.disabled = true;
+      await api("/api/account-selection", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account }) });
+      S.selectedAccount = account; S.processes = null; S.network = null;
+      await refreshStatus(); await loadProcesses(false); render();
+      toast("账号已绑定。需要时点击启动以连接微信。", "ok", 4200);
+      return;
+    }
     if (act === "net-tab") { S.network = collectNetwork(); S.configTab = el.dataset.kind; render(); return; }
     if (act === "net-add") {
       S.network = collectNetwork();

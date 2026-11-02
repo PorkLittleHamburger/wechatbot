@@ -11,7 +11,7 @@
 
 ## Milestone 2: Native bridge preflight (complete)
 
-- confirmed the dedicated test WeChat account
+- confirmed a dedicated test WeChat account in the development environment
 - verified DLL load/unload lifecycle
 - verified `get_login_info`, `get_friend_list`, `get_group_list`
 - sent one text message to File Transfer Helper
