@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import sys
+import threading
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from wechat_onebot.config import AppConfig, DriverConfig, OneBotConfig, StorageConfig
 from wechat_onebot.driver.helper import HelperDriver
@@ -26,6 +29,66 @@ def test_vendored_helper_exposes_native_text_backend(tmp_path: Path):
     from wxbot_framework.sdk import ServiceFacade
     assert callable(NativeTextBackend)
     assert callable(ServiceFacade)
+
+
+@pytest.mark.asyncio
+async def test_helper_bridge_releases_mutex_on_acquiring_thread_and_restarts(tmp_path: Path, monkeypatch):
+    config = make_config(tmp_path)
+    config = AppConfig(path=config.path, onebot=config.onebot, reverse_ws=(),
+                       driver=DriverConfig(type="helper", helper_root=config.driver.helper_root,
+                                           wechat_account="wxid_robot", wechat_pid=123,
+                                           wechat_data_directory=tmp_path), storage=config.storage)
+    sys.path.insert(0, str(config.driver.helper_root))
+    import wxbot_framework.backend as backend_module
+    import wxbot_framework.sdk as sdk_module
+
+    owners = []
+    raws = []
+
+    class FakeRaw:
+        def register_msg_handler(self, handler):
+            pass
+
+        def start(self):
+            self.owner = threading.get_ident()
+
+        def stop(self):
+            assert threading.get_ident() == self.owner
+            if getattr(self, "fail_once", False):
+                self.fail_once = False
+                raise RuntimeError("cleanup busy")
+            owners.append(self.owner)
+
+    class FakeBackend:
+        def __init__(self, *_args, **_kwargs):
+            self.raw = FakeRaw()
+            raws.append(self.raw)
+
+    class FakeFacade:
+        def __init__(self, **_kwargs):
+            pass
+
+        def bind(self, backend):
+            self.backend = backend
+
+        def close(self):
+            self.backend.raw.stop()
+
+    monkeypatch.setattr(backend_module, "NativeTextBackend", FakeBackend)
+    monkeypatch.setattr(sdk_module, "ServiceFacade", FakeFacade)
+    driver = HelperDriver(config)
+    async def emit(_event):
+        pass
+    await driver.start(emit)
+    await driver.stop()
+    await driver.start(emit)
+    raws[-1].fail_once = True
+    with pytest.raises(RuntimeError, match="cleanup busy"):
+        await driver.stop()
+    assert driver._service is not None
+    await driver.start(emit)  # Finish the old cleanup before acquiring a new bridge.
+    await driver.stop()
+    assert len(owners) == 3
 
 
 def test_helper_message_conversion_keeps_native_mention(tmp_path: Path):

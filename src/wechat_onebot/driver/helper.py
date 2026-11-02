@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import ctypes
 from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -102,6 +103,7 @@ class HelperDriver(Driver):
         self._loop = None
         self._self_id = app_config.driver.wechat_account
         self._wechat_data_directory: Path | None = app_config.driver.wechat_data_directory
+        self._lifecycle_executor: ThreadPoolExecutor | None = None
 
     def rebind(self, app_config: AppConfig) -> None:
         if self._online:
@@ -160,6 +162,8 @@ class HelperDriver(Driver):
         from wxbot_framework.backend import NativeTextBackend
         from wxbot_framework.sdk import ServiceFacade
 
+        if self._service is not None:
+            await self.stop()  # Retry an earlier failed cleanup before acquiring the PID again.
         self._loop = asyncio.get_running_loop()
         self._emit = emit
         self._self_id = self.config.driver.wechat_account
@@ -168,6 +172,7 @@ class HelperDriver(Driver):
                 self.config.driver.wechat_pid, self.config.driver.wechat_account
             )
         try:
+            self._lifecycle_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="wechat-bridge")
             self._backend = NativeTextBackend(
                 helper_root,
                 self._helper_config(),
@@ -175,12 +180,14 @@ class HelperDriver(Driver):
             )
             self._service = ServiceFacade(text_delay=self._helper_config()["text_send_delay"])
             self._service.bind(self._backend)
-            await asyncio.to_thread(self._start_raw_backend)
+            await self._loop.run_in_executor(self._lifecycle_executor, self._start_raw_backend)
             self._online = True
         except Exception as error:
             self._online = False
-            self._service = None
-            self._backend = None
+            try:
+                await self._close_backend()
+            except Exception as cleanup_error:
+                raise DriverError(f"helper 启动失败: {error}; 桥接清理失败: {cleanup_error}") from cleanup_error
             raise DriverError(f"helper 启动失败: {error}") from error
 
     def _start_raw_backend(self) -> None:
@@ -413,13 +420,19 @@ class HelperDriver(Driver):
         return int(time.time())
 
     async def stop(self) -> None:
-        import asyncio
         self._online = False
+        await self._close_backend()
+
+    async def _close_backend(self) -> None:
         if self._service is not None:
-            await asyncio.to_thread(self._service.close)
+            # BridgeGuard's Windows mutex must be released by its acquiring thread.
+            await asyncio.get_running_loop().run_in_executor(self._lifecycle_executor, self._service.close)
         self._service = None
         self._backend = None
         self._emit = None
+        if self._lifecycle_executor is not None:
+            self._lifecycle_executor.shutdown(wait=True)
+            self._lifecycle_executor = None
 
     async def send_text(self, chat_id: str, text: str) -> bool:
         import asyncio
