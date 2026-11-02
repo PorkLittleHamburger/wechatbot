@@ -54,7 +54,7 @@ def bundle_python(target: Path) -> None:
         check=True,
     )
     subprocess.run(
-        [str(runtime / "python.exe"), "-c",
+        [str(runtime / "python.exe"), "-B", "-c",
          "import fastapi, uvicorn, cryptography, PIL, wechat_onebot; print(wechat_onebot.__version__)"],
         cwd=target, check=True,
     )

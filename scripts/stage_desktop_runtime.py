@@ -32,14 +32,16 @@ def main():
     with tempfile.TemporaryDirectory(prefix="runtime-", dir=build) as temporary:
         stage = Path(temporary) / "runtime"
         stage.mkdir()
+        # bundle_python verifies importing wechat_onebot from the staged tree.
+        # Source must already exist when building without a cached interpreter.
+        for name in ("src", "vendor", "webui", "assets"):
+            copy_tree(ROOT / name, stage / name)
         candidates = sorted((ROOT / "dist").glob("wechat-onebot-portable-*/python"), reverse=True)
         cached = next((p for p in candidates if locked_runtime(p)), None)
         if cached:
             copy_tree(cached, stage / "python")
         else:
             bundle_python(stage)
-        for name in ("src", "vendor", "webui", "assets"):
-            copy_tree(ROOT / name, stage / name)
         for name in ("THIRD_PARTY_NOTICES.md", "requirements-runtime.lock"):
             shutil.copy2(ROOT / name, stage / name)
         files = {}
