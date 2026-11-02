@@ -37,7 +37,7 @@
 
 ## 构建环境
 
-推荐在 PowerShell 7 中运行 `scripts/build_desktop.ps1`。脚本按进程设置环境变量，不改动全局用户或系统环境。
+推荐在 PowerShell 7 中运行 `launcher/scripts/build_desktop.ps1`。脚本按进程设置环境变量，不改动全局用户或系统环境。
 
 | 内容 | 位置 |
 | --- | --- |
@@ -51,10 +51,10 @@
 | Cargo 和临时打包输出 | `D:\Tool\Build\WeChatOneBotLauncher` |
 | 最终安装器、运行时 ZIP、SHA-256 | 项目 `dist` |
 
-`scripts/setup_portable_msvc.ps1` 仅下载并校验微软官方工具负载，解压到上述目录，不执行系统安装或写注册表。生成的 `msvc-env.ps1` 由 `scripts/desktop_env.ps1` 加载。已有 Visual Studio 构建环境也可复用。
+`launcher/scripts/setup_portable_msvc.ps1` 仅下载并校验微软官方工具负载，解压到上述目录，不执行系统安装或写注册表。生成的 `msvc-env.ps1` 由 `launcher/scripts/desktop_env.ps1` 加载。已有 Visual Studio 构建环境也可复用。
 
 Python 使用 `bot/requirements-runtime.lock`，前端使用 `package-lock.json`，Rust 使用 `Cargo.lock` 固定依赖。构建脚本先运行 Python 测试、生成并校验离线运行时，再执行前端和 Tauri/NSIS 构建。`-SkipTests` 和 `-SkipRuntime` 仅用于已验证内容未变化时的本地增量编译。
 
 GitHub Windows CI 构建安装器并保存 Actions 工件，不创建或发布 GitHub Release。默认安装包未签名；发布动作仍需用户明确确认。
 
-本次实际执行的检查及尚未执行的隔离安装验收见 [验证记录](desktop-verification.md)。运行 `scripts/test_installer_sandbox.ps1` 可生成断网 Sandbox 验收配置；该脚本默认只生成配置，不启动 Sandbox，也不在当前电脑安装或卸载软件。
+本次实际执行的检查及尚未执行的隔离安装验收见 [验证记录](desktop-verification.md)。运行 `launcher/scripts/test_installer_sandbox.ps1` 可生成断网 Sandbox 验收配置；该脚本默认只生成配置，不启动 Sandbox，也不在当前电脑安装或卸载软件。

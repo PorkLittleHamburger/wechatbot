@@ -1,13 +1,13 @@
 # 机器人开发目录
 
-这里是个人微信 OneBot v11 协议端的 Python 项目。桌面启动器的 React/Tauri 前端位于仓库根目录的 desktop，桌面安装器构建脚本位于根目录的 scripts。
+这里是个人微信 OneBot v11 协议端的 Python 项目。启动器的全部开发文件集中在相邻的 [launcher 目录](../launcher/README.md)，包括 React/Tauri 桌面工程、Python 管理后端、构建脚本、测试与文档。
 
 ## 目录
 
 | 路径 | 用途 |
 | --- | --- |
-| src/wechat_onebot | 协议、账号桥接、OneBot 网络、WebUI 服务及 Python 启动器 |
-| tests | Python 自动化测试，包括桌面管理服务的测试 |
+| src/wechat_onebot | 协议、账号桥接、OneBot 网络、WebUI 服务；launcher 子包仅保留源码兼容入口 |
+| tests | 机器人协议、账号与 WebUI 自动化测试；启动器测试位于 ../launcher/tests |
 | vendor/helper | 固定版本的原生微信桥接依赖 |
 | webui | 账号与 OneBot 配置管理页面 |
 | assets/icons | 项目图标 |
@@ -42,4 +42,4 @@
 
 原生消息桥接所需的两个预编译 DLL 位于 vendor/helper/native/build_text 与 vendor/helper/native/build；对应文件的大小与 SHA-256 记录在 vendor/helper/VENDORED_SHA256.json。重新编译可使用 vendor/helper/native/build_bridges.ps1，编译器和构建步骤见 vendor/helper/native/README.md。
 
-桌面启动器的源码、构建和安装说明见仓库根目录的 README.md 与 docs/desktop-launcher.md。
+桌面启动器的源码、构建和安装说明见[启动器开发说明](../launcher/README.md) 与 [桌面使用说明](../launcher/docs/desktop-launcher.md)。

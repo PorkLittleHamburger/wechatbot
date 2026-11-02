@@ -23,8 +23,8 @@ logs/
 .idea/
 
 # Desktop build dependencies and generated resources
-desktop/node_modules/
-desktop/dist/
-desktop/src-tauri/target/
-desktop/src-tauri/resources/runtime/
-desktop/src-tauri/resources/vc_redist.x64.exe
+launcher/desktop/node_modules/
+launcher/desktop/dist/
+launcher/desktop/src-tauri/target/
+launcher/desktop/src-tauri/resources/runtime/
+launcher/desktop/src-tauri/resources/vc_redist.x64.exe

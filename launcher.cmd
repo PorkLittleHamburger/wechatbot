@@ -1,2 +1,2 @@
 @echo off
-call "%~dp0bot\launcher.cmd" %*
+call "%~dp0launcher\launcher.cmd" %*

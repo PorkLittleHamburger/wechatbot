@@ -1,5 +1,7 @@
 # 多实例启动器设计与使用
 
+本文记录浏览器兼容入口的设计。独立桌面应用的版本管理、托盘、升级和恢复能力见 [桌面启动器说明](desktop-launcher.md)。源码位于 `launcher/python/wechat_onebot/launcher`，浏览器面板位于 `launcher/webui/launcher.html`；以下命令从仓库根目录执行。
+
 ## 参考代码与取舍
 
 本实现阅读并参考 [AstrBotDevs/astrbot-launcher](https://github.com/AstrBotDevs/astrbot-launcher/tree/185e810eba93e198b9e0c8fe01ebaecca783f215)，参考提交为 `185e810eba93e198b9e0c8fe01ebaecca783f215`。参考的是分层及生命周期设计，代码以本项目的 Python/FastAPI 技术栈重新实现。
@@ -29,7 +31,7 @@
 Helper 模式需要管理员权限，可在管理员终端运行以上命令，或执行：
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_launcher.ps1 -Elevated
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\launcher\scripts\run_launcher.ps1 -Elevated
 ```
 
 自定义启动器端口和数据目录：

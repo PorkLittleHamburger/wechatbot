@@ -21,7 +21,7 @@ import pytest
 from wechat_onebot.config import AppConfig, ConfigError
 
 
-PROJECT = Path(__file__).resolve().parents[1]
+PROJECT = Path(__file__).resolve().parents[2] / "bot"
 MANIFEST = "VERSION_MANIFEST.json"
 
 
@@ -59,6 +59,9 @@ def bundle_factory(tmp_path):
         directory.mkdir()
         if runnable:
             shutil.copytree(PROJECT / "src" / "wechat_onebot", directory / "src" / "wechat_onebot",
+                            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+            shutil.copytree(PROJECT.parent / "launcher/python/wechat_onebot/launcher",
+                            directory / "src/wechat_onebot/launcher", dirs_exist_ok=True,
                             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
             init = directory / "src" / "wechat_onebot" / "__init__.py"
             init.write_text(re.sub(r'__version__ = "[^"]+"', f'__version__ = "{version}"',

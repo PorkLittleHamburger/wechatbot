@@ -29,6 +29,19 @@
 - 管理员权限 Release 窗口可启动和读取，但自动化不能可靠操纵；交互检查使用同源 Debug 构建。正式包仍保留管理员权限清单。
 - 未执行真实微信多账号联调。
 
-`scripts/test_installer_sandbox.ps1` 会生成关闭网络和剪贴板的 Windows Sandbox 配置，安装器以只读方式映射，验收日志单独输出到 `dist/installer-acceptance`。在启用 Sandbox 的 Windows 11 主机上运行生成的 `.wsb`，可继续执行隔离安装及覆盖安装检查，并在隔离会话中完成桌面、自启和卸载验收。
+`launcher/scripts/test_installer_sandbox.ps1` 会生成关闭网络和剪贴板的 Windows Sandbox 配置，安装器以只读方式映射，验收日志单独输出到 `dist/installer-acceptance`。在启用 Sandbox 的 Windows 11 主机上运行生成的 `.wsb`，可继续执行隔离安装及覆盖安装检查，并在隔离会话中完成桌面、自启和卸载验收。
 
 最终安装器的 SHA-256 由构建脚本写入相邻 `.sha256` 文件，界面截图位于 `dist/desktop-preview/launcher-0.8.0.png`。代码推送与安装器生成不代表发布 GitHub Release。
+
+## 启动器开发目录整理验证（2026-11-02）
+
+桌面工程、Python 管理后端、浏览器管理页、脚本、测试和文档统一移入仓库根目录的 `launcher/`。`bot` 只保留 Python 导入及 CMD 转发的兼容入口；桌面与便携包的最终运行时仍使用原有平面布局。
+
+- 完整 Python 回归 149 项通过；新增一项便携包元数据回归，防止源码目录映射进入最终包。
+- 从新路径执行 `launcher/scripts/build_desktop.ps1`，TypeScript/Vite 构建通过，Rust 5 项测试通过，其中包括使用本次组装的内置 Python 启动管理服务、JSON 通信与正常退出。
+- NSIS 离线安装器重新构建成功，大小约 272.80 MiB，已输出到根目录 `dist` 并生成相邻 SHA-256。构建及回归日志保存在 `dist/verification/launcher-reorganization`。
+- 已校验生成运行时的文件清单，逐文件确认后端来自 `launcher/python/wechat_onebot/launcher`；源码和组装运行时的浏览器管理入口均可正确返回页面。
+- 已重新安装 editable 项目，构建 wheel 并验证隔离导入。另从组装后的平面目录成功构建 wheel，确认其 Python 打包配置无需相邻开发目录。
+- 构建脚本、Windows CI、文档、Git 忽略路径同步更新；工具、缓存和最终交付位置沿用上述布局。
+
+本轮目录整理没有新增桌面交互或隔离安装验收；上文列出的待验收项继续适用。

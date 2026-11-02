@@ -1,11 +1,12 @@
 param([switch]$SkipTests, [switch]$SkipRuntime)
 $ErrorActionPreference = 'Stop'
-$root = Split-Path -Parent $PSScriptRoot
+$launcherRoot = Split-Path -Parent $PSScriptRoot
+$root = Split-Path -Parent $launcherRoot
 . (Join-Path $PSScriptRoot 'desktop_env.ps1')
 Set-Location -LiteralPath $root
 $python = Join-Path $root '.venv/Scripts/python.exe'
 if (-not $SkipTests) {
-    & $python -m pytest -q bot/tests -c bot/pyproject.toml
+    & $python -m pytest -q bot/tests launcher/tests -c bot/pyproject.toml
     if ($LASTEXITCODE -ne 0) { throw 'Python verification failed.' }
 }
 if (-not $SkipRuntime) {
@@ -13,15 +14,15 @@ if (-not $SkipRuntime) {
     if ($LASTEXITCODE -ne 0) { throw 'Offline runtime staging failed.' }
 }
 & (Join-Path $PSScriptRoot 'stage_desktop_prerequisites.ps1')
-Set-Location -LiteralPath (Join-Path $root 'desktop')
+Set-Location -LiteralPath (Join-Path $launcherRoot 'desktop')
 & npm.cmd ci
 if ($LASTEXITCODE -ne 0) { throw 'Frontend dependency installation failed.' }
 & npm.cmd run build
 if ($LASTEXITCODE -ne 0) { throw 'Frontend verification failed.' }
 if (-not $SkipTests) {
-    Push-Location -LiteralPath (Join-Path $root 'desktop/src-tauri')
+    Push-Location -LiteralPath (Join-Path $launcherRoot 'desktop/src-tauri')
     try {
-        $env:WECHAT_SHELL_SMOKE_RUNTIME = Join-Path $root 'desktop/src-tauri/resources/runtime'
+        $env:WECHAT_SHELL_SMOKE_RUNTIME = Join-Path $launcherRoot 'desktop/src-tauri/resources/runtime'
         & cargo test --locked -- --include-ignored
         if ($LASTEXITCODE -ne 0) { throw 'Native desktop verification failed.' }
     } finally { Pop-Location }

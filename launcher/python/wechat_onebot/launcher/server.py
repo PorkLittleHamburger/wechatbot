@@ -76,7 +76,10 @@ def create_launcher_app(manager: LauncherManager, token: str) -> FastAPI:
 
     @app.get("/")
     async def panel():
-        return FileResponse(manager.project / "webui" / "launcher.html")
+        panel_path = manager.project / "webui" / "launcher.html"
+        if not panel_path.is_file():
+            panel_path = manager.project.parent / "launcher/webui/launcher.html"
+        return FileResponse(panel_path)
 
     @app.get("/api/status")
     async def status():

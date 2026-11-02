@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -28,6 +29,21 @@ def ignore(directory: str, names: list[str]):
 
 def copy_tree(source: Path, destination: Path):
     shutil.copytree(source, destination, ignore=ignore, dirs_exist_ok=True)
+
+
+def copy_launcher(target: Path, *, project: Path | None = None) -> None:
+    launcher = (project or ROOT.parent) / "launcher"
+    copy_tree(launcher / "python/wechat_onebot/launcher", target / "src/wechat_onebot/launcher")
+    (target / "webui").mkdir(parents=True, exist_ok=True)
+    shutil.copy2(launcher / "webui/launcher.html", target / "webui/launcher.html")
+
+
+def write_portable_metadata(target: Path) -> None:
+    # The assembled package contains every module under src; no monorepo paths
+    # may remain if a user rebuilds its Python environment after extraction.
+    metadata = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    metadata = re.sub(r"(?ms)^\[tool\.setuptools\.package-dir\]\n.*?(?=^\[|\Z)", "", metadata)
+    (target / "pyproject.toml").write_text(metadata, encoding="utf-8")
 
 
 def bundle_python(target: Path) -> None:
@@ -69,13 +85,17 @@ def main() -> int:
     copy_tree(ROOT / "vendor", target / "vendor")
     copy_tree(ROOT / "webui", target / "webui")
     copy_tree(ROOT / "assets", target / "assets")
+    copy_launcher(target)
     bundle_python(target)
     (target / "scripts").mkdir()
-    for name in ("run_real.ps1", "run_mock.ps1", "wechat-onebot.ps1", "autostart.ps1", "run_launcher.ps1"):
+    for name in ("run_real.ps1", "run_mock.ps1", "wechat-onebot.ps1", "autostart.ps1"):
         shutil.copy2(ROOT / "scripts" / name, target / "scripts" / name)
-    for name in ("THIRD_PARTY_NOTICES.md", "pyproject.toml", "config.example.json",
-                 "start.cmd", "launcher.cmd", "enable-autostart.cmd", "disable-autostart.cmd"):
+    shutil.copy2(ROOT.parent / "launcher/scripts/run_launcher.ps1", target / "scripts/run_launcher.ps1")
+    for name in ("THIRD_PARTY_NOTICES.md", "config.example.json",
+                 "start.cmd", "enable-autostart.cmd", "disable-autostart.cmd"):
         shutil.copy2(ROOT / name, target / name)
+    shutil.copy2(ROOT.parent / "launcher/launcher.cmd", target / "launcher.cmd")
+    write_portable_metadata(target)
     shutil.copy2(ROOT / "PORTABLE_README.md", target / "README.md")
     if (ROOT / "docs").is_dir():
         copy_tree(ROOT / "docs", target / "docs")

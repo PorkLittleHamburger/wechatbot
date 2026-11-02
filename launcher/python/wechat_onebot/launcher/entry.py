@@ -5,6 +5,8 @@ import threading
 import webbrowser
 from pathlib import Path
 
+from .. import __file__ as core_package_file
+
 import uvicorn
 
 from .locking import DirectoryLease
@@ -13,7 +15,7 @@ from .server import create_launcher_app
 
 
 def command_launcher(args) -> int:
-    project = Path(__file__).resolve().parents[3]
+    project = Path(core_package_file).resolve().parents[2]
     root = Path(args.data_dir).resolve() if args.data_dir else project / "data" / "launcher"
     lease = DirectoryLease(root)
     try:
