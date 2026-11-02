@@ -1,6 +1,8 @@
-# WeChat OneBot Launcher
+# WeChatBot
 
-Windows x64 桌面启动器，用于管理个人微信 OneBot v11 网关的多个独立实例。桌面应用采用 Tauri 2、React/TypeScript 与 Python 管理服务，提供实例启停、版本选择、升级、备份恢复、日志、托盘和开机自启。
+WeChatBot 面向 Windows 11 x64，包含个人微信 OneBot v11 网关，以及采用 Tauri 2、React/TypeScript 与 Python 管理服务的桌面启动器。启动器提供实例启停、版本选择、升级、备份恢复、日志、托盘和开机自启。
+
+源码仓库：<https://github.com/PorkLittleHamburger/wechatbot>
 
 ## 系统要求
 
@@ -21,7 +23,7 @@ Windows x64 桌面启动器，用于管理个人微信 OneBot v11 网关的多�
 
 默认工作空间为 `%LOCALAPPDATA%\WeChatOneBotLauncher`，与安装目录分离。关闭主窗口默认隐藏到托盘；选择托盘“退出”会停止实例并退出程序。卸载默认保留运行数据。
 
-完整操作见 [桌面使用说明](launcher/docs/desktop-launcher.md)。EXE 不纳入 Git；可从维护者提供的安装包安装，也可按 [构建说明](launcher/docs/building.md) 自行构建。成功的 [Windows CI](https://github.com/PorkLittleHamburger/wechat-onebot-launcher/actions/workflows/desktop.yml) 会提供构建工件。
+完整操作见 [桌面使用说明](launcher/docs/desktop-launcher.md)。EXE 不纳入 Git；可从维护者提供的安装包安装，也可按 [构建说明](launcher/docs/building.md) 自行构建。成功的 [Windows CI](https://github.com/PorkLittleHamburger/wechatbot/actions/workflows/desktop.yml) 会提供构建工件。
 
 ## OneBot 与微信桥接
 

@@ -35,7 +35,7 @@ def write_manifest(directory, version="0.8.0", **overrides):
 
 
 @pytest.mark.asyncio
-async def test_release_catalog_uses_independent_launcher_repository(store, monkeypatch):
+async def test_release_catalog_uses_current_project_repository(store, monkeypatch):
     client_class = httpx.AsyncClient
     requests = []
 
@@ -49,7 +49,7 @@ async def test_release_catalog_uses_independent_launcher_repository(store, monke
 
     monkeypatch.setattr(httpx, "AsyncClient", client)
     assert await store.releases() == {"releases": []}
-    assert requests == ["https://api.github.com/repos/PorkLittleHamburger/wechat-onebot-launcher/releases"]
+    assert requests == ["https://api.github.com/repos/PorkLittleHamburger/wechatbot/releases"]
 
 
 @pytest.fixture
