@@ -6,7 +6,7 @@
 
 | 检查 | 结果与证据 |
 | --- | --- |
-| 完整 Python 回归 | 146 项通过，包括原 97 项和新增 49 项桌面测试；仅有现有 Starlette/httpx 弃用提示 |
+| 完整 Python 回归 | 147 项通过，包括原 97 项和新增 50 项桌面测试；新增检查确认版本目录访问独立仓库 wechat-onebot-launcher；仅有现有 Starlette/httpx 弃用提示 |
 | 前端 | TypeScript 检查、Vite 生产构建通过 |
 | Rust | `cargo test --locked` 通过；额外显式执行打包 Python 的原生进程、Job、JSON 行通信与正常退出测试通过 |
 | NSIS 钩子 | 编译专用测试安装器通过；测试夹具从未执行 |

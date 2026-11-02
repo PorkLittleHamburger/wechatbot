@@ -34,6 +34,24 @@ def write_manifest(directory, version="0.8.0", **overrides):
     return manifest
 
 
+@pytest.mark.asyncio
+async def test_release_catalog_uses_independent_launcher_repository(store, monkeypatch):
+    client_class = httpx.AsyncClient
+    requests = []
+
+    def catalog(request):
+        requests.append(str(request.url))
+        return httpx.Response(200, json=[])
+
+    def client(*args, **kwargs):
+        kwargs["transport"] = httpx.MockTransport(catalog)
+        return client_class(*args, **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", client)
+    assert await store.releases() == {"releases": []}
+    assert requests == ["https://api.github.com/repos/PorkLittleHamburger/wechat-onebot-launcher/releases"]
+
+
 @pytest.fixture
 def bundle_factory(tmp_path):
     def make(version="0.8.0", *, runnable=False):

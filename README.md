@@ -1,5 +1,7 @@
 # WeChat OneBot
 
+独立仓库：[PorkLittleHamburger/wechat-onebot-launcher](https://github.com/PorkLittleHamburger/wechat-onebot-launcher)。桌面启动器的版本管理从本仓库获取兼容运行时包。
+
 Windows 11 个人微信的 OneBot v11 协议端。设计目标：
 
 - 个人微信账号，不使用微信官方 ClawBot。
