@@ -23,6 +23,7 @@ logs/
 .idea/
 
 # Desktop build dependencies and generated resources
+launcher/.development/
 launcher/desktop/node_modules/
 launcher/desktop/dist/
 launcher/desktop/src-tauri/target/
