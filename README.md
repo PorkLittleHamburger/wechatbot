@@ -50,6 +50,8 @@ Windows 11 个人微信的 OneBot v11 协议端。设计目标：
 
 ## 多实例启动器
 
+桌面版 **WeChat OneBot Launcher 0.8.0** 提供独立窗口、托盘、版本管理、升级、备份恢复和开机自启。构建后的离线 EXE 安装程序位于 `dist/WeChat-OneBot-Launcher_0.8.0_x64-setup.exe`。使用方法、全新工作空间与构建环境位置见 [桌面启动器说明](docs/desktop-launcher.md)。以下 `launcher.cmd` 是保留的浏览器管理入口，供源码开发和兼容使用；桌面版请运行 EXE 安装程序。
+
 运行根目录 `launcher.cmd` 可打开多实例管理面板（默认本机 5088 端口），统一创建、编辑、启动、停止、重启、查看日志、备份和归档多个独立服务实例。每个实例有独立配置、数据、管理密码与 WebUI 端口。新建默认使用 Mock；Helper 模式需要以管理员身份运行启动器，账号绑定和桥接启动在各自 WebUI 中操作。
 
 源码命令为 `.\.venv\Scripts\python.exe -m wechat_onebot launcher`。此版本的实例共享当前安装目录的代码及 Python；尚不提供按实例切换软件版本、托盘或启动器开机自启。完整设计、参考源码、目录与使用方式见 [多实例启动器](docs/multi-instance-launcher.md)。

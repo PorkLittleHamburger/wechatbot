@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -30,7 +31,7 @@ def copy_tree(source: Path, destination: Path):
 
 
 def bundle_python(target: Path) -> None:
-    cache = DIST / ".cache"
+    cache = Path(os.environ.get("WECHAT_BUILD_CACHE", str(DIST / ".cache")))
     cache.mkdir(parents=True, exist_ok=True)
     archive = cache / PYTHON_ARCHIVE
     if not archive.is_file():
@@ -49,7 +50,7 @@ def bundle_python(target: Path) -> None:
         [sys.executable, "-m", "pip", "install", "--only-binary=:all:", "--no-compile",
          "--python-version", "3.13", "--implementation", "cp", "--abi", "cp313",
          "--platform", "win_amd64", "--target",
-         str(runtime / "Lib" / "site-packages"), *requirements],
+         str(runtime / "Lib" / "site-packages"), "-r", str(ROOT / "requirements-runtime.lock")],
         check=True,
     )
     subprocess.run(

@@ -1,0 +1,47 @@
+name: Windows desktop installer
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+jobs:
+  windows-x64:
+    runs-on: windows-latest
+    env:
+      CARGO_HOME: D:\Tool\Rust\cargo
+      RUSTUP_HOME: D:\Tool\Rust\rustup
+      CARGO_TARGET_DIR: D:\Tool\Build\WeChatOneBotLauncher\cargo-target
+      WECHAT_BUILD_ROOT: D:\Tool\Build\WeChatOneBotLauncher
+      WECHAT_BUILD_CACHE: D:\Tool\Cache\WeChatOneBotLauncher
+      PIP_CACHE_DIR: D:\Tool\Cache\WeChatOneBotLauncher\pip
+      npm_config_cache: D:\Tool\Cache\WeChatOneBotLauncher\npm
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Prepare Python verification environment
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .venv/Scripts/python.exe -m pip install -r requirements-runtime.lock
+          .venv/Scripts/python.exe -m pip install -e '.[dev]'
+      - name: Build and verify offline installer
+        shell: pwsh
+        run: ./scripts/build_desktop.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WeChat-OneBot-Launcher-windows-x64
+          path: |
+            dist/*setup.exe
+            dist/*setup.exe.sha256
+            dist/wechat-onebot-runtime-*-windows-x64.zip

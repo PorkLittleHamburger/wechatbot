@@ -188,47 +188,54 @@ class LauncherManager:
     async def start(self, instance_id: str):
         slot = self.slots.setdefault(instance_id, ProcessSlot())
         async with slot.lock:
-            if self.closing:
-                raise ConfigError("启动器正在关闭")
-            self.require_stopped(instance_id)
-            row = self.check_config(instance_id)
-            if not self.available(row["port"], instance_id):
-                raise ConfigError("端口已被其他程序占用")
-            directory = self.directory(instance_id)
-            slot.state, slot.error, slot.probe = "starting", "", secrets.token_urlsafe(32)
-            env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8", WECHAT_LAUNCHER_PROBE=slot.probe)
-            # Keep source launch usable without editable installation.
-            env["PYTHONPATH"] = str(self.project / "src") + os.pathsep + env.get("PYTHONPATH", "")
-            log = directory / "service.log"
-            try:
-                if log.exists() and log.stat().st_size > 5 * 1024 * 1024:
-                    os.replace(log, directory / "service.previous.log")
-                with log.open("ab", buffering=0) as output:
-                    slot.process = subprocess.Popen(
-                        [sys.executable, "-u", "-m", "wechat_onebot.launcher.worker", str(directory / "config.json")],
-                        cwd=self.project, env=env, stdin=subprocess.PIPE, stdout=output,
-                        stderr=subprocess.STDOUT,
-                        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-                    )
-                deadline = time.monotonic() + 30
-                async with httpx.AsyncClient(trust_env=False, timeout=0.8) as client:
-                    while time.monotonic() < deadline:
-                        if slot.process.poll() is not None:
-                            raise ConfigError("服务进程提前退出，请查看实例日志")
-                        try:
-                            response = await client.get(f"http://127.0.0.1:{row['port']}/_launcher/health",
-                                                        headers={"X-Launcher-Probe": slot.probe})
-                            if response.status_code == 200 and response.json().get("identity") == slot.probe:
-                                slot.state = "running"
-                                return
-                        except (httpx.HTTPError, ValueError):
-                            pass
-                        await asyncio.sleep(0.2)
-                raise ConfigError("启动超时（30 秒），请查看实例日志")
-            except BaseException as error:
-                await self._stop(slot)
-                slot.state, slot.error = "error", str(error)
-                raise
+            await self._start_locked(instance_id, slot)
+
+    def _launch_parameters(self, instance_id: str) -> tuple[str, Path]:
+        return sys.executable, self.project
+
+    async def _start_locked(self, instance_id: str, slot: ProcessSlot):
+        if self.closing:
+            raise ConfigError("启动器正在关闭")
+        self.require_stopped(instance_id)
+        row = self.check_config(instance_id)
+        if not self.available(row["port"], instance_id):
+            raise ConfigError("端口已被其他程序占用")
+        directory = self.directory(instance_id)
+        python, project = self._launch_parameters(instance_id)
+        slot.state, slot.error, slot.probe = "starting", "", secrets.token_urlsafe(32)
+        env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8", PYTHONDONTWRITEBYTECODE="1", WECHAT_LAUNCHER_PROBE=slot.probe)
+        # Keep source launch usable without editable installation.
+        env["PYTHONPATH"] = str(project / "src") + os.pathsep + env.get("PYTHONPATH", "")
+        log = directory / "service.log"
+        try:
+            if log.exists() and log.stat().st_size > 5 * 1024 * 1024:
+                os.replace(log, directory / "service.previous.log")
+            with log.open("ab", buffering=0) as output:
+                slot.process = subprocess.Popen(
+                    [str(python), "-B", "-u", "-m", "wechat_onebot.launcher.worker", str(directory / "config.json")],
+                    cwd=project, env=env, stdin=subprocess.PIPE, stdout=output,
+                    stderr=subprocess.STDOUT,
+                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                )
+            deadline = time.monotonic() + 30
+            async with httpx.AsyncClient(trust_env=False, timeout=0.8) as client:
+                while time.monotonic() < deadline:
+                    if slot.process.poll() is not None:
+                        raise ConfigError("服务进程提前退出，请查看实例日志")
+                    try:
+                        response = await client.get(f"http://127.0.0.1:{row['port']}/_launcher/health",
+                                                    headers={"X-Launcher-Probe": slot.probe})
+                        if response.status_code == 200 and response.json().get("identity") == slot.probe:
+                            slot.state = "running"
+                            return
+                    except (httpx.HTTPError, ValueError):
+                        pass
+                    await asyncio.sleep(0.2)
+            raise ConfigError("启动超时（30 秒），请查看实例日志")
+        except BaseException as error:
+            await self._stop(slot)
+            slot.state, slot.error = "error", str(error)
+            raise
 
     async def _stop(self, slot: ProcessSlot):
         process = slot.process
@@ -272,15 +279,31 @@ class LauncherManager:
         backups = self.root / "backups"
         backups.mkdir(exist_ok=True)
         target = backups / f"{instance_id}-{time.time_ns()}.zip"
+        temporary = target.with_suffix(".zip.partial")
         try:
-            with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED) as archive:
                 for path in directory.rglob("*"):
                     if path.is_file() and path != directory / "launcher.lock":
                         if not path.resolve().is_relative_to(directory.resolve()):
                             raise ConfigError("备份包含实例目录外的链接")
+                        if path == directory / "config.json":
+                            raw = json.loads(path.read_text(encoding="utf-8-sig"))
+                            changed = False
+                            for key in ("data_dir", "media_dir"):
+                                value = raw["storage"][key]
+                                resolved = (directory / value).resolve()
+                                if not resolved.is_relative_to(directory.resolve()):
+                                    raise ConfigError("备份数据路径超出实例目录")
+                                if Path(value).is_absolute():
+                                    raw["storage"][key] = os.path.relpath(resolved, directory)
+                                    changed = True
+                            if changed:
+                                archive.writestr("config.json", json.dumps(raw, ensure_ascii=False, indent=2) + "\n")
+                                continue
                         archive.write(path, path.relative_to(directory))
+            os.replace(temporary, target)
         except BaseException:
-            target.unlink(missing_ok=True)
+            temporary.unlink(missing_ok=True)
             raise
         return target.name
 
@@ -288,6 +311,20 @@ class LauncherManager:
         async with self.guard, self.slots.setdefault(instance_id, ProcessSlot()).lock:
             self.metadata(instance_id)
             self.require_stopped(instance_id)
+            directory = self.directory(instance_id)
+            config_path = directory / "config.json"
+            raw = json.loads(config_path.read_text(encoding="utf-8-sig"))
+            changed = False
+            for key in ("data_dir", "media_dir"):
+                value = raw["storage"][key]
+                resolved = (directory / value).resolve()
+                if not resolved.is_relative_to(directory.resolve()):
+                    raise ConfigError("归档数据路径超出实例目录")
+                if Path(value).is_absolute():
+                    raw["storage"][key] = os.path.relpath(resolved, directory)
+                    changed = True
+            if changed:
+                _atomic_write_json(config_path, raw)
             trash = self.root / "archive"
             trash.mkdir(exist_ok=True)
             self.directory(instance_id).rename(trash / f"{instance_id}-{time.time_ns()}")
