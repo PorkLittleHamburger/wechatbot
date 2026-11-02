@@ -87,7 +87,8 @@ class SessionStore:
         self._sessions.clear()
 
 
-def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtime: bool = False) -> FastAPI:
+def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtime: bool = False,
+                     cookie_name: str = COOKIE_NAME) -> FastAPI:
     sessions = SessionStore()
     passwords = PasswordStore(config.storage.data_dir / "webui-auth.json")
     runtime_logs = _SafeRuntimeLogs()
@@ -95,7 +96,7 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
     icon_path = panel_path.parent.parent / "assets" / "icons" / "wechat-onebot.svg"
 
     def authorized(request: Request) -> bool:
-        cookie = request.cookies.get(COOKIE_NAME, "")
+        cookie = request.cookies.get(cookie_name, "")
         return bool(cookie) and sessions.valid(cookie)
 
     def status_payload() -> dict[str, Any]:
@@ -199,13 +200,13 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
                 return Response("首次登录 Token 无效", status_code=401)
             kind = "setup"
         session = sessions.create(kind)
-        response.set_cookie(COOKIE_NAME, session, max_age=SESSION_SECONDS, httponly=True,
+        response.set_cookie(cookie_name, session, max_age=SESSION_SECONDS, httponly=True,
                             samesite="strict", secure=False)
         return {"ok": True, "expiresIn": SESSION_SECONDS, "setupRequired": kind == "setup"}
 
     @app.post("/api/setup-password")
     async def setup_password(request: Request, response: Response):
-        cookie = request.cookies.get(COOKIE_NAME, "")
+        cookie = request.cookies.get(cookie_name, "")
         if passwords.configured or not cookie or not sessions.valid(cookie, "setup"):
             return Response("首次登录验证已失效", status_code=401)
         try:
@@ -220,7 +221,7 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
         except ValueError as error:
             return Response(str(error), status_code=400)
         sessions.revoke_all()
-        response.set_cookie(COOKIE_NAME, sessions.create(), max_age=SESSION_SECONDS,
+        response.set_cookie(cookie_name, sessions.create(), max_age=SESSION_SECONDS,
                             httponly=True, samesite="strict", secure=False)
         return {"ok": True}
 
@@ -244,16 +245,16 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
         except ValueError as error:
             return Response(str(error), status_code=400)
         sessions.revoke_all()
-        response.set_cookie(COOKIE_NAME, sessions.create(), max_age=SESSION_SECONDS,
+        response.set_cookie(cookie_name, sessions.create(), max_age=SESSION_SECONDS,
                             httponly=True, samesite="strict", secure=False)
         return {"ok": True}
 
     @app.post("/api/logout")
     async def logout(request: Request, response: Response):
-        cookie = request.cookies.get(COOKIE_NAME, "")
+        cookie = request.cookies.get(cookie_name, "")
         if cookie:
             sessions.revoke(cookie)
-        response.delete_cookie(COOKIE_NAME)
+        response.delete_cookie(cookie_name)
         return {"ok": True}
 
     @app.get("/api/status")
@@ -302,6 +303,8 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
     async def autostart_status(request: Request):
         if not authorized(request):
             return Response("未登录", status_code=401)
+        if getattr(app.state, "launcher_managed", False):
+            return Response("此实例由多实例启动器管理，请通过启动器启动", status_code=409)
         task = await asyncio.to_thread(autostart_task, "status")
         return {**task, "lastAccount": load_last_bridge(config.storage.data_dir)}
 
@@ -309,6 +312,8 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
     async def autostart_update(request: Request):
         if not authorized(request):
             return Response("未登录", status_code=401)
+        if getattr(app.state, "launcher_managed", False):
+            return Response("此实例由多实例启动器管理，请通过启动器启动", status_code=409)
         body = await request.json()
         if not isinstance(body, dict) or type(body.get("enabled")) is not bool:
             return Response("enabled 必须是布尔值", status_code=400)

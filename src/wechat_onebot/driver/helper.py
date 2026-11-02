@@ -104,9 +104,11 @@ class HelperDriver(Driver):
         self._self_id = app_config.driver.wechat_account
         self._wechat_data_directory: Path | None = app_config.driver.wechat_data_directory
         self._lifecycle_executor: ThreadPoolExecutor | None = None
+        self._process_lock: Any = None
+        self._lifecycle_lock = asyncio.Lock()
 
     def rebind(self, app_config: AppConfig) -> None:
-        if self._online:
+        if self._online or self._process_lock is not None:
             raise DriverError("运行中的微信驱动不能重新绑定 PID")
         self.config = app_config
         self._self_id = app_config.driver.wechat_account
@@ -146,8 +148,16 @@ class HelperDriver(Driver):
         }
 
     async def start(self, emit: EventCallback) -> None:
+        if self._lifecycle_lock.locked():
+            raise DriverError("微信驱动正在启动或清理")
+        async with self._lifecycle_lock:
+            await self._start(emit)
+
+    async def _start(self, emit: EventCallback) -> None:
         import asyncio
         import sys
+        # Import lazily: bridge.__init__ also exports HelperBridgeSession.
+        from ..bridge.process_lock import BridgeProcessLock
 
         if sys.platform != "win32":
             raise DriverError("helper 原生驱动只支持 Windows")
@@ -163,23 +173,34 @@ class HelperDriver(Driver):
         from wxbot_framework.sdk import ServiceFacade
 
         if self._service is not None:
-            await self.stop()  # Retry an earlier failed cleanup before acquiring the PID again.
+            if self._online:
+                raise DriverError("微信驱动已启动")
+            await self._close_backend()  # Retry failed cleanup before acquiring the PID again.
+        if self._process_lock is not None:
+            raise DriverError("微信桥接尚未完成启动或清理")
+        try:
+            process_lock = BridgeProcessLock(self.config.driver.wechat_pid)
+            process_lock.acquire()
+        except (ValueError, OSError, RuntimeError) as error:
+            raise DriverError(f"helper 桥接锁获取失败: {error}") from error
+        self._process_lock = process_lock
         self._loop = asyncio.get_running_loop()
         self._emit = emit
         self._self_id = self.config.driver.wechat_account
-        if self._wechat_data_directory is None:
-            self._wechat_data_directory = _detect_wechat_data_directory(
-                self.config.driver.wechat_pid, self.config.driver.wechat_account
-            )
         try:
+            if self._wechat_data_directory is None:
+                self._wechat_data_directory = _detect_wechat_data_directory(
+                    self.config.driver.wechat_pid, self.config.driver.wechat_account
+                )
             self._lifecycle_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="wechat-bridge")
             self._backend = NativeTextBackend(
                 helper_root,
                 self._helper_config(),
                 data_root=self.config.storage.data_dir,
             )
-            self._service = ServiceFacade(text_delay=self._helper_config()["text_send_delay"])
-            self._service.bind(self._backend)
+            service = ServiceFacade(text_delay=self._helper_config()["text_send_delay"])
+            service.bind(self._backend)
+            self._service = service
             await self._loop.run_in_executor(self._lifecycle_executor, self._start_raw_backend)
             self._online = True
         except Exception as error:
@@ -414,19 +435,26 @@ class HelperDriver(Driver):
         return int(time.time())
 
     async def stop(self) -> None:
-        self._online = False
-        await self._close_backend()
+        async with self._lifecycle_lock:
+            self._online = False
+            await self._close_backend()
 
     async def _close_backend(self) -> None:
         if self._service is not None:
             # BridgeGuard's Windows mutex must be released by its acquiring thread.
             await asyncio.get_running_loop().run_in_executor(self._lifecycle_executor, self._service.close)
+        # Construction/binding can fail before the facade owns the backend.
+        elif self._backend is not None:
+            await asyncio.get_running_loop().run_in_executor(self._lifecycle_executor, self._backend.stop)
         self._service = None
         self._backend = None
         self._emit = None
         if self._lifecycle_executor is not None:
             self._lifecycle_executor.shutdown(wait=True)
             self._lifecycle_executor = None
+        if self._process_lock is not None:
+            self._process_lock.release()
+            self._process_lock = None
 
     async def send_text(self, chat_id: str, text: str) -> bool:
         import asyncio

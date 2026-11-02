@@ -202,6 +202,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", default="config.json", help="配置文件，默认 config.json")
     sub = parser.add_subparsers(dest="command", required=True)
 
+    from .launcher.entry import command_launcher
+    launcher = sub.add_parser("launcher", help="启动多实例管理器")
+    launcher.add_argument("--data-dir", help="实例数据目录，默认 data/launcher")
+    launcher.add_argument("--port", type=int, default=5088, choices=range(1024, 65536), metavar="PORT")
+    launcher.add_argument("--no-browser", action="store_true", help="不自动打开浏览器")
+    launcher.set_defaults(func=command_launcher)
+
     run = sub.add_parser("run", help="启动 OneBot v11 服务")
     run.add_argument("--mock", action="store_true", help="强制使用 Mock 驱动，不连接微信")
     run.add_argument("--resume-bridge", action="store_true", help="恢复上次成功启动的微信桥接")

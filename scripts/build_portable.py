@@ -70,10 +70,10 @@ def main() -> int:
     copy_tree(ROOT / "assets", target / "assets")
     bundle_python(target)
     (target / "scripts").mkdir()
-    for name in ("run_real.ps1", "run_mock.ps1", "wechat-onebot.ps1", "autostart.ps1"):
+    for name in ("run_real.ps1", "run_mock.ps1", "wechat-onebot.ps1", "autostart.ps1", "run_launcher.ps1"):
         shutil.copy2(ROOT / "scripts" / name, target / "scripts" / name)
     for name in ("README.md", "THIRD_PARTY_NOTICES.md", "pyproject.toml", "config.example.json",
-                 "start.cmd", "enable-autostart.cmd", "disable-autostart.cmd"):
+                 "start.cmd", "launcher.cmd", "enable-autostart.cmd", "disable-autostart.cmd"):
         shutil.copy2(ROOT / name, target / name)
     if (ROOT / "docs").is_dir():
         copy_tree(ROOT / "docs", target / "docs")
