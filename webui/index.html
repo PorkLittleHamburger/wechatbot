@@ -132,6 +132,21 @@ textarea.input{height:auto;padding:10px;font-family:var(--mono);font-size:12px;l
 .input:focus{border-color:rgba(255,122,69,.55);box-shadow:0 0 0 3px rgba(255,122,69,.1)}
 .input::placeholder{color:#5d646d}
 select.input{appearance:none;background-image:linear-gradient(45deg,transparent 50%,#7b828b 50%),linear-gradient(135deg,#7b828b 50%,transparent 50%);background-position:calc(100% - 15px) 14px,calc(100% - 10px) 14px;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:26px}
+.ui-select{position:relative;display:inline-flex;min-width:0;max-width:100%;vertical-align:middle}
+.ui-select>select{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;opacity:0;pointer-events:none;clip-path:inset(50%)}
+.select-trigger{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;height:33px;padding:0 10px;border:1px solid var(--line);border-radius:7px;background:var(--field);color:var(--text);font-size:12.5px;text-align:left;cursor:pointer}
+.select-trigger .select-value{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.select-trigger::after{content:"";width:7px;height:7px;flex:none;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(45deg) translateY(-2px)}
+.select-trigger:hover{border-color:var(--accent)}
+.ui-select.open .select-trigger{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.ui-select.open .select-trigger::after{transform:rotate(225deg) translateY(-2px)}
+.select-trigger:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.select-menu{position:absolute;z-index:50;top:calc(100% + 5px);left:0;min-width:100%;max-width:min(360px,90vw);max-height:240px;overflow:auto;padding:4px;border:1px solid var(--line);border-radius:9px;background:var(--card);box-shadow:0 12px 28px rgba(20,48,70,.16)}
+.ui-select.up .select-menu{top:auto;bottom:calc(100% + 5px)}
+.select-option{display:block;width:100%;padding:7px 10px;border:0;border-radius:6px;background:transparent;color:var(--text);font-size:12.5px;text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.select-option:hover,.select-option:focus-visible{background:var(--hover);outline:none}
+.select-option[aria-selected="true"]{background:var(--accent-soft);color:var(--accent);font-weight:650}
+.select-option:disabled{opacity:.45;cursor:not-allowed}
 .sort-control{position:relative;min-width:116px}
 .sort-trigger{width:100%;justify-content:space-between}
 .sort-trigger::after{content:"";width:7px;height:7px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg) translateY(-2px);margin-left:10px;transition:transform .15s}
@@ -321,7 +336,7 @@ body{background:var(--bg);color:var(--text)}
 .btn.danger:hover{background:color-mix(in srgb,var(--bad) 9%,var(--card));border-color:var(--bad)}
 .icon-btn{color:var(--muted)}
 .icon-btn:hover{color:var(--text)}
-.input,select.input,textarea.input,.endpoint .ghost-input:focus{background:var(--field);color:var(--text);border-color:var(--line)}
+.input,select.input,textarea.input,.endpoint .ghost-input:focus{background-color:var(--field);color:var(--text);border-color:var(--line)}
 select.input{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%)}
 .input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .input::placeholder{color:var(--muted)}
@@ -739,7 +754,92 @@ function render() {
   else if (S.view === "events") renderEvents(view);
   else if (S.view === "debug") renderDebug(view);
   else renderSettings(view);
+  enhanceSelects(view);
 }
+function closeSelects(except = null) {
+  $$(".ui-select.open", $("#view")).forEach((control) => {
+    if (control === except) return;
+    control.classList.remove("open", "up");
+    $(".select-menu", control).classList.add("hidden");
+    $(".select-trigger", control).setAttribute("aria-expanded", "false");
+  });
+}
+function enhanceSelects(root) {
+  $$("select.input:not([data-enhanced])", root).forEach((select) => {
+    const control = document.createElement("div");
+    control.className = "ui-select";
+    control.style.width = select.style.width || "100%";
+    select.before(control);
+    select.dataset.enhanced = "true";
+    select.tabIndex = -1;
+    select.setAttribute("aria-hidden", "true");
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "select-trigger";
+    trigger.setAttribute("aria-haspopup", "listbox");
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.setAttribute("aria-label", select.getAttribute("aria-label") || select.closest("label")?.querySelector("span")?.textContent || "选择选项");
+    trigger.disabled = select.disabled;
+    const value = document.createElement("span");
+    value.className = "select-value";
+    trigger.append(value);
+    const menu = document.createElement("div");
+    menu.className = "select-menu hidden";
+    menu.setAttribute("role", "listbox");
+    menu.setAttribute("aria-label", trigger.getAttribute("aria-label"));
+    const options = [...select.options].map((option) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "select-option";
+      item.setAttribute("role", "option");
+      item.tabIndex = -1;
+      item.textContent = option.textContent;
+      item.disabled = option.disabled;
+      item.addEventListener("click", () => {
+        select.value = option.value;
+        closeSelects();
+        select.dispatchEvent(new Event("change", {bubbles: true}));
+        trigger.focus();
+      });
+      menu.append(item);
+      return item;
+    });
+    function sync() {
+      value.textContent = select.selectedOptions[0]?.textContent || "请选择";
+      options.forEach((item, index) => item.setAttribute("aria-selected", String(select.selectedIndex === index)));
+    }
+    function open() {
+      closeSelects(control);
+      control.classList.add("open");
+      control.classList.toggle("up", window.innerHeight - control.getBoundingClientRect().bottom < 250 && control.getBoundingClientRect().top > 250);
+      menu.classList.remove("hidden");
+      trigger.setAttribute("aria-expanded", "true");
+      sync();
+      (options[select.selectedIndex] && !options[select.selectedIndex].disabled ? options[select.selectedIndex] : options.find((item) => !item.disabled))?.focus();
+    }
+    trigger.addEventListener("click", () => control.classList.contains("open") ? closeSelects() : open());
+    trigger.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Enter" || event.key === " ") {
+        event.preventDefault(); open();
+        if (event.key === "ArrowUp") (options[select.selectedIndex - 1] || options.at(-1))?.focus();
+      }
+    });
+    menu.addEventListener("keydown", (event) => {
+      const index = options.indexOf(document.activeElement);
+      if (event.key === "Escape") { event.preventDefault(); closeSelects(); trigger.focus(); }
+      else if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Home" || event.key === "End") {
+        event.preventDefault();
+        const next = event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
+        options[next]?.focus();
+      }
+    });
+    control.addEventListener("focusout", (event) => { if (!control.contains(event.relatedTarget)) closeSelects(); });
+    control.append(trigger, menu, select);
+    select.addEventListener("change", sync);
+    sync();
+  });
+}
+document.addEventListener("click", (event) => { if (!event.target.closest(".ui-select")) closeSelects(); });
 $$(".rail-btn[data-view]").forEach((btn) => btn.addEventListener("click", () => setView(btn.dataset.view)));
 const rail = $(".rail");
 rail.classList.toggle("pinned", localStorage.getItem("wechat-onebot-sidebar-pinned") === "1");
@@ -1119,7 +1219,7 @@ function renderConnect(root) {
     "</div></div></div></div>" : "";
   root.innerHTML =
     "<div class=\"note\"><svg class=\"i\"><use href=\"#i-alert\"/></svg><div>网络配置按账号保存在 <span class=\"mono\">data/accounts/&lt;账号&gt;/onebot.json</span>。保存后端点独立生效，微信账号未启动时也可监听和连接。</div></div>" +
-    "<div class=\"surface-header\"><div><h2>账号配置</h2><p>按账号分别管理 HTTP 和 WebSocket 连接。</p></div><select id=\"configAccount\" class=\"input\" style=\"width:min(320px,100%)\">" + accountOptions + "</select></div>" +
+    "<div class=\"surface-header\"><div><h2>账号配置</h2><p>按账号分别管理 HTTP 和 WebSocket 连接。</p></div><select id=\"configAccount\" class=\"input\" aria-label=\"账号配置\" style=\"width:min(320px,100%)\">" + accountOptions + "</select></div>" +
     "<div class=\"page-tabs\">" + tabs + "</div>" +
     "<div class=\"card\"><div class=\"card-b\"><div class=\"toolbar\">" +
       "<span class=\"small muted\">账号 <b class=\"mono\">" + esc(S.account) + "</b> · 事件连接 <b class=\"mono\">" + esc((rt.network && rt.network.connections) || 0) + "</b></span>" +
@@ -1247,7 +1347,7 @@ function renderEvents(root) {
 function renderRuntimeLogs(root) {
   root.innerHTML =
     "<div class=\"card\"><div class=\"card-b\"><div class=\"toolbar\">" +
-    "<select class=\"input\" id=\"logLevel\" style=\"width:125px\"><option value=\"all\">全部级别</option><option value=\"debug\">DEBUG</option><option value=\"info\">INFO</option><option value=\"warning\">WARNING</option><option value=\"error\">ERROR</option></select>" +
+    "<select class=\"input\" id=\"logLevel\" aria-label=\"日志级别\" style=\"width:125px\"><option value=\"all\">全部级别</option><option value=\"debug\">DEBUG</option><option value=\"info\">INFO</option><option value=\"warning\">WARNING</option><option value=\"error\">ERROR</option></select>" +
     "<div class=\"search\"><svg class=\"i\"><use href=\"#i-search\"/></svg><input class=\"input\" id=\"logQuery\" placeholder=\"搜索范围或内容\" value=\"" + esc(S.logQuery) + "\"></div>" +
     "<label class=\"check\"><input type=\"checkbox\" id=\"logAuto\"" + (S.logAuto ? " checked" : "") + ">自动刷新</label><div style=\"flex:1\"></div>" +
     "<span class=\"small muted\" id=\"logCount\">—</span><button class=\"btn sm\" data-act=\"log-export\">导出当前结果</button><button class=\"btn sm\" data-act=\"log-refresh\">刷新</button>" +
@@ -1302,7 +1402,7 @@ function exportRuntimeLogs() {
 function renderEventActivity(root) {
   root.innerHTML =
     "<div class=\"card\"><div class=\"card-b\"><div class=\"toolbar\">" +
-      "<select class=\"input\" id=\"evFilter\" style=\"width:150px\">" +
+      "<select class=\"input\" id=\"evFilter\" aria-label=\"事件类型\" style=\"width:150px\">" +
         ["all", "message", "meta_event", "notice", "request"].map((k) => "<option value=\"" + k + "\"" + (S.eventFilter === k ? " selected" : "") + ">" + (k === "all" ? "全部事件" : k) + "</option>").join("") +
       "</select>" +
       "<div class=\"search\"><svg class=\"i\"><use href=\"#i-search\"/></svg><input class=\"input\" id=\"evQuery\" placeholder=\"搜索事件内容\" value=\"" + esc(S.eventQuery) + "\"></div>" +
@@ -1525,6 +1625,7 @@ function renderDebugPanel() {
     "<div class=\"card\">" + resp + "</div>";
   const cw = $("#confirmWrite");
   if (cw) cw.addEventListener("change", (event) => { S.confirmWrite = event.target.checked; });
+  enhanceSelects(box);
 }
 
 function collectActionParams() {
