@@ -67,8 +67,8 @@ def main() -> int:
         "3. Open http://127.0.0.1:5099, enter the first-login token, and set a password.\n"
         "4. Select an account and save OneBot endpoints; they run even while WeChat is offline.\n"
         "   Start the WeChat bridge separately from the account page when needed.\n"
-        "5. Double-click enable-autostart.cmd to start at Windows logon.\n"
-        "   Use disable-autostart.cmd to remove the scheduled task.\n"
+        "5. Enable autostart in WebUI Settings > Service to resume the last bridged account at Windows logon.\n"
+        "   PC WeChat must log in first; this bridge does not provide a PC login QR API.\n"
         "The helper native bridge is non-commercial and requires the pinned WeChat build.\n",
         encoding="utf-8",
     )

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import socket
+import threading
 from dataclasses import replace
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from wechat_onebot.core.runtime import RuntimeManager
 from wechat_onebot.webui import create_webui_app
 from wechat_onebot.bridge.models import WeChatLogin
 from wechat_onebot.webui import server as webui_server
+from wechat_onebot.webui import startup as webui_startup
 from wechat_onebot.core import runtime as runtime_module
 import pytest
 
@@ -68,6 +70,7 @@ def test_webui_login_status_and_account_action(tmp_path: Path):
         started = client.post("/api/accounts/wxid_robot/start")
         assert started.status_code == 200
         assert started.json()["ok"] is True
+        assert webui_startup.load_last_bridge(config.storage.data_dir) == "wxid_robot"
         payload = client.get("/api/status").json()
         assert payload["runtimes"][0]["account"] == "wxid_robot"
         assert payload["runtimes"][0]["network"]["httpServers"] == []
@@ -340,6 +343,54 @@ def test_webui_selects_fresh_logged_in_account_without_starting_runtime(tmp_path
         saved = json.loads(config.path.read_text(encoding="utf-8"))["driver"]
         assert (saved["wechat_account"], saved["wechat_pid"], saved["nickname"]) == (
             "wxid_selected", 456, "Selected")
+
+
+def test_autostart_setting_and_last_bridge_are_managed_through_webui(tmp_path: Path, monkeypatch):
+    config = make_config(tmp_path)
+    config = replace(config, driver=replace(config.driver, type="helper"))
+    manager = RuntimeManager(config)
+    enabled = False
+    actions = []
+
+    def task(action):
+        nonlocal enabled
+        actions.append(action)
+        if action == "install":
+            enabled = True
+        elif action == "remove":
+            enabled = False
+        return {"enabled": enabled, "managed": enabled, "resumesBridge": enabled}
+
+    monkeypatch.setattr(webui_server, "autostart_task", task)
+    webui_startup.save_last_bridge(config.storage.data_dir, "wxid_robot")
+    with TestClient(create_webui_app(config, manager)) as client:
+        assert client.get("/api/autostart").status_code == 401
+        login_and_set_password(client)
+        assert client.post("/api/autostart", json={"enabled": "yes"}).status_code == 400
+        initial = client.get("/api/autostart").json()
+        assert initial == {"enabled": False, "managed": False, "resumesBridge": False,
+                           "lastAccount": "wxid_robot"}
+        assert client.post("/api/autostart", json={"enabled": True}).json()["enabled"] is True
+        assert client.post("/api/autostart", json={"enabled": False}).json()["enabled"] is False
+        assert actions == ["status", "install", "remove"]
+
+
+def test_autostart_resumes_last_bridged_account(tmp_path: Path, monkeypatch):
+    config = make_config(tmp_path)
+    manager = RuntimeManager(config)
+    webui_startup.save_last_bridge(config.storage.data_dir, "wxid_previous")
+    resumed = threading.Event()
+    accounts = []
+
+    async def start_account(account, pid=None):
+        accounts.append(account)
+        resumed.set()
+
+    monkeypatch.setattr(manager, "start_account", start_account)
+    with TestClient(create_webui_app(config, manager, start_runtime=True)) as client:
+        assert client.get("/healthz").status_code == 200
+        assert resumed.wait(2)
+    assert accounts == ["wxid_previous"]
 
 
 @pytest.mark.asyncio

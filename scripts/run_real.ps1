@@ -1,8 +1,9 @@
-param([switch]$Quiet)
+param([switch]$Quiet, [switch]$AutoResume)
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 $env:PYTHONUTF8 = '1'
 $env:PYTHONIOENCODING = 'utf-8'
+$env:WECHAT_ONEBOT_PWSH = (Get-Process -Id $PID).Path
 $root = Split-Path -Parent $PSScriptRoot
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = [Security.Principal.WindowsPrincipal]::new($identity)
@@ -10,6 +11,7 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
     $pwsh = (Get-Process -Id $PID).Path
     $launchArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"' + $PSCommandPath + '"'))
     if ($Quiet) { $launchArgs += '-Quiet' }
+    if ($AutoResume) { $launchArgs += '-AutoResume' }
     Start-Process -FilePath $pwsh -Verb RunAs -ArgumentList $launchArgs -WorkingDirectory $root -WindowStyle Normal
     exit 0
 }
@@ -46,5 +48,7 @@ if (-not $Quiet) {
     }
     Write-Host 'Select an account and configure OneBot endpoints in WebUI before starting the account.'
 }
-& $python -m wechat_onebot --config $configPath run
+$runArgs = @('-m', 'wechat_onebot', '--config', $configPath, 'run')
+if ($AutoResume) { $runArgs += '--resume-bridge' }
+& $python @runArgs
 exit $LASTEXITCODE

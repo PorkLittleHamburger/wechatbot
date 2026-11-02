@@ -186,7 +186,7 @@ def command_run(args: argparse.Namespace) -> int:
         raise ConfigError("helper 原生驱动需要管理员权限，请从提权后的 PowerShell 启动；协议开发可使用 run --mock")
     _configure_logging(args.log_level)
     manager = _build_manager(config)
-    app = create_webui_app(config, manager)
+    app = create_webui_app(config, manager, start_runtime=args.resume_bridge)
     try:
         uvicorn.run(app, host=config.webui.host, port=config.webui.port,
                     log_level=args.log_level.lower(), access_log=args.access_log)
@@ -204,6 +204,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     run = sub.add_parser("run", help="启动 OneBot v11 服务")
     run.add_argument("--mock", action="store_true", help="强制使用 Mock 驱动，不连接微信")
+    run.add_argument("--resume-bridge", action="store_true", help="恢复上次成功启动的微信桥接")
     run.add_argument("--log-level", default="INFO", choices=["debug", "info", "warning", "error", "critical", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
     run.add_argument("--access-log", action="store_true", help="输出 HTTP 访问日志")
     run.set_defaults(func=command_run)

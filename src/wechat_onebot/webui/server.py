@@ -8,6 +8,7 @@ import secrets
 import time
 from collections import deque
 from contextlib import asynccontextmanager
+from contextlib import suppress
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ from ..onebot.network import AccountNetworkConfig, load_or_create_account_networ
 from ..core.runtime import RuntimeManager
 from ..bridge import discover_logged_accounts
 from .auth import PasswordStore
+from .startup import autostart_task, load_last_bridge, save_last_bridge
 
 
 COOKIE_NAME = "wechat_onebot_webui"
@@ -107,19 +109,40 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             "runtimes": manager.snapshot(),
         }
 
+    async def resume_last_bridge() -> None:
+        account = load_last_bridge(config.storage.data_dir)
+        if not account:
+            return
+        while load_last_bridge(config.storage.data_dir) == account:
+            current = manager.get(account)
+            if current is not None and current.started:
+                return
+            try:
+                await manager.start_account(account)
+                manager.last_error = ""
+                return
+            except Exception:
+                manager.last_error = "等待上次桥接账号登录后恢复连接"
+                await asyncio.sleep(10)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         root_logger = logging.getLogger()
         root_logger.addHandler(runtime_logs)
+        resume_task = None
         try:
             try:
                 await manager.start_saved_networks()
             except Exception as error:
                 manager.last_error = str(error)
             if start_runtime:
-                await manager.start_configured_account()
+                resume_task = asyncio.create_task(resume_last_bridge())
             yield
         finally:
+            if resume_task is not None:
+                resume_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await resume_task
             root_logger.removeHandler(runtime_logs)
             await manager.stop_all()
 
@@ -258,6 +281,25 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             result["error"] = error
         return result
 
+    @app.get("/api/autostart")
+    async def autostart_status(request: Request):
+        if not authorized(request):
+            return Response("未登录", status_code=401)
+        task = await asyncio.to_thread(autostart_task, "status")
+        return {**task, "lastAccount": load_last_bridge(config.storage.data_dir)}
+
+    @app.post("/api/autostart")
+    async def autostart_update(request: Request):
+        if not authorized(request):
+            return Response("未登录", status_code=401)
+        body = await request.json()
+        if not isinstance(body, dict) or type(body.get("enabled")) is not bool:
+            return Response("enabled 必须是布尔值", status_code=400)
+        if body["enabled"] and config.driver.type != "helper":
+            return Response("Mock 模式不能启用真实开机自启", status_code=409)
+        task = await asyncio.to_thread(autostart_task, "install" if body["enabled"] else "remove")
+        return {**task, "lastAccount": load_last_bridge(config.storage.data_dir)}
+
     @app.post("/api/account-selection")
     async def account_selection(request: Request):
         nonlocal config
@@ -390,6 +432,11 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
         pid = config.driver.wechat_pid if account == config.driver.wechat_account else None
         try:
             await manager.start_account(account, pid)
+            try:
+                save_last_bridge(config.storage.data_dir, account)
+            except OSError:
+                manager.last_error = "桥接已启动，但无法保存下次自启账号"
+                return {"ok": True, "warning": manager.last_error}
             manager.last_error = ""
             return {"ok": True}
         except Exception as error:
