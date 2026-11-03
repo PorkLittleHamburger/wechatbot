@@ -91,6 +91,17 @@ class WindowsSecurity:
             self.k.LocalFree(text)
             self.k.LocalFree(sd)
 
+    def canonical_dacl(self, sddl):
+        # Windows may serialize an account SID as an SDDL alias (e.g. LA).
+        with self.descriptor(sddl) as sd:
+            text = ctypes.c_void_p()
+            try:
+                self.check(self.a.ConvertSecurityDescriptorToStringSecurityDescriptorW(
+                    sd, 1, 4, ctypes.byref(text), None))
+                return ctypes.wstring_at(text)
+            finally:
+                self.k.LocalFree(text)
+
     @contextmanager
     def normal_user(self):
         """Disable BA even if the runner has it; never elevate/impersonate a thread."""
@@ -160,18 +171,21 @@ def test_real_private_dacl_grants_only_user_read_and_inherits(tmp_path, media, s
         new_aces = re.findall(r"\([^)]*\)", after)
         for ace in old_aces:
             new_aces.remove(ace)
-        assert new_aces == [f"(A;OICI;0x1200a9;;;{sid})"]
+        expected = security.canonical_dacl(f"D:(A;OICI;0x1200a9;;;{sid})")[2:]
+        assert new_aces == [expected]
+        trustee = expected.rsplit(";;;", 1)[1][:-1]
         assert security.access(token, after, 0x1200A9)
         snapshot = owned / "payload.bin"
         snapshot.write_bytes(b"offline payload")
         file_dacl = security.dacl(snapshot)
         assert security.access(token, file_dacl, 0x120089)
-        assert f";;;{sid})" in file_dacl
+        assert f";;;{trustee})" in file_dacl
         for dacl in (after, file_dacl):
             for denied in (2, 4, 0x10000, 0x40000, 0x80000):
                 assert not security.access(token, dacl, denied)
         # An unrelated SID cannot acquire read through Users/Everyone grants.
-        assert not security.access(token, after.replace(sid, "S-1-5-21-1-2-3-9999"), 1)
+        assert not security.access(token, after.replace(
+            f";;;{trustee})", ";;;S-1-5-21-1-2-3-9999)"), 1)
     assert security.dacl(tmp_path) == parent_before
 
 
