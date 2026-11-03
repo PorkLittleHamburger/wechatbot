@@ -28,6 +28,9 @@ jobs:
         run: |
           .venv/Scripts/python.exe -m compileall -q src
           .venv/Scripts/python.exe -m pytest -q
+      - name: Verify native media paths
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/test_native_paths.ps1
       - name: Build portable package
         shell: pwsh
         run: |

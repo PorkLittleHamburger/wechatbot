@@ -21,9 +21,11 @@ Local changes relative to the pinned helper commit:
 
 - `native/run_selftest.py` and `native/filehelper_service.py` compare resolved bridge paths consistently across Windows extended drive/UNC syntax, while retaining full-path ownership checks. Missing modules and mismatched paths produce distinct diagnostics.
 
-The native DLLs are unchanged. `vendor/helper/VENDORED_SHA256.json` records their hashes and those of the locally modified Python files.
+`native/file_send.h`, `native/voice_send.h`, and the added `native/local_file_path.h` support extended local drive paths without changing the buffer passed to Win32 I/O. `text_bridge.dll` is rebuilt from these sources; the compatibility self-test DLL is unchanged. `vendor/helper/VENDORED_SHA256.json` records binary hashes and locally modified source hashes.
 
 The local `wxbot_framework/local_paths.py` utility and changes in `files.py` and `voices.py` allow extended Windows drive paths during file-store initialization and media validation. I/O retains the extended prefix for long paths; UNC, device namespaces, URLs, alternate streams, and mapped network drives remain rejected.
+
+`wxbot_framework/snapshot_access.py` adds an inheritable read/traverse ACE for the current process TokenUser to newly created private outbound snapshot directories. File and voice preparation invokes it before writing snapshots, so the same user running unelevated WeChat can read elevated-created snapshots without granting access to other users or write access.
 
 ## Python dependencies
 

@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include "local_file_path.h"
 
 // Fingerprint-locked Weixin 4.1.15.13. Static UI path:
 // 5cc7fa0 -> 6bdfbc0 -> 6be0020 / 6be1240 (voice payload + duration).
@@ -42,8 +43,10 @@ struct VoiceFileHandle {
 static DWORD voice_read_file(VoiceTaskLease& lease) {
     QtStaticUtf16 path{};
     if (!image_file_argument(lease.config.base, &path)) return ERROR_FILE_NOT_FOUND;
-    if ((path.characters[0] == L'\\' && path.characters[1] == L'\\') ||
-        (path.characters[0] == L'/' && path.characters[1] == L'/')) return ERROR_BAD_PATHNAME;
+    const wchar_t* local = local_drive_file_path(path.characters);
+    if (!local) return ERROR_BAD_PATHNAME;
+    wchar_t drive[] = {local[0], L':', L'\\', 0};
+    if (GetDriveTypeW(drive) == DRIVE_REMOTE) return ERROR_BAD_PATHNAME;
     VoiceFileHandle file{CreateFileW(path.characters, GENERIC_READ, FILE_SHARE_READ, nullptr,
                                     OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, nullptr)};
     if (file.value == INVALID_HANDLE_VALUE) return GetLastError();

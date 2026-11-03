@@ -22,7 +22,7 @@ PYTHON_ARCHIVE = f"python-{PYTHON_VERSION}-embed-amd64.zip"
 
 
 def ignore(directory: str, names: list[str]):
-    blocked = {".git", "__pycache__", ".pytest_cache", ".venv", ".development", "data", "logs", "dist"}
+    blocked = {".git", "__pycache__", ".pytest_cache", ".venv", ".development", ".runtime", "data", "logs", "dist"}
     return [name for name in names if name in blocked or name.endswith(".egg-info")]
 
 

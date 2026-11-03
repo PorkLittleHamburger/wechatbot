@@ -21,6 +21,7 @@ import tempfile
 from typing import Iterator
 
 from .local_paths import local_spelling
+from .snapshot_access import grant_snapshot_read
 
 MAX_VOICE_BYTES = 20 * 1024 * 1024
 MAX_VOICE_DURATION_MS = 60_000
@@ -219,6 +220,7 @@ def prepare_voice(path, directory) -> Iterator[VoiceInfo]:
         owned = Path(temporary).resolve(strict=True)
         if not owned.is_relative_to(root):
             raise ValueError("语音临时目录超出预期范围")
+        grant_snapshot_read(owned)
         snapshot = owned / "voice.silk"
         _check_local_path(snapshot)
         if voice.silk is not None:

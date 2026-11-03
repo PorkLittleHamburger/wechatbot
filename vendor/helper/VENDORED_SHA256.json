@@ -1,10 +1,5 @@
 [
   {
-    "RelativePath": "native\\build_text\\text_bridge.dll",
-    "Length": 102912,
-    "SHA256": "AD614A0A833C0C08374141F078A3A8BCFD388F325EE024364B1C462B70824BFD"
-  },
-  {
     "RelativePath": "native\\build\\selftest_bridge.dll",
     "Length": 37888,
     "SHA256": "457E87F9B12AE0C18203DE372DE0EF870440D76D5007B005350064C59DB0D387"
@@ -30,18 +25,43 @@
     "SHA256": "4A8D54E5ABF90EEF0F8DF9B5699E0E38787B6964798BCCCBC604962F1D7AA6A0"
   },
   {
-    "RelativePath": "wxbot_framework\\files.py",
-    "Length": 6432,
-    "SHA256": "88F91B01D7BBEFA1F3FE37486D996D4B7A642757C9F8CFA999F2CD53282F404E"
-  },
-  {
-    "RelativePath": "wxbot_framework\\voices.py",
-    "Length": 10574,
-    "SHA256": "B016672378518DFEFACA6182AFEC1C6B3D5CB1A0BA57AE648532D5ACF07CB691"
-  },
-  {
     "RelativePath": "wxbot_framework\\local_paths.py",
     "Length": 577,
     "SHA256": "BFFB44C2CD613FED93BED9A225710DE457C7C2AC5004B9ED29677BC9AD966E69"
+  },
+  {
+    "RelativePath": "native\\build_text\\text_bridge.dll",
+    "Length": 105472,
+    "SHA256": "517C9C9711F9E1CF32E644C2D845384986486884975F0ED17F80515142A8088C"
+  },
+  {
+    "RelativePath": "native\\local_file_path.h",
+    "Length": 640,
+    "SHA256": "DF9D1EC74B57045FEEE2EFEAEA7D6C2545EF8F14D8929FB915858A5F240F7DF0"
+  },
+  {
+    "RelativePath": "native\\file_send.h",
+    "Length": 15491,
+    "SHA256": "E9794701EF1BF96153B82BCCE80518FD6F4112AC41E4308D8FDB37CE46559A36"
+  },
+  {
+    "RelativePath": "native\\voice_send.h",
+    "Length": 12477,
+    "SHA256": "6214492D126FE77AFECE60EF959DAA193CDB7E2287FE3EA6A1973BA56C431DC3"
+  },
+  {
+    "RelativePath": "wxbot_framework\\snapshot_access.py",
+    "Length": 5345,
+    "SHA256": "98F914B73D344CA774E14DDCA8B03836097A262639E36B614DB3A78818BD8B18"
+  },
+  {
+    "RelativePath": "wxbot_framework\\files.py",
+    "Length": 6516,
+    "SHA256": "09DB66DB356177FDC324D13517450328820D21B920B9EF16FA38F7C91CDD0C6C"
+  },
+  {
+    "RelativePath": "wxbot_framework\\voices.py",
+    "Length": 10658,
+    "SHA256": "80A7BBFCA2D222D514D4FEB7CF68CAF7BF9CA5B6F2ACC8DFC2A6C5BF70B379C3"
   }
 ]

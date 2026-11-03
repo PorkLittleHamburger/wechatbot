@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wechat-onebot"
-version = "0.8.3"
+version = "0.8.4"
 description = "OneBot v11 gateway for a personal Windows WeChat account using the helper native bridge"
 readme = "README.md"
 requires-python = ">=3.11"

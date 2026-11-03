@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include "local_file_path.h"
 
 // Fingerprint-locked Weixin 4.1.15.13. Ordinary-file branch at 5c9bf98:
 // factory 2bab360 / ctor 766780, type 49 with app subtype 6.
@@ -39,12 +40,9 @@ static volatile LONG file_send_admission = 0;
 static DWORD file_read_source(FileTaskLease& lease) {
     QtStaticUtf16 path{};
     if (!image_file_argument(lease.config.base, &path)) return ERROR_FILE_NOT_FOUND;
-    if (!((path.characters[0] >= L'A' && path.characters[0] <= L'Z') ||
-          (path.characters[0] >= L'a' && path.characters[0] <= L'z')) ||
-        path.characters[1] != L':' ||
-        (path.characters[2] != L'\\' && path.characters[2] != L'/') ||
-        wcschr(path.characters + 2, L':')) return ERROR_BAD_PATHNAME;
-    wchar_t drive[] = {path.characters[0], L':', L'\\', 0};
+    const wchar_t* local = local_drive_file_path(path.characters);
+    if (!local) return ERROR_BAD_PATHNAME;
+    wchar_t drive[] = {local[0], L':', L'\\', 0};
     if (GetDriveTypeW(drive) == DRIVE_REMOTE) return ERROR_BAD_PATHNAME;
     const char* name = lease.config.base.base.text;
     for (const char* cursor = name; *cursor; ++cursor)

@@ -61,6 +61,8 @@ python -m venv .venv
 
 如果启动桥接时报“文件路径必须是本地路径，不支持网络路径或 URL”，可能是接收文件存储初始化将 `\\?\D:\...` 本地路径误判为网络路径。文件和语音校验支持这种本地盘符前缀并保留长路径能力；UNC、设备路径、URL、备用数据流和映射网络盘仍不支持。此修复需要更新实例使用的 Bot 运行版本。
 
+文件、语音的原生发送入口也支持这种前缀；临时发送快照会为当前用户补充只读/遍历权限，让普通权限运行的微信能够读取管理员进程生成的快照。授权失败会中止本次发送并清理临时目录。
+
 如果提示“桥接 DLL 未正确加载”，错误详情会区分模块缺失与路径不符，并给出预期路径（路径不符时也给出实际路径）。Windows 的 `\\?\` 驱动器路径及 `\\?\UNC\` 网络路径会按完整路径统一比较；其他目录下的同名 DLL 仍会被拒绝。使用启动器时，确认实例已切换到包含修复的新运行版本。
 
 守护启动错误会区分提前退出（含退出码）和等待就绪超时，并显示日志绝对路径。`<helper_root>/logs/bridge_watchdog_startup.log` 保存启动输出，包括日志初始化前的导入错误；`bridge_watchdog.log` 保存守护运行日志。源码默认的 `helper_root` 为 `vendor/helper`；使用外部启动器时，以实例配置的 `driver.helper_root` 为准。读取日志需要与运行服务相应的文件访问权限。
@@ -71,6 +73,8 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pytest -q
 .venv\Scripts\python.exe -m compileall -q src
 ```
+
+安装 MSVC x64 开发工具后，可运行 `pwsh -File scripts/test_native_paths.ps1`，编译并执行原生媒体路径校验回归；该检查也在 Windows CI 中执行，不加载微信桥接。
 
 自动化测试默认使用 Mock 和隔离临时目录，不代表真实微信、管理员权限或原生 DLL 已完成联调。Windows CI 执行 Python 测试、编译检查和便携包构建：[Bot checks](https://github.com/PorkLittleHamburger/wechatbot/actions/workflows/bot.yml)。
 

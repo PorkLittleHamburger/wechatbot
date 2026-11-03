@@ -13,6 +13,7 @@ import tempfile
 from typing import Iterator
 
 from .local_paths import local_spelling
+from .snapshot_access import grant_snapshot_read
 
 MAX_FILE_BYTES = 20 * 1024 * 1024
 MAX_FILE_PATH_BYTES = 1023
@@ -138,6 +139,7 @@ def prepare_file(path, directory) -> Iterator[FileInfo]:
     try:
         if owned.parent != root or owned.resolve(strict=True) != owned:
             raise ValueError("文件临时目录超出预期范围")
+        grant_snapshot_read(owned)
         snapshot = owned / name
         _check_local_path(snapshot)
         with snapshot.open("xb") as output:
