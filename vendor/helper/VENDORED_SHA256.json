@@ -68,5 +68,10 @@
     "RelativePath": "wxbot_framework\\sdk.py",
     "Length": 26072,
     "SHA256": "DA1A09CDCAAD3DFF1F79618B6204B5CC3CCD4009C59E0315727ECAB7CA0388B1"
+  },
+  {
+    "RelativePath": "wxbot_framework\\contacts.py",
+    "Length": 21110,
+    "SHA256": "B16D7896C0700DF18F3CC8F29EFAF4A28F17F7F1C0E5AC66D226947B6DD56C3B"
   }
 ]

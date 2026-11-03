@@ -27,9 +27,11 @@ The local `wxbot_framework/local_paths.py` utility and changes in `files.py` and
 
 `wxbot_framework/snapshot_access.py` adds an inheritable read/traverse ACE for the current process TokenUser to newly created private outbound snapshot directories. File and voice preparation invokes it before writing snapshots, so the same user running unelevated WeChat can read elevated-created snapshots without granting access to other users or write access.
 
-## Python dependencies
-
 `wxbot_framework/sdk.py` joins native mention display labels to text with a space rather than inserting a mandatory newline. Native mention recipient IDs and explicit newlines in the text are preserved.
+
+`wxbot_framework/contacts.py` supplements friend-name lookup with an exact-ID, read-only lookup of the non-friend ContactCache LRU on the verified WeChat 4.1.15.56 build. It reuses the pinned helper's stable LRU reader and documented contact prefix, validates the account and record identity, and rejects records that change during reading. Friend enumeration is unchanged. The upstream [contact reader](https://github.com/Prometheus-first/helper/blob/main/wxbot_framework/contacts.py) also separates friend and non-friend name sources; its newer-version layouts and profiles are not imported here. The pinned upstream commit and DLLs remain unchanged.
+
+## Python dependencies
 
 The Windows portable package includes the CPython 3.13.9 embeddable runtime.
 Its license is included at python/LICENSE.txt.

@@ -300,7 +300,7 @@ def read_contact_directory(read_memory, core_base, *, expected_account):
         return None
 
 
-def read_contact_name(read_memory, core_base, wxid, *, expected_account=None):
+def _read_friend_cache_name(read_memory, core_base, wxid, *, expected_account=None):
     """按实际成员 ID 读取微信名。缺失、切换、重建缓存时返回 None，不猜名字。
 
     仅遍历已核对的缓存对象，不调用微信函数、不扫描整个进程、不读取群昵称或备注。
@@ -398,3 +398,40 @@ def read_contact_name(read_memory, core_base, wxid, *, expected_account=None):
         return None
     except (OSError, ValueError, struct.error):
         return None
+
+
+def _read_nonfriend_cache_name(read_memory, core_base, wxid, *, expected_account=None):
+    """Read the verified 4.1.15.56 non-friend LRU without requesting a refresh."""
+    account = read_current_account(read_memory, core_base)
+    if not account or (expected_account is not None and account != expected_account):
+        return None
+    try:
+        profile = select_memory_profile(read_memory, core_base)
+        # The common contact prefix and LRU +0x108 are documented for this build
+        # in _directory_records. Do not assume the same layout on other builds.
+        if profile is None or profile.version != "4.1.15.56":
+            return None
+        from .group_members import _StableReader, _find_room
+        directory = _DirectoryReader(read_memory)
+        _, cache = _directory_cache(directory, core_base, profile.rva)
+        reader = _StableReader(read_memory)
+        # _find_room reads an LRU at base +0x38; ContactCache's LRU is at +0x108.
+        contact = _find_room(reader, cache + 0xD0, wxid)
+        if not contact or reader.string(contact + 8, 127, encoding="ascii") != wxid:
+            return None
+        name = reader.string(contact + 0xD8, 256, empty=True)
+        if not name.strip() or len(name) > 64 or any(ord(ch) < 32 or ord(ch) == 127 for ch in name):
+            return None
+        reader.verify()
+        directory.verify()
+        if read_current_account(read_memory, core_base) != account:
+            return None
+        return name.strip()
+    except (OSError, ValueError, ContactDirectoryError, struct.error):
+        return None
+
+
+def read_contact_name(read_memory, core_base, wxid, *, expected_account=None):
+    """Read an exact-ID nickname from friends, then the verified non-friend LRU."""
+    return (_read_friend_cache_name(read_memory, core_base, wxid, expected_account=expected_account)
+            or _read_nonfriend_cache_name(read_memory, core_base, wxid, expected_account=expected_account))

@@ -60,6 +60,8 @@ The following actions return `retcode=1404` and never report fake success:
 
 User observations are persisted in the account message database before event delivery. WeChat nicknames and per-group cards are stored separately; empty observations do not erase known names. Group-member queries and native mention display names share these records. A message-only cached member response omits an unobserved role; an available native member list remains authoritative for membership. The cache is partial and cannot supply names that have never been observed or read from native contacts/members.
 
+On the verified WeChat 4.1.15.56 build, nickname lookup checks the friend cache first, then the non-friend contact LRU by exact user ID. This allows cached non-friend group members to supply sender nicknames without being added as friends. It performs no network refresh and does not add these users to `get_friend_list`; unknown or unstable records remain unavailable. Other builds do not use this LRU layout.
+
 - Private and group text maps to `text`.
 - Native WeChat `@` maps to an `at` segment and sets `to_me=true` when the bot is selected.
 - A successfully downloaded image maps to `image` with a local `file` name and HTTP `url`.
