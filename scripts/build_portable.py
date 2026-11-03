@@ -78,8 +78,7 @@ def main() -> int:
                  "start.cmd", "enable-autostart.cmd", "disable-autostart.cmd"):
         shutil.copy2(ROOT / name, target / name)
     shutil.copy2(ROOT / "PORTABLE_README.md", target / "README.md")
-    if (ROOT / "docs").is_dir():
-        copy_tree(ROOT / "docs", target / "docs")
+    copy_tree(ROOT / "docs", target / "docs")
 
     helper_root = ROOT / "vendor" / "helper"
     helper_hashes = {}

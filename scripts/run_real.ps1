@@ -36,9 +36,6 @@ if (Test-Path -LiteralPath $bundledPython) {
     if ($rebuildVenv) {
         $systemPython = Get-Command python -ErrorAction SilentlyContinue
         if (-not $systemPython) { throw 'Install Python 3.11+ and add python to PATH.' }
-        $resolvedRoot = [IO.Path]::GetFullPath($root)
-        $resolvedVenv = [IO.Path]::GetFullPath($venv)
-        if ($resolvedVenv -ne [IO.Path]::Combine($resolvedRoot, '.venv')) { throw 'Unexpected virtual environment path.' }
         Write-Host 'Installing Python environment for this folder...'
         & $systemPython.Source -m venv --clear $venv
         if ($LASTEXITCODE -ne 0) { throw 'Failed to create Python virtual environment.' }

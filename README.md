@@ -64,7 +64,7 @@ python -m venv .venv
 .venv\Scripts\python.exe -m compileall -q src
 ```
 
-自动化测试默认使用 Mock 和隔离临时目录，不代表真实微信、管理员权限或原生 DLL 已完成联调。Windows CI 执行 Python 测试与编译检查：[Bot checks](https://github.com/PorkLittleHamburger/wechatbot/actions/workflows/bot.yml)。
+自动化测试默认使用 Mock 和隔离临时目录，不代表真实微信、管理员权限或原生 DLL 已完成联调。Windows CI 执行 Python 测试、编译检查和便携包构建：[Bot checks](https://github.com/PorkLittleHamburger/wechatbot/actions/workflows/bot.yml)。
 
 ## 构建便携包
 
