@@ -1,0 +1,30 @@
+name: Bot checks
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+
+jobs:
+  windows-x64:
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .venv/Scripts/python.exe -m pip install -r requirements-runtime.lock
+          .venv/Scripts/python.exe -m pip install -e '.[dev]'
+      - name: Verify Bot
+        shell: pwsh
+        run: |
+          .venv/Scripts/python.exe -m compileall -q src
+          .venv/Scripts/python.exe -m pytest -q

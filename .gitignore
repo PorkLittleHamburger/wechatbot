@@ -8,25 +8,16 @@ dist/
 .pytest_cache/
 .coverage
 htmlcov/
+*.log
 
 # Runtime and secrets
 config.json
 data/*
 !data/.gitkeep
-bot/data/*
-!bot/data/.gitkeep
-bot/.development/
+.development/
 logs/
 .runtime/
 
 # Local editor
 .vscode/
 .idea/
-
-# Desktop build dependencies and generated resources
-launcher/.development/
-launcher/desktop/node_modules/
-launcher/desktop/dist/
-launcher/desktop/src-tauri/target/
-launcher/desktop/src-tauri/resources/runtime/
-launcher/desktop/src-tauri/resources/vc_redist.x64.exe
