@@ -9,7 +9,8 @@ from pathlib import Path
 
 import pefile
 
-from run_selftest import DLL, TEXT_DLL, K, check, find_wechat, modules, remote_call, run
+from run_selftest import (DLL, TEXT_DLL, K, bridge_path_matches, check, find_wechat,
+                          modules, remote_call, require_bridge_module, run)
 from wxbot_framework.bridge_lifecycle import BridgeGuard
 
 logger = logging.getLogger("NativeFileHelper")
@@ -23,7 +24,7 @@ def loaded_project_bridges(pid):
     for dll in (DLL, TEXT_DLL):
         entry = loaded.get(dll.name.lower())
         if entry:
-            if Path(entry[1]).resolve() != dll.resolve():
+            if not bridge_path_matches(entry[1], dll):
                 raise RuntimeError("微信中加载了其他项目的桥接，请先退出该项目；当前项目不会卸载它")
             result.append(dll)
     return result
@@ -87,8 +88,7 @@ class ReceiveChannel:
         self.pending = False
         loaded_modules = modules(pid)
         loaded = loaded_modules.get(dll.name.lower())
-        if not loaded or Path(loaded[1]).resolve() != dll.resolve():
-            raise RuntimeError("原生文本桥接模块未加载")
+        require_bridge_module(loaded, dll)
         pe = pefile.PE(str(dll))
         self.address = loaded[0] + next(item.address for item in pe.DIRECTORY_ENTRY_EXPORT.symbols
                                        if item.name == poll_export)

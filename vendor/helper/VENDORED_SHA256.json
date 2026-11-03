@@ -18,5 +18,15 @@
     "RelativePath": "wxbot_framework\\bridge_lifecycle.py",
     "Length": 8168,
     "SHA256": "B351250388C9EA117232EF517E509E32CEB36AE5886FB7CEBEACE31083F62E07"
+  },
+  {
+    "RelativePath": "native\\run_selftest.py",
+    "Length": 36837,
+    "SHA256": "D2BE8C61E5447208A5CFF1916368F5B8DA3EE51C115D551FEFAEC86A073D3BE1"
+  },
+  {
+    "RelativePath": "native\\filehelper_service.py",
+    "Length": 11730,
+    "SHA256": "4A8D54E5ABF90EEF0F8DF9B5699E0E38787B6964798BCCCBC604962F1D7AA6A0"
   }
 ]

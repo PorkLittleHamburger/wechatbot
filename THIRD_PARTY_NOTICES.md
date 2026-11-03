@@ -19,6 +19,8 @@ Local changes relative to the pinned helper commit:
 - `native/bridge_watchdog.py` explicitly adds its native module directory before internal imports so it works with isolated embeddable Python.
 - `wxbot_framework/bridge_lifecycle.py` captures watchdog startup output in `logs/bridge_watchdog_startup.log` and reports early exit codes, readiness timeouts, and absolute log paths.
 
+- `native/run_selftest.py` and `native/filehelper_service.py` compare resolved bridge paths consistently across Windows extended drive/UNC syntax, while retaining full-path ownership checks. Missing modules and mismatched paths produce distinct diagnostics.
+
 The native DLLs are unchanged. `vendor/helper/VENDORED_SHA256.json` records their hashes and those of the locally modified Python files.
 
 ## Python dependencies

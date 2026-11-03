@@ -125,6 +125,26 @@ def check(result, label):
     return result
 
 
+def bridge_path_matches(actual, expected):
+    """Compare resolved Windows paths without treating extended syntax as another project."""
+    def canonical(path):
+        value = str(Path(path).resolve())
+        if value[:8].lower() == "\\\\?\\unc\\":
+            value = "\\\\" + value[8:]
+        elif value.startswith("\\\\?\\") and value[5:7] == ":\\":
+            value = value[4:]
+        return Path(value)
+    return canonical(actual) == canonical(expected)
+
+
+def require_bridge_module(loaded, dll, *, load_result=None):
+    if not loaded:
+        detail = "" if load_result is None else f"；LoadLibraryW 线程返回值（低32位）：0x{load_result:08x}"
+        raise RuntimeError(f"桥接 DLL 未正确加载：模块列表中未找到 {dll.name}；预期路径：{dll}{detail}")
+    if not bridge_path_matches(loaded[1], dll):
+        raise RuntimeError(f"桥接 DLL 未正确加载：模块路径不符；预期路径：{dll}；实际路径：{loaded[1]}")
+
+
 def modules(pid):
     snapshot = K.CreateToolhelp32Snapshot(0x8 | 0x10, pid)
     if snapshot == c.c_void_p(-1).value:
@@ -437,15 +457,16 @@ def run(mode, *, pid=None, text="WXNATIVE_TEST_3", keep_loaded=False, preserve_r
             if written.value != len(data): raise RuntimeError("参数写入不完整")
             return pointer
 
+        load_result = None
         if mode in ("--arm", "--dispatch", "--receive", "--listen", "--probe-at", "--download-image", "--download-file", "--manage-group", "--accept-friend"):
             existing = dll.name.lower() in loaded_modules
             if existing and not keep_loaded: raise RuntimeError("桥接 DLL 已加载，请先清理")
             if not existing:
                 if keep_loaded: raise RuntimeError("接收服务的桥接 DLL 已卸载")
                 dll_parameter = allocate((str(dll) + "\0").encode("utf-16-le"))
-                remote_call(process, remote_system_function(pid, b"LoadLibraryW"), dll_parameter)
+                load_result = remote_call(process, remote_system_function(pid, b"LoadLibraryW"), dll_parameter)
         loaded = modules(pid).get(dll.name.lower())
-        if not loaded or Path(loaded[1]).resolve() != dll: raise RuntimeError("桥接 DLL 未正确加载")
+        require_bridge_module(loaded, dll, load_result=load_result)
         report_path = ROOT / f".runtime/native_requests/{uuid.uuid4().hex}.json"
         report_path.parent.mkdir(parents=True, exist_ok=True)
         if len(str(report_path)) >= 260: raise RuntimeError("报告路径超过原生接口长度")
