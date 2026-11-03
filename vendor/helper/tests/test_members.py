@@ -188,7 +188,7 @@ class MemberTests(unittest.TestCase):
             ctx = PluginContext("example", {}, service, [], member_store=self.store)
             self.assertEqual(ctx.members.resolve("成员乙").wxid, JING)
             ctx.reply_at(self.message(), "回复")
-            backend.send_at_text.assert_called_once_with(ROOM, "@成员乙群名\u2005\n回复", (JING,))
+            backend.send_at_text.assert_called_once_with(ROOM, "@成员乙群名\u2005 回复", (JING,))
         finally:
             service.close()
 
@@ -270,10 +270,10 @@ class MemberTests(unittest.TestCase):
         try:
             ctx = PluginContext("test", {}, service, [], member_store=store)
             ctx.reply_at(message, "默认回复")
-            self.assertEqual(backend.send_at_text.call_args.args[1], "@DemoUser\u2005\n默认回复")
+            self.assertEqual(backend.send_at_text.call_args.args[1], "@DemoUser\u2005 默认回复")
             store.register("新群名字", other_room, SMALL)
             ctx.reply_at(message, "已绑定", display_name="旧的硬编码名字")
-            self.assertEqual(backend.send_at_text.call_args.args[1], "@新群名字\u2005\n已绑定")
+            self.assertEqual(backend.send_at_text.call_args.args[1], "@新群名字\u2005 已绑定")
             self.assertEqual(store.display_name(SMALL, ROOM), "成员甲")
             self.assertEqual(store.today_snapshot("新群名字", other_room).messages[0]["text"], "新群的原话")
         finally:

@@ -119,6 +119,12 @@ ACTION_REGISTRY: dict[str, ActionDefinition] = {
     "get_status": ActionDefinition("get_status", "_get_status", "获取运行状态", {}, {"type": "object"}, read_only=True),
     "get_version_info": ActionDefinition("get_version_info", "_get_version_info", "获取协议端版本", {}, {"type": "object"}, read_only=True),
     "get_friend_list": ActionDefinition("get_friend_list", "_get_friend_list", "获取好友列表", {}, {"type": "array"}, read_only=True),
+    "get_stranger_info": ActionDefinition(
+        "get_stranger_info", "_get_stranger_info", "获取已观测的用户资料",
+        {"user_id": ParamSpec("int", True, "OneBot user_id"),
+         "no_cache": ParamSpec("bool", False, "尝试刷新好友资料")},
+        {"type": "object"}, read_only=True,
+    ),
     "get_group_list": ActionDefinition("get_group_list", "_get_group_list", "获取已发现群列表", {}, {"type": "array"}, read_only=True),
     "get_group_info": ActionDefinition(
         "get_group_info", "_get_group_info", "获取群信息",

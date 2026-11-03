@@ -63,5 +63,10 @@
     "RelativePath": "wxbot_framework\\voices.py",
     "Length": 10658,
     "SHA256": "80A7BBFCA2D222D514D4FEB7CF68CAF7BF9CA5B6F2ACC8DFC2A6C5BF70B379C3"
+  },
+  {
+    "RelativePath": "wxbot_framework\\sdk.py",
+    "Length": 26072,
+    "SHA256": "DA1A09CDCAAD3DFF1F79618B6204B5CC3CCD4009C59E0315727ECAB7CA0388B1"
   }
 ]

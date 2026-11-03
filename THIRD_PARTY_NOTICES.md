@@ -29,6 +29,8 @@ The local `wxbot_framework/local_paths.py` utility and changes in `files.py` and
 
 ## Python dependencies
 
+`wxbot_framework/sdk.py` joins native mention display labels to text with a space rather than inserting a mandatory newline. Native mention recipient IDs and explicit newlines in the text are preserved.
+
 The Windows portable package includes the CPython 3.13.9 embeddable runtime.
 Its license is included at python/LICENSE.txt.
 

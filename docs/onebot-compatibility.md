@@ -23,6 +23,7 @@
 | `get_status` | Implemented | reports native driver connection state |
 | `get_version_info` | Implemented | protocol v11 |
 | `get_friend_list` | Implemented | native contact cache; may be incomplete |
+| `get_stranger_info` | Implemented | observed user identity; `no_cache` attempts a friend-cache refresh; unknown users fail explicitly |
 | `get_group_list` | Implemented | groups observed by the current native session |
 | `get_group_info` | Implemented | observed group metadata |
 | `get_group_member_list` | Implemented | requires a ready WeChat group-member cache |
@@ -56,6 +57,8 @@ The following actions return `retcode=1404` and never report fake success:
 - `get_credentials`
 
 ## Inbound message segments
+
+User observations are persisted in the account message database before event delivery. WeChat nicknames and per-group cards are stored separately; empty observations do not erase known names. Group-member queries and native mention display names share these records. A message-only cached member response omits an unobserved role; an available native member list remains authoritative for membership. The cache is partial and cannot supply names that have never been observed or read from native contacts/members.
 
 - Private and group text maps to `text`.
 - Native WeChat `@` maps to an `at` segment and sets `to_me=true` when the bot is selected.

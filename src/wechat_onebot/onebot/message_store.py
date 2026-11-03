@@ -62,6 +62,70 @@ class MessageStore:
         )
         self._db.commit()
 
+        self._db.execute("""
+            CREATE TABLE IF NOT EXISTS user_profiles (
+                account TEXT NOT NULL, user_id TEXT NOT NULL, group_id TEXT NOT NULL,
+                nickname TEXT NOT NULL, card TEXT NOT NULL, source TEXT NOT NULL,
+                observed_at INTEGER NOT NULL,
+                PRIMARY KEY (account, user_id, group_id)
+            )
+        """)
+        self._db.commit()
+
+        self._db.execute("""
+            CREATE TABLE IF NOT EXISTS group_memberships (
+                account TEXT NOT NULL, group_id TEXT NOT NULL, user_id TEXT NOT NULL,
+                PRIMARY KEY (account, group_id, user_id)
+            )
+        """)
+        self._db.commit()
+
+    def remember_profiles(self, account: str, rows: list[tuple[str, str, str, str, str]]) -> None:
+        """Persist observed identities; missing fields never erase known names."""
+        with self._lock:
+            self._db.executemany("""
+                INSERT INTO user_profiles VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(account, user_id, group_id) DO UPDATE SET
+                    nickname=CASE WHEN excluded.nickname!='' THEN excluded.nickname ELSE nickname END,
+                    card=CASE WHEN excluded.card!='' THEN excluded.card ELSE card END,
+                    source=excluded.source, observed_at=excluded.observed_at
+            """, [(account, user, group, nickname.strip(), card.strip(), source, int(time.time()))
+                  for user, group, nickname, card, source in rows if user])
+            self._db.executemany("INSERT OR IGNORE INTO group_memberships VALUES (?, ?, ?)",
+                                 [(account, group, user) for user, group, *_ in rows if user and group])
+            self._db.commit()
+
+    def replace_memberships(self, account: str, group: str, users: list[str]) -> None:
+        """A complete native roster invalidates absent memberships, not historical names."""
+        with self._lock, self._db:
+            self._db.execute("DELETE FROM group_memberships WHERE account=? AND group_id=?", (account, group))
+            self._db.executemany("INSERT INTO group_memberships VALUES (?, ?, ?)",
+                                 [(account, group, user) for user in set(users) if user])
+
+    def profile(self, account: str, user: str, group: str = "") -> dict[str, str] | None:
+        with self._lock:
+            identity = self._db.execute(
+                "SELECT nickname FROM user_profiles WHERE account=? AND user_id=? AND group_id=''",
+                (account, user)).fetchone()
+            membership = self._db.execute(
+                "SELECT card FROM user_profiles WHERE account=? AND user_id=? AND group_id=?",
+                (account, user, group)).fetchone() if group else None
+            if identity is None and membership is None:
+                return None
+            return {"nickname": identity[0] if identity else "",
+                    "card": membership[0] if membership else ""}
+
+    def has_membership(self, account: str, user: str, group: str) -> bool:
+        with self._lock:
+            return self._db.execute(
+                "SELECT 1 FROM group_memberships WHERE account=? AND user_id=? AND group_id=?",
+                (account, user, group)).fetchone() is not None
+
+    def forget_membership(self, account: str, user: str, group: str) -> None:
+        with self._lock, self._db:
+            self._db.execute("DELETE FROM group_memberships WHERE account=? AND user_id=? AND group_id=?",
+                             (account, user, group))
+
     @staticmethod
     def _key(account: str, event_name: str, session_key: str, sequence_key: str) -> str:
         return f"{account}\0{event_name}\0{session_key}\0{sequence_key}"

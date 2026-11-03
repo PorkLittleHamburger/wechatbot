@@ -68,7 +68,7 @@ def message_event(
         "sender": {
             "user_id": user_id,
             "nickname": message.sender_name,
-            "card": message.sender_name,
+            "card": message.sender_card,
         },
     }
     if message.is_group:

@@ -31,7 +31,7 @@ class MentionTests(unittest.TestCase):
 
     def test_nickname_and_actual_member_are_separate(self):
         self.service.send_at_text(ROOM, "测试", [MEMBER], display_names=["群昵称"])
-        self.assertEqual(self.backend.sent, (ROOM, "@群昵称\u2005\n测试", (MEMBER,)))
+        self.assertEqual(self.backend.sent, (ROOM, "@群昵称\u2005 测试", (MEMBER,)))
 
     def test_reply_at_keeps_session_and_uses_sender(self):
         ctx = PluginContext("example", {}, self.service, [])
@@ -65,4 +65,4 @@ class MentionTests(unittest.TestCase):
     def test_pacing_applies_to_mention_text(self):
         with patch.object(type(self.service.text_delay), "seconds_for", return_value=0) as delay:
             self.service.send_at_text(ROOM, "成功", [MEMBER], display_names=["小明"])
-        self.assertEqual(delay.call_args.args[0], "@小明\u2005\n成功")
+        self.assertEqual(delay.call_args.args[0], "@小明\u2005 成功")

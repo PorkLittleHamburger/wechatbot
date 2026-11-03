@@ -6,7 +6,7 @@ import time
 import uuid
 from collections import deque
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from .config import AppConfig
@@ -80,6 +80,8 @@ class OneBotService:
         if not login.external_user_id:
             raise DriverError("微信账号 ID 为空，无法启动 OneBot")
         self.self_id = self.mapper.get_or_create("user", login.external_user_id)
+        self.message_store.remember_profiles(self.account, [
+            (login.external_user_id, "", login.nickname, "", "login")])
         await self.driver.start(self._on_driver_event)
         self.started = True
 
@@ -98,6 +100,29 @@ class OneBotService:
     async def _on_driver_event(self, event: DriverEvent) -> None:
         payload: dict[str, Any]
         if isinstance(event, IncomingMessage):
+            user = event.external_sender_id or ("" if event.is_group else event.external_chat_id)
+            group = event.external_chat_id if event.is_group else ""
+            known_member = bool(group and self.message_store.has_membership(self.account, user, group))
+            self.message_store.remember_profiles(self.account, [
+                (user, "", event.sender_name, "", "message"),
+                *([(user, group, "", event.sender_card, "message")] if group else []),
+            ])
+            profile = self.message_store.profile(self.account, user, group)
+            if group and (not known_member or not (profile and profile["nickname"])):
+                try:
+                    self._remember_members(group, await self.driver.get_group_member_list(group))
+                except DriverError:
+                    pass
+                profile = self.message_store.profile(self.account, user, group)
+            if not group and not (profile and profile["nickname"]):
+                try:
+                    await self._get_friend_list({})
+                except DriverError:
+                    pass
+                profile = self.message_store.profile(self.account, user)
+            if profile:
+                event = replace(event, sender_name=event.sender_name or profile["nickname"],
+                                sender_card=event.sender_card or profile["card"])
             event_name = message_event_name(event)
             session_key = event.external_chat_id
             sequence_key = message_sequence(event)
@@ -119,6 +144,8 @@ class OneBotService:
             if not changed:
                 return
         elif isinstance(event, NoticeEvent):
+            if event.notice_type == "group_decrease":
+                self.message_store.forget_membership(self.account, event.external_user_id, event.external_chat_id)
             payload = notice_event(event, self.mapper, self.self_id)
         elif isinstance(event, RequestEvent):
             payload = request_event(event, self.mapper, self.self_id)
@@ -237,10 +264,10 @@ class OneBotService:
         pending_text: list[str] = []
         pending_at_ids: list[str] = []
         pending_at_names: list[str] = []
-        member_names: dict[str, str] | None = None
+        members_loaded = False
 
         async def flush_text() -> None:
-            nonlocal sent, member_names
+            nonlocal sent, members_loaded
             text = "".join(pending_text)
             at_ids = tuple(pending_at_ids)
             display = tuple(pending_at_names)
@@ -249,16 +276,16 @@ class OneBotService:
             pending_at_names.clear()
             if not text and not at_ids:
                 return
-            if at_ids and member_names is None:
-                member_names = {}
+            if at_ids and not members_loaded:
+                members_loaded = True
                 try:
                     rows = await self.driver.get_group_member_list(chat_id)
-                except Exception:
-                    rows = ()
-                for row in rows:
-                    member_names[row.external_user_id] = row.card or row.nickname or row.external_user_id
+                except DriverError:
+                    rows = None
+                if rows is not None:
+                    self._remember_members(chat_id, rows)
             names = tuple(
-                supplied or (member_names or {}).get(external) or external
+                supplied or self._display_name(external, chat_id) or external
                 for external, supplied in zip(at_ids, display)
             ) if at_ids else None
             chunks = list(_split_utf8(text or " ", 900 if at_ids else 1023))
@@ -405,6 +432,8 @@ class OneBotService:
 
     async def _get_friend_list(self, params: dict[str, Any]) -> list[dict[str, Any]]:
         rows = await self.driver.get_friend_list()
+        self.message_store.remember_profiles(self.account, [
+            (row.external_user_id, "", row.nickname, "", "friend") for row in rows])
         return [
             {
                 "user_id": self.mapper.get_or_create("user", row.external_user_id),
@@ -444,33 +473,72 @@ class OneBotService:
         group_number = self._required_int(params, "group_id")
         external = self._external_group(group_number)
         rows = await self.driver.get_group_member_list(external)
-        return [
-            {
+        self._remember_members(external, rows)
+        result = []
+        for row in rows:
+            profile = self.message_store.profile(self.account, row.external_user_id, external)
+            result.append({
                 "group_id": group_number,
                 "user_id": self.mapper.get_or_create("user", row.external_user_id),
-                "nickname": row.nickname,
-                "card": row.card,
+                "nickname": profile["nickname"],
+                "card": profile["card"],
                 "role": row.role,
-            }
-            for row in rows
-        ]
+            })
+        return result
 
     async def _get_group_member_info(self, params: dict[str, Any]) -> dict[str, Any]:
         group_number = self._required_int(params, "group_id")
         user_number = self._required_int(params, "user_id")
         external_group = self._external_group(group_number)
         external_user = self._external_user(user_number)
-        rows = await self.driver.get_group_member_list(external_group)
-        row = next((item for item in rows if item.external_user_id == external_user), None)
-        if row is None:
+        try:
+            rows = await self.driver.get_group_member_list(external_group)
+        except DriverError:
+            rows = None
+        if rows is not None:
+            self._remember_members(external_group, rows)
+        row = next((item for item in rows or () if item.external_user_id == external_user), None)
+        profile = self.message_store.profile(self.account, external_user, external_group)
+        # A global contact alone is not evidence of membership in this group.
+        membership = self.message_store.has_membership(self.account, external_user, external_group)
+        if row is None and (rows is not None or not membership):
             raise OneBotActionError(1404, "群成员不存在或成员缓存尚未就绪")
-        return {
+        result = {
             "group_id": group_number,
             "user_id": user_number,
-            "nickname": row.nickname,
-            "card": row.card,
-            "role": row.role,
+            "nickname": profile["nickname"],
+            "card": profile["card"],
         }
+        if row is not None:
+            result["role"] = row.role
+        return result
+
+    def _remember_members(self, group: str, rows: Sequence[GroupMemberInfo]) -> None:
+        profiles = []
+        for row in rows:
+            profiles.extend([(row.external_user_id, "", row.nickname, "", "group_member"),
+                             (row.external_user_id, group, "", row.card, "group_member")])
+        self.message_store.remember_profiles(self.account, profiles)
+        self.message_store.replace_memberships(self.account, group, [row.external_user_id for row in rows])
+
+    def _display_name(self, user: str, group: str) -> str:
+        profile = self.message_store.profile(self.account, user, group)
+        name = (profile["card"] or profile["nickname"]) if profile else ""
+        return "".join(" " if ord(ch) < 32 else ch for ch in name).strip()[:64]
+
+    async def _get_stranger_info(self, params: dict[str, Any]) -> dict[str, Any]:
+        number = self._required_int(params, "user_id")
+        user = self._external_user(number)
+        profile = self.message_store.profile(self.account, user)
+        if params.get("no_cache", False) or not (profile and profile["nickname"]):
+            try:
+                await self._get_friend_list({})
+            except DriverError:
+                pass
+            profile = self.message_store.profile(self.account, user)
+        if profile is None:
+            raise OneBotActionError(1404, "尚未观测到此用户的资料")
+        return {"user_id": number, "nickname": profile["nickname"]}
 
     def _history_params(self, params: dict[str, Any]) -> tuple[int, int | None, int, bool]:
         count = int(params.get("count", 20))

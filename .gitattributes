@@ -10,3 +10,4 @@ vendor/helper/wxbot_framework/snapshot_access.py text eol=lf
 vendor/helper/native/local_file_path.h text eol=lf
 vendor/helper/native/file_send.h text eol=lf
 vendor/helper/native/voice_send.h text eol=lf
+vendor/helper/wxbot_framework/sdk.py text eol=lf

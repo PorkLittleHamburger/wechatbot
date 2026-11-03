@@ -331,7 +331,7 @@ class ServiceFacade:
             raise ValueError("艾特显示昵称必须与成员列表一一对应，且每个昵称最多 64 字符")
         # 标签用于显示；真实通知始终使用 members 中的微信 ID。
         labels = " ".join("@" + name + "\u2005" for name in names)
-        return self.send_text(room_wxid, labels + "\n" + content,
+        return self.send_text(room_wxid, labels + " " + content,
                               expected_session=expected_session, _mentions=members, delivery_guard=delivery_guard)
 
     def _check_pending(self, backend, cancel):

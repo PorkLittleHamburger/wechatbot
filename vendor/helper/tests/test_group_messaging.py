@@ -64,7 +64,7 @@ class ComposerTests(PanelFixture):
         data=self.data();data['at_list']=[PEER,SELF]
         self.controller.send_text(data)
         self.assertEqual(self.wait_job()['status'],'sent')
-        self.assertEqual(self.backend.calls,[(ROOM,'@群内称呼\u2005 @测试机器人\u2005\n大家下午好',(PEER,SELF))])
+        self.assertEqual(self.backend.calls,[(ROOM,'@群内称呼\u2005 @测试机器人\u2005 大家下午好',(PEER,SELF))])
     def test_group_members_export_roles_and_session(self):
         data=self.controller.group_members(ROOM)
         self.assertEqual(data['session_id'],self.backend.session_id)

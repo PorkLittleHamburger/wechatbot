@@ -24,6 +24,7 @@ class IncomingMessage:
     sequence: int = 0
     timestamp: int = 0
     raw: dict[str, Any] = field(default_factory=dict)
+    sender_card: str = ""
 
 
 @dataclass(frozen=True)
