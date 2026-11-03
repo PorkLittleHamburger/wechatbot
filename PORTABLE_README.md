@@ -28,3 +28,5 @@
 | `BUILD_MANIFEST.json` | 包版本和原生 DLL 校验值 |
 
 `config.json` 和 `data/` 只留在本机。请勿将它们随日志或报错截图公开。查看运行状态和报错请使用 WebUI“日志”页面。原生桥接的使用限制见 `THIRD_PARTY_NOTICES.md` 和 `vendor/helper/LICENSE`。
+
+桥接守护启动失败时，报错会给出日志绝对路径。启动输出（包括导入错误）在 `vendor/helper/logs/bridge_watchdog_startup.log`，运行日志在同目录的 `bridge_watchdog.log`；提前退出可能尚未生成运行日志。通过外部启动器运行时，日志位于实例所配置的 `driver.helper_root` 下的 `logs/`，读取时需具备对应权限。

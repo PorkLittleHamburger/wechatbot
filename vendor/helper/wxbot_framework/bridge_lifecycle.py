@@ -83,20 +83,40 @@ class BridgeGuard:
         return status == 0
 
     def start_watchdog(self, script):
+        script = Path(script).resolve()
+        directory = script.parent.parent / "logs"
+        directory.mkdir(exist_ok=True)
+        startup_log = directory / "bridge_watchdog_startup.log"
         token = uuid.uuid4().hex
         stop_name = f"Local\\WxBotBridge.Stop.{token}"
         ready_name = f"Local\\WxBotBridge.Ready.{token}"
         self.stop_event = checked(self.k.CreateEventW(None, True, False, stop_name), "创建桥接清理停止事件")
         self.ready_event = checked(self.k.CreateEventW(None, True, False, ready_name), "创建桥接清理就绪事件")
-        self.child = subprocess.Popen(
-            [sys.executable, "-B", "-X", "utf8", str(Path(script).resolve()),
-             "--owner-pid", str(os.getpid()), "--wechat-pid", str(self.pid),
-             "--stop-event", stop_name, "--ready-event", ready_name],
-            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            creationflags=subprocess.CREATE_NO_WINDOW, close_fds=True)
+        # A file also captures import errors before the child's logger exists;
+        # unlike an unread pipe it cannot block the watchdog on a full buffer.
+        with startup_log.open("ab") as output:
+            self.child = subprocess.Popen(
+                [sys.executable, "-B", "-X", "utf8", str(script),
+                 "--owner-pid", str(os.getpid()), "--wechat-pid", str(self.pid),
+                 "--stop-event", stop_name, "--ready-event", ready_name],
+                stdin=subprocess.DEVNULL, stdout=output, stderr=output,
+                creationflags=subprocess.CREATE_NO_WINDOW, close_fds=True)
         handles = (w.HANDLE * 2)(self.ready_event, int(self.child._handle))
-        if self.k.WaitForMultipleObjects(2, handles, False, 10000) != 0:
-            raise RuntimeError("桥接退出清理守护未能启动，请查看 logs/bridge_watchdog.log")
+        status = self.k.WaitForMultipleObjects(2, handles, False, 10000)
+        if status == 0:
+            return
+        if status == 1:
+            reason = f"提前退出（退出码 {self.child.wait()}）"
+        elif status == 258:
+            reason = "等待就绪超时（10 秒）"
+        elif status == 0xFFFFFFFF:
+            raise c.WinError(c.get_last_error(), f"等待桥接退出清理守护失败；启动日志：{startup_log}")
+        else:
+            reason = f"等待就绪失败（状态 {status}）"
+        with startup_log.open("ab") as output:
+            output.write(f"\n桥接退出清理守护{reason}\n".encode("utf-8"))
+        raise RuntimeError(f"桥接退出清理守护{reason}；启动日志：{startup_log}；"
+                           f"运行日志：{directory / 'bridge_watchdog.log'}")
 
     def close(self):
         if not self.owned:

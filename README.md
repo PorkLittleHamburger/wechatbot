@@ -57,6 +57,10 @@ python -m venv .venv
 
 端点、心跳、访问令牌和监听地址说明见 [网络配置](docs/network-config.md)。公开 API 与已知限制见 [OneBot 兼容说明](docs/onebot-compatibility.md)。
 
+### 桥接守护启动故障
+
+守护启动错误会区分提前退出（含退出码）和等待就绪超时，并显示日志绝对路径。`<helper_root>/logs/bridge_watchdog_startup.log` 保存启动输出，包括日志初始化前的导入错误；`bridge_watchdog.log` 保存守护运行日志。源码默认的 `helper_root` 为 `vendor/helper`；使用外部启动器时，以实例配置的 `driver.helper_root` 为准。读取日志需要与运行服务相应的文件访问权限。
+
 ## 测试与验证
 
 ```powershell
@@ -88,6 +92,6 @@ pwsh -File .\scripts\build_portable.ps1
 
 ## 原生组件与使用限制
 
-原生桥接 DLL 位于 `vendor/helper/native/build_text` 与 `vendor/helper/native/build`，大小和 SHA-256 记录在 `vendor/helper/VENDORED_SHA256.json`。重新编译方法见 [原生组件说明](vendor/helper/native/README.md)。
+原生桥接 DLL 位于 `vendor/helper/native/build_text` 与 `vendor/helper/native/build`。DLL 与本地修改的 helper Python 文件的大小和 SHA-256 记录在 `vendor/helper/VENDORED_SHA256.json`；本地修改说明见 [第三方声明](THIRD_PARTY_NOTICES.md)。重新编译方法见 [原生组件说明](vendor/helper/native/README.md)。
 
 helper 使用非商业许可，允许个人学习、研究、测试、娱乐和非商业自用；商业使用、收费服务、SaaS 及营利产品集成不在其许可范围内。详见 [第三方声明](THIRD_PARTY_NOTICES.md) 与 [helper 许可证](vendor/helper/LICENSE)。

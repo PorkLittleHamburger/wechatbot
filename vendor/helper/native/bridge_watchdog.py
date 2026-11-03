@@ -2,7 +2,12 @@
 import argparse
 import logging
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 import sys
+
+# Embeddable Python's _pth isolation excludes the script directory.
+NATIVE = Path(__file__).resolve().parent
+sys.path.insert(0, str(NATIVE))
 
 from run_selftest import ROOT
 

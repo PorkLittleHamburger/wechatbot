@@ -58,6 +58,11 @@ def bundle_python(target: Path) -> None:
          "import fastapi, uvicorn, cryptography, PIL, wechat_onebot; print(wechat_onebot.__version__)"],
         cwd=target, check=True,
     )
+    subprocess.run(
+        [str(runtime / "python.exe"), "-B", "-X", "utf8",
+         str(target / "vendor" / "helper" / "native" / "bridge_watchdog.py"), "--help"],
+        cwd=target, check=True,
+    )
 
 
 def main() -> int:

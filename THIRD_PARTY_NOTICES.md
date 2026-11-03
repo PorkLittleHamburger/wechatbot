@@ -14,6 +14,13 @@ The helper license permits personal learning, research, testing, entertainment, 
 
 The native bridge is built from the helper bridge sources and MinHook 1.3.4. It does not contain WeChat client files.
 
+Local changes relative to the pinned helper commit:
+
+- `native/bridge_watchdog.py` explicitly adds its native module directory before internal imports so it works with isolated embeddable Python.
+- `wxbot_framework/bridge_lifecycle.py` captures watchdog startup output in `logs/bridge_watchdog_startup.log` and reports early exit codes, readiness timeouts, and absolute log paths.
+
+The native DLLs are unchanged. `vendor/helper/VENDORED_SHA256.json` records their hashes and those of the locally modified Python files.
+
 ## Python dependencies
 
 The Windows portable package includes the CPython 3.13.9 embeddable runtime.
