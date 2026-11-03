@@ -12,6 +12,8 @@ import stat
 import tempfile
 from typing import Iterator
 
+from .local_paths import local_spelling
+
 MAX_FILE_BYTES = 20 * 1024 * 1024
 MAX_FILE_PATH_BYTES = 1023
 _RESERVED_NAMES = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)),
@@ -59,15 +61,14 @@ def _path_value(path) -> Path:
         raise ValueError("文件路径必须是本地文件路径") from None
     if not isinstance(value, str) or not value.strip() or "\0" in value:
         raise ValueError("文件路径必须非空，且不能包含 NUL")
-    if value.startswith(("\\\\", "//")) or "://" in value:
-        raise ValueError("文件路径必须是本地路径，不支持网络路径或 URL")
+    spelling = local_spelling(value)
     try:
         value.encode("utf-8")
     except UnicodeError:
         raise ValueError("文件路径必须可以编码为 UTF-8") from None
     result = Path(value)
     # 禁止 NTFS 备用数据流；冒号只能用在 Windows 盘符中。
-    remaining = value[len(result.drive):] if os.name == "nt" else value
+    remaining = spelling[len(Path(spelling).drive):] if os.name == "nt" else spelling
     if ":" in remaining:
         raise ValueError("文件路径不能包含备用数据流或无效冒号")
     return result
@@ -80,13 +81,12 @@ def _check_local_path(path: Path) -> None:
         raise ValueError("文件路径必须可以编码为 UTF-8") from None
     if not 1 <= length <= MAX_FILE_PATH_BYTES:
         raise ValueError("文件路径必须为 1 到 1023 个 UTF-8 字节")
-    if str(path).startswith(("\\\\", "//")):
-        raise ValueError("文件路径必须是本地路径")
+    spelling = local_spelling(str(path))
     if os.name == "nt" and path.anchor:
         kernel = ctypes.WinDLL("kernel32", use_last_error=True)
         kernel.GetDriveTypeW.argtypes = [ctypes.c_wchar_p]
         kernel.GetDriveTypeW.restype = ctypes.c_uint
-        if kernel.GetDriveTypeW(path.anchor) == 4:
+        if kernel.GetDriveTypeW(Path(spelling).anchor) == 4:
             raise ValueError("文件路径不能位于网络驱动器")
 
 

@@ -20,6 +20,8 @@ import struct
 import tempfile
 from typing import Iterator
 
+from .local_paths import local_spelling
+
 MAX_VOICE_BYTES = 20 * 1024 * 1024
 MAX_VOICE_DURATION_MS = 60_000
 MAX_VOICE_PATH_BYTES = 1023
@@ -50,8 +52,10 @@ def _path_value(path) -> Path:
         raise ValueError("语音路径必须是本地文件路径") from error
     if not isinstance(value, str) or not value.strip() or "\0" in value:
         raise ValueError("语音路径必须非空，且不能包含 NUL")
-    if value.startswith(("\\\\", "//")) or "://" in value:
-        raise ValueError("语音路径必须是本地文件路径，不支持网络路径或 URL")
+    spelling = local_spelling(value)
+    remaining = spelling[len(Path(spelling).drive):] if os.name == "nt" else spelling
+    if ":" in remaining:
+        raise ValueError("语音路径不能包含备用数据流或无效冒号")
     return Path(value)
 
 
@@ -62,13 +66,12 @@ def _check_local_path(path: Path) -> None:
         raise ValueError("语音路径必须可以编码为 UTF-8") from error
     if length > MAX_VOICE_PATH_BYTES:
         raise ValueError("语音路径不能超过 1023 个 UTF-8 字节")
-    if str(path).startswith(("\\\\", "//")):
-        raise ValueError("语音路径必须是本地文件路径")
+    spelling = local_spelling(str(path))
     if os.name == "nt" and path.anchor:
         kernel = ctypes.WinDLL("kernel32", use_last_error=True)
         kernel.GetDriveTypeW.argtypes = [ctypes.c_wchar_p]
         kernel.GetDriveTypeW.restype = ctypes.c_uint
-        if kernel.GetDriveTypeW(path.anchor) == 4:  # DRIVE_REMOTE，包括映射网络盘。
+        if kernel.GetDriveTypeW(Path(spelling).anchor) == 4:  # DRIVE_REMOTE，包括映射网络盘。
             raise ValueError("语音路径不能位于网络驱动器")
 
 

@@ -28,5 +28,20 @@
     "RelativePath": "native\\filehelper_service.py",
     "Length": 11730,
     "SHA256": "4A8D54E5ABF90EEF0F8DF9B5699E0E38787B6964798BCCCBC604962F1D7AA6A0"
+  },
+  {
+    "RelativePath": "wxbot_framework\\files.py",
+    "Length": 6432,
+    "SHA256": "88F91B01D7BBEFA1F3FE37486D996D4B7A642757C9F8CFA999F2CD53282F404E"
+  },
+  {
+    "RelativePath": "wxbot_framework\\voices.py",
+    "Length": 10574,
+    "SHA256": "B016672378518DFEFACA6182AFEC1C6B3D5CB1A0BA57AE648532D5ACF07CB691"
+  },
+  {
+    "RelativePath": "wxbot_framework\\local_paths.py",
+    "Length": 577,
+    "SHA256": "BFFB44C2CD613FED93BED9A225710DE457C7C2AC5004B9ED29677BC9AD966E69"
   }
 ]

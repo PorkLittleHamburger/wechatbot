@@ -3,3 +3,6 @@ vendor/helper/native/bridge_watchdog.py text eol=lf
 vendor/helper/wxbot_framework/bridge_lifecycle.py text eol=lf
 vendor/helper/native/run_selftest.py text eol=lf
 vendor/helper/native/filehelper_service.py text eol=lf
+vendor/helper/wxbot_framework/local_paths.py text eol=lf
+vendor/helper/wxbot_framework/files.py text eol=lf
+vendor/helper/wxbot_framework/voices.py text eol=lf

@@ -23,6 +23,8 @@ Local changes relative to the pinned helper commit:
 
 The native DLLs are unchanged. `vendor/helper/VENDORED_SHA256.json` records their hashes and those of the locally modified Python files.
 
+The local `wxbot_framework/local_paths.py` utility and changes in `files.py` and `voices.py` allow extended Windows drive paths during file-store initialization and media validation. I/O retains the extended prefix for long paths; UNC, device namespaces, URLs, alternate streams, and mapped network drives remain rejected.
+
 ## Python dependencies
 
 The Windows portable package includes the CPython 3.13.9 embeddable runtime.
