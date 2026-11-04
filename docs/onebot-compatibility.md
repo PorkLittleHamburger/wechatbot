@@ -45,7 +45,7 @@ Unregistered actions fail explicitly (`1404` via WS; HTTP 404). These include na
 - Media registrations and URL-cache entries persist in account-local `media.sqlite3`. Ambiguous filenames fail; changed or missing files cannot be returned through old content IDs. Old unindexed account-local filenames can be recovered lazily; old external files require re-registration. Preserve the complete media directory during upgrades.
 - Every segment is prepared before native sends. A later native failure reports partial `sent_segments` where available. Stored outgoing messages contain the accepted content instead of a `[sent]` placeholder. A local message ID is not a recipient receipt.
 
-Media URLs require an enabled HTTP server reachable from the consumer; WS alone does not serve files. Missing/failed native media becomes explicit standard text, not a successful image with an empty URL.
+Media URLs require a reachable HTTP listener. v0.9.1 source automatically uses the main gateway HTTP application for WS-only accounts, or an enabled OneBot HTTP endpoint; it no longer advertises an unbound legacy port. Missing/failed native media becomes explicit standard text, not a successful image with an empty URL.
 
 ## Events and identity
 
@@ -60,3 +60,5 @@ Profile APIs provide standard fields with unknown defaults (`sex=unknown`, age/t
 ## Verification and limits
 
 The [audit record](onebot-v11-audit.md) retains the original findings and resolution mapping. Regression tests include consumers that read only standard fields, CQ round trips, four transports, role isolation, signatures, quick operations, recall IDs, account isolation and media restarts. Passing them does not certify every external framework or substitute for native receive-side verification. Test sources are in the source checkout, not the portable package.
+
+The v0.9.1 source repairs quoted media delivery and accepts additional unambiguous forward XML container forms. Compact quotes without embedded records and without a cached original still cannot recover historical forward contents; see [rich-message diagnostics](rich-messages.md#引用故障修复v091-源码待发布).

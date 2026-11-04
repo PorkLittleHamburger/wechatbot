@@ -1,5 +1,6 @@
 """合并转发元数据。仅解析，不联网；转发中的作者名称不代表已验证的 wxid。"""
 from dataclasses import dataclass, field
+import logging
 import re
 import xml.etree.ElementTree as ET
 from urllib.parse import urlsplit
@@ -13,12 +14,16 @@ MAX_FORWARD_IMAGE_BYTES = 64 * 1024 * 1024
 MAX_FORWARD_DEPTH = 8
 _FORBIDDEN = re.compile(r'<!\s*(?:DOCTYPE|ENTITY)\b', re.I)
 _MD5 = re.compile(r'[a-fA-F0-9]{32}')
+_FAILURE_CATEGORIES = frozenset(('missing_container', 'invalid_xml', 'invalid_structure', 'limit_exceeded'))
+logger = logging.getLogger(__name__)
 
 
 class ForwardedError(ValueError):
-    def __init__(self, message, *, forwarded=False):
+    def __init__(self, message, *, forwarded=False, category='invalid_structure'):
         super().__init__(message)
         self.forwarded = forwarded
+        self.reason = category if category in _FAILURE_CATEGORIES else 'invalid_structure'
+        self.category = self.reason
 
 
 @dataclass(frozen=True)
@@ -35,6 +40,7 @@ class ForwardedItem:
     children: tuple = ()
     truncated: bool = False
     image_quality: str = 'original'
+    failure_reason: str = ''
 
     def public(self):
         result = {'kind': self.kind, 'sender_name': self.sender_name,
@@ -47,6 +53,8 @@ class ForwardedItem:
         if self.kind == 'forwarded':
             result.update(title=self.title, children=[item.public() for item in self.children],
                           truncated=self.truncated)
+            if self.failure_reason:
+                result.update(availability='unavailable', failure_reason=self.failure_reason)
         return result
 
 
@@ -65,24 +73,24 @@ class ForwardedMessage:
 
 def _xml(content):
     if not isinstance(content, str) or not content.strip() or '\0' in content:
-        raise ForwardedError('转发记录内容无效')
+        raise ForwardedError('转发记录内容无效', category='invalid_xml')
     try:
         if len(content) > MAX_FORWARD_XML_BYTES or len(content.encode('utf-8')) > MAX_FORWARD_XML_BYTES:
-            raise ForwardedError('转发记录超过 256 KiB 上限')
+            raise ForwardedError('转发记录超过 256 KiB 上限', category='limit_exceeded')
     except UnicodeError:
-        raise ForwardedError('转发记录编码无效') from None
+        raise ForwardedError('转发记录编码无效', category='invalid_xml') from None
     if _FORBIDDEN.search(content):
-        raise ForwardedError('转发记录不允许实体声明')
+        raise ForwardedError('转发记录不允许实体声明', category='invalid_xml')
     try:
         root = ET.fromstring(content)
     except (ET.ParseError, ValueError):
-        raise ForwardedError('转发记录 XML 无效') from None
+        raise ForwardedError('转发记录 XML 无效', category='invalid_xml') from None
     pending, count = [(root, 1)], 0
     while pending:
         node, depth = pending.pop()
         count += 1
         if count > 20000 or depth > 32:
-            raise ForwardedError('转发记录结构超过上限')
+            raise ForwardedError('转发记录结构超过上限', category='limit_exceeded')
         pending.extend((child, depth + 1) for child in node)
     return root
 
@@ -206,6 +214,24 @@ def _records(inner, budget, depth=0):
     return tuple(items)
 
 
+def _record_container(container):
+    # Only explicit, unique wrappers; never search arbitrary descendants or
+    # choose one payload from conflicting containers.
+    for _ in range(3):
+        if container.tag == 'recordinfo':
+            return container
+        if container.tag not in ('recorditem', 'recordxml'):
+            break
+        if len(container):
+            if (len(container) != 1 or (container.text or '').strip() or
+                    (container[0].tail or '').strip()):
+                break
+            container = container[0]
+        else:
+            container = _xml(container.text or '')
+    raise ForwardedError('转发记录容器结构无效', forwarded=True)
+
+
 def parse_forwarded(content: str) -> ForwardedMessage | None:
     outer = _xml(content)
     if outer.tag not in ('msg', 'appmsg'):
@@ -214,19 +240,15 @@ def parse_forwarded(content: str) -> ForwardedMessage | None:
     if len(apps) != 1 or (apps[0].findtext('type') or '').strip() != '19':
         return None
     app = apps[0]
-    container = app.find('recorditem')
-    if container is None:
-        container = app.find('recordxml')
-    if container is None:
-        raise ForwardedError('转发记录未携带可展开内容', forwarded=True)
+    containers = [child for child in app if child.tag in ('recorditem', 'recordxml', 'recordinfo')]
+    if not containers:
+        raise ForwardedError('转发记录未携带可展开内容', forwarded=True, category='missing_container')
+    if len(containers) != 1:
+        raise ForwardedError('转发记录容器不唯一', forwarded=True)
     try:
-        inner = container.find('recordinfo')
-        if inner is None:
-            inner = _xml(container.text or '')
-        if inner.tag == 'recordxml' and inner.find('recordinfo') is not None:
-            inner = inner.find('recordinfo')
+        inner = _record_container(containers[0])
     except ForwardedError as error:
-        raise ForwardedError(str(error), forwarded=True) from None
+        raise ForwardedError(str(error), forwarded=True, category=error.category) from None
     if inner.tag != 'recordinfo' or len(inner.findall('datalist')) != 1:
         raise ForwardedError('转发记录列表无效', forwarded=True)
     budget = dict(items=0, images=0, bytes=0, truncated=False)
@@ -244,8 +266,11 @@ def parse_reference_content(kind, content):
             return parse_forwarded(content) or parse_link(content)
         except ForwardedError as error:
             if error.forwarded:
+                logger.warning('Quoted forwarded record unavailable category=%s', error.reason)
+                text = ('引用只包含聊天记录卡片，原记录未缓存' if error.reason == 'missing_container'
+                        else '转发未携带可展开记录或内容无效')
                 return ForwardedMessage('聊天记录', (ForwardedItem('forwarded', '', '',
-                    text='转发未携带可展开记录或内容无效'),))
+                    text=text, failure_reason=error.reason),))
             return None
     if kind == 3:
         from dataclasses import replace

@@ -218,6 +218,12 @@ class OneBotService:
             return cached["message_id"]
         if cached and cached.get("user_id") != user_id:
             return None  # Do not replace a known message's identity with quoted metadata.
+        if cached and reference.get("forwarded_availability") == "unavailable":
+            for segment in cached.get("message", []):
+                if segment.get("type") == "forward":
+                    forward = self.message_store.get_forward(self.account, segment["data"]["id"])
+                    if forward is not None and forward.get("status") == "ready":
+                        return cached["message_id"]
         kind = reference.get("type")
         text = reference.get("content", "") if kind == 1 else {
             3: "[引用图片：原图未缓存]", 34: "[引用语音：原消息未缓存]",
@@ -255,7 +261,7 @@ class OneBotService:
         payload = self.message_store.get_forward(self.account, str(value))
         if payload is None:
             raise OneBotActionError(1404, '合并转发不在当前账号的消息存储中')
-        return canonical_forward(payload)
+        return await asyncio.to_thread(self.media.refresh_payload, canonical_forward(payload))
 
     async def dispatch(self, action: str, params: dict[str, Any] | None = None, echo: Any = ECHO_UNSET) -> dict[str, Any]:
         result = await self._dispatch(action, params)
@@ -754,24 +760,39 @@ class OneBotService:
         user_number = self._required_int(params, "user_id")
         external = self._external_user(user_number)
         count, message_id, _, reverse_order = self._history_params(params)
-        return self.message_store.history(account=self.account, session_key=external,
-                                          count=count, message_id=message_id,
-                                          reverse_order=reverse_order)
+        rows = self.message_store.history(
+            account=self.account, session_key=external, count=count, message_id=message_id,
+            reverse_order=reverse_order)
+        return await asyncio.to_thread(self._refresh_history_media, rows)
 
     async def _get_group_msg_history(self, params: dict[str, Any]) -> list[dict[str, Any]]:
         group_number = self._required_int(params, "group_id")
         external = self._external_group(group_number)
         count, message_id, _, reverse_order = self._history_params(params)
-        return self.message_store.history(account=self.account, session_key=external,
-                                          count=count, message_id=message_id,
-                                          reverse_order=reverse_order)
+        rows = self.message_store.history(
+            account=self.account, session_key=external, count=count, message_id=message_id,
+            reverse_order=reverse_order)
+        return await asyncio.to_thread(self._refresh_history_media, rows)
+
+    def _refresh_history_media(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        # One refresh call shares verified resolutions throughout this batch.
+        result = self.media.refresh_payload(rows)
+        for row in result:
+            row["raw_message"] = serialize_message(row["message"])
+        return result
+
+    def _refresh_message_media(self, payload: dict[str, Any]) -> dict[str, Any]:
+        result = self.media.refresh_payload(payload)
+        if "message" in result:
+            result["raw_message"] = serialize_message(result["message"])
+        return result
 
     async def _get_msg(self, params: dict[str, Any]) -> dict[str, Any]:
         message_id = self._required_int(params, "message_id", allow_negative=True)
         event = self.message_store.get(message_id, account=self.account)
         if event is None:
             raise OneBotActionError(1404, "消息不在当前账号的消息存储中")
-        result = dict(event)
+        result = await asyncio.to_thread(self._refresh_message_media, event)
         result.pop("post_type", None)
         result.pop("self_id", None)
         result["real_id"] = message_id

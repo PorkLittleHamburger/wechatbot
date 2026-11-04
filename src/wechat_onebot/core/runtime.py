@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -50,7 +51,7 @@ class AccountRuntime:
         if network_config is None:
             network_config = load_or_create_account_network_config(account_dir / "onebot.json",
                                                                    account_config, selected_account)
-        base_url = _network_public_base_url(network_config, account_config)
+        base_url = _network_public_base_url(network_config, account_config, selected_account)
         media = MediaStore(media_dir, max_bytes=config.storage.max_media_bytes, public_base_url=base_url)
         driver = create_driver(account_config)
         service = OneBotInstance(account_config, driver, mapper, media,
@@ -107,7 +108,7 @@ class AccountRuntime:
             raise RuntimeError("账号 Runtime 已关闭")
         await self.network.reconfigure(config)
         self.service.group_mention_only = config.group_mention_only
-        self.media.public_base_url = _network_public_base_url(config, self.config)
+        self.media.public_base_url = _network_public_base_url(config, self.config, self.account)
 
     def snapshot(self) -> dict[str, object]:
         return {
@@ -246,12 +247,19 @@ class RuntimeManager:
         return [runtime.snapshot() for runtime in self._runtimes.values()]
 
 
-def _network_public_base_url(network_config, config: AppConfig) -> str:
+def account_media_key(account: str) -> str:
+    return hashlib.sha256(account.encode("utf-8")).hexdigest()
+
+
+def _network_public_base_url(network_config, config: AppConfig, account: str) -> str:
     servers = [row for row in network_config.http_servers if row.enabled]
-    host = servers[0].host if servers else config.onebot.host
-    port = servers[0].port if servers else config.onebot.port
+    # The main HTTP application serves account-scoped media even when OneBot
+    # communication is WS-only. Never advertise the legacy, unbound API port.
+    host = servers[0].host if servers else config.webui.host
+    port = servers[0].port if servers else config.webui.port
     if host in ("0.0.0.0", "::", ""):
         host = "127.0.0.1"
     if ":" in host and not host.startswith("["):
         host = f"[{host}]"
-    return f"http://{host}:{port}"
+    prefix = "" if servers else f"/accounts/{account_media_key(account)}"
+    return f"http://{host}:{port}{prefix}"

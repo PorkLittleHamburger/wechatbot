@@ -111,8 +111,8 @@
   },
   {
     "RelativePath": "wxbot_framework\\replies.py",
-    "Length": 1329,
-    "SHA256": "ADD23DA92633FA9907EB014732C5FBA916D5E14F958EDC1167D9824DAA521878"
+    "Length": 2726,
+    "SHA256": "9C4BBF78C4563B0897944016F6550EBD93E7BF128487E8DA5D5E0CE7F30336DE"
   },
   {
     "RelativePath": "native\\text_service.py",
@@ -121,8 +121,8 @@
   },
   {
     "RelativePath": "wxbot_framework\\forwarded.py",
-    "Length": 11751,
-    "SHA256": "F7A9DF939F38F8B6D2A271F01F3A7C6CD3318A423502BF5C352AE5988DFA6FF5"
+    "Length": 13310,
+    "SHA256": "72EAA26AA794BA50AB9A97428AC357D74F0A3E14658E069FA8A6C7C8BADEF243"
   },
   {
     "RelativePath": "wxbot_framework\\forwarded_receiver.py",

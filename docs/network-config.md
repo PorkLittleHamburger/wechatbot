@@ -112,13 +112,13 @@ uses random tokens, but neither case supplies tokens for new account endpoints.
 
 ## Media URLs
 
-A forward or reverse WS connection does not serve media files. Account media URLs
-use the first enabled HTTP server, falling back to the legacy main-config
-`onebot.host:port` if none is enabled. Wildcard hosts are converted to loopback.
-That fallback does not start a listener. Configure an HTTP server and verify that
-the resulting URL is reachable from the consumer; loopback refers to the
-consumer's own machine when it runs elsewhere. The HTTP adapter's `/healthz` and
-`/media/{media_id}/{name}` routes do not use the action-token check.
+WS-only accounts still need HTTP image downloads. In v0.9.1 source, media URLs use the first enabled OneBot HTTP server when available; otherwise the gateway's existing main HTTP application serves `/accounts/<opaque-account-key>/media/<content-id>/<name>` on its configured WebUI host/port. The legacy top-level OneBot port is not advertised unless it has a real listener. No additional OneBot HTTP node or management login cookie is required for these read-only media URLs.
+
+Wildcard hosts become loopback, and IPv6 addresses are bracketed. The advertised host must be reachable from the consumer; loopback only works on the same machine. Management APIs still require their normal authentication. Media routes only serve already registered resources in the selected account, validate content identity, and never create a runtime from an unknown URL.
+
+Stored `get_msg`, `get_forward_msg` and history results refresh valid old media URLs using the current account index and publication address. Refreshing never downloads URLs and cannot recreate missing or changed files. Keep the complete media directory during upgrades.
+
+For an existing v0.9.0 reverse-WS-only installation that reports connection refusal at its legacy OneBot port, enabling an actual loopback HTTP server on that port restores those old URLs without reinjecting WeChat. This is an operational repair for that release, not a requirement for the corrected source. Verify an actual image GET returns image bytes, rather than only checking configuration or `/healthz`.
 
 Implementation references: [network config](../src/wechat_onebot/onebot/network/config.py),
 [network manager](../src/wechat_onebot/onebot/network/manager.py),

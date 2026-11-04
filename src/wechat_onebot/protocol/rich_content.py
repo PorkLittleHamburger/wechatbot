@@ -75,7 +75,10 @@ def materialize_forwards(payload, *, store, mapper, media, account, message_id):
                     flat.append({**base, 'content': [{'type': 'text', 'data': {'text': '[聊天记录结束]'}}]})
                     normalized.append({'kind': 'forwarded', 'sender_name': name, 'source_time': stamp,
                                        'title': title, 'text': str(row.get('text') or '')[:32768],
-                                       'truncated': bool(row.get('truncated')), 'children': children})
+                                       'truncated': bool(row.get('truncated')), 'children': children,
+                                       **({'availability': 'unavailable', 'failure_reason': row['failure_reason']}
+                                          if row.get('failure_reason') in ('missing_container', 'invalid_xml',
+                                                                         'invalid_structure', 'limit_exceeded') else {})})
                     budget['truncated'] |= bool(row.get('truncated'))
                     continue
                 content = [_segment_to_onebot(item, mapper, media) for item in record_segments(row)]

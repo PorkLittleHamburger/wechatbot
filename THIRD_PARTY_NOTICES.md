@@ -16,6 +16,8 @@ The native bridge is built from the helper bridge sources and MinHook 1.3.4. It 
 
 Local changes relative to the pinned helper commit:
 
+- Local quote parsing additionally accepts direct recordinfo, recorditem/recordxml wrappers and inline referenced XML, with byte/node/depth bounds and categorical diagnostics that exclude message bodies or download credentials. Compact cards with no embedded records remain explicitly unavailable.
+
 - `wxbot_framework/replies.py`, `forwarded.py`, `forwarded_receiver.py` and `native/text_service.py` add bounded inbound quote, link and recursive forwarded-record parsing. Valid quoted/forwarded images use the existing account-bound native downloader with size/digest checks and cancellation cleanup. No generic HTTP fetcher or outbound native quote/forward primitive is added. `docs/messages/forwarded.md` documents these local extensions; the gateway resolves and persists its own OneBot reply/forward IDs.
 
 - Local documentation corrections in `README.md`, `PRODUCT.md`, `DESIGN.md`, `.impeccable/surfaces/webui-index-html.md`, `docs/development/documentation.md`, `docs/guide/quick-start.md`, and `docs/messages/recall.md` distinguish the standalone upstream application from this gateway, qualify historical design authorization, and correct client profiles, receive verification, recall-plugin controls, and documentation workflow scope. Licenses and copyright notices are preserved. See [integration boundaries](docs/vendor-helper.md).

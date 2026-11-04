@@ -40,3 +40,5 @@ v0.9.0 包还支持“节点配置 → 通用设置 → 群聊仅被 @ 时互动
 桥接守护启动失败时，报错会给出日志绝对路径。启动输出（包括导入错误）在 `vendor/helper/logs/bridge_watchdog_startup.log`，运行日志在同目录的 `bridge_watchdog.log`；提前退出可能尚未生成运行日志。通过外部启动器运行时，日志位于实例所配置的 `driver.helper_root` 下的 `logs/`，读取时需具备对应权限。
 
 核心接口支持标准 CQ/消息段输入、HTTP GET/POST、HTTP POST 签名与快速回复，以及 WS API/Event/Universal 角色。转发读取使用标准 `message` / `node`，不要求指定框架。出站原生引用、@全体、群管理等不支持时明确失败；含 `reply` 的发送链不会再静默省略引用。媒体索引保存在账号媒体目录的 `media.sqlite3`，升级时保留整个媒体目录。详见 [兼容说明](docs/onebot-compatibility.md)。
+
+v0.9.1 构建在仅配置反向 WS 时也提供可下载的账号媒体 URL，并刷新旧引用中的有效本地媒体地址。紧凑的转发卡片不等于完整记录：原消息未缓存、引用没有正文时仍无法自动补取历史，可在桥接运行时重发完整记录后再引用。

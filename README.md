@@ -32,6 +32,8 @@ v0.9.0 包含以下能力（升级后才应用于运行实例）：
 - 微信引用聊天（appmsg type 57）转换为 OneBot `reply` 段。`get_msg` 优先返回同账号、同会话的已缓存原消息；引用携带完整内容时，也会解析文本、链接和合并转发，并通过原生接口接收可用图片。
 - 合并转发保留作者、原时间文本、消息顺序和嵌套结构；标准客户端可通过 `get_forward_msg` 的 `message` / `node` 数组取得文字、链接与图片。解析有共享的深度、条数和媒体额度，缺失、失败或截断均明确标注。出站微信原生引用回复、合并转发发送仍不支持。详见 [富消息与引用](docs/rich-messages.md)。
 
+当前 v0.9.1 源码（待发布）修复反向 WS 单独启用时的引用图片 URL，补充转发容器解析与脱敏诊断。原消息未缓存且引用不含记录正文时，仍不能自动拉取历史转发；详见 [引用故障说明](docs/rich-messages.md)。
+
 ## 下载与升级
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。

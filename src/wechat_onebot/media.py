@@ -6,11 +6,14 @@ import hashlib
 import math
 import mimetypes
 import os
+import re
 import sqlite3
 import uuid
 from contextlib import closing
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from urllib.parse import quote, unquote, urlparse
 
 import httpx
@@ -80,6 +83,8 @@ class MediaStore:
                     media_id TEXT NOT NULL
                 )
             """)
+            connection.execute("CREATE TABLE IF NOT EXISTS media_url_bases (url TEXT PRIMARY KEY)")
+            connection.execute("INSERT OR IGNORE INTO media_url_bases VALUES (?)", (self.public_base_url,))
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self._index_path, timeout=30)
@@ -166,8 +171,119 @@ class MediaStore:
         return available[0].path
 
     def url_for(self, record: MediaRecord) -> str:
+        # Remember issued account routes across listener/base changes. This is
+        # account-local evidence, never inferred from a URL supplied for refresh.
+        with closing(self._connect()) as connection, connection:
+            connection.execute("INSERT OR IGNORE INTO media_url_bases VALUES (?)", (self.public_base_url,))
         encoded_name = quote(record.name, safe="")
         return f"{self.public_base_url}/media/{record.media_id}/{encoded_name}"
+
+    def _record_for_url(self, value: Any) -> MediaRecord | None:
+        """Resolve an old gateway URL locally, never by fetching its host."""
+        if not isinstance(value, str):
+            return None
+        try:
+            parsed = urlparse(value)
+            if parsed.scheme not in ("http", "https") or not parsed.netloc:
+                return None
+            match = re.fullmatch(r"(.*)/media/([0-9a-f]{32})/([^/]+)", parsed.path)
+            if match is None:
+                return None
+            prefix, media_id, encoded_name = match.groups()
+            current_prefix = urlparse(self.public_base_url).path.rstrip("/")
+            # Legacy listeners used /media directly. Account routes must belong
+            # to the current account, even when both accounts index equal bytes.
+            if prefix and prefix != current_prefix:
+                with closing(self._connect()) as connection:
+                    bases = connection.execute("SELECT url FROM media_url_bases").fetchall()
+                if not any(urlparse(base).path.rstrip("/") == prefix for (base,) in bases):
+                    return None
+            name = unquote(encoded_name)
+            if not name or name in (".", "..") or any(c in name for c in ("/", "\\", "\x00")):
+                return None
+        except ValueError:
+            return None
+
+        rows = self._lookup("media_id", media_id)
+        # A matching content ID alone must not rewrite an unrelated external
+        # link with a different filename. Include stale aliases in this check.
+        if rows and not any(row[2] == name for row in rows):
+            return None
+        record = self._available_record([row for row in rows if row[4][:32] == media_id])
+        if record is not None:
+            return record
+
+        # Before persistent indexing, URLs held the original received filename.
+        # Also recover moved indexed sources, but only under this account's root.
+        # Do not use resolve_input: that can download URLs or accept other paths.
+        names = {name, *(Path(row[1]).name for row in rows)}
+        try:
+            for candidate in self.media_dir.rglob("*"):
+                if candidate.name not in names:
+                    continue
+                try:
+                    source = self._validate_path(candidate)
+                    if not source.is_relative_to(self.media_dir):
+                        continue
+                    if source == self._index_path or str(source).startswith(str(self._index_path) + "-"):
+                        continue
+                    if self._fingerprint(source)[:32] != media_id:
+                        continue
+                    recovered = self.register(source, name=name)
+                    if recovered.media_id == media_id:
+                        return recovered
+                except MediaError:
+                    continue
+        except OSError:
+            pass
+        return None
+
+    def refresh_payload(self, payload: Any) -> Any:
+        """Copy a persisted payload and refresh validated account media links.
+
+        Supports message segments, standard forward node.content, compatibility
+        messages[].content and records message/children trees. Missing resources
+        and explicit unavailable placeholders stay unchanged. The service must
+        regenerate raw_message from the refreshed message before returning it.
+        """
+        result = deepcopy(payload)
+        resolved: dict[str, MediaRecord | None] = {}
+
+        def resolve(value: Any) -> MediaRecord | None:
+            if not isinstance(value, str):
+                return None
+            if value not in resolved:
+                resolved[value] = self._record_for_url(value)
+            return resolved[value]
+
+        def walk(value: Any) -> None:
+            if isinstance(value, list):
+                for item in value:
+                    walk(item)
+            elif isinstance(value, dict):
+                kind, data = value.get("type"), value.get("data")
+                if isinstance(data, dict):
+                    if kind in ("image", "record", "video", "file"):
+                        record = resolve(data.get("url"))
+                        if record is not None:
+                            data["url"] = self.url_for(record)
+                            data["file"] = record.media_id
+                    elif kind == "text" and isinstance(data.get("text"), str):
+                        # Only the converter's file-download projection is text
+                        # media; ordinary prose and external links remain intact.
+                        lines = data["text"].split("\n")
+                        if len(lines) == 2 and lines[0].startswith("[文件] "):
+                            record = resolve(lines[1])
+                            if record is not None:
+                                data["text"] = lines[0] + "\n" + self.url_for(record)
+                for key in ("message", "messages", "records", "children", "content"):
+                    if key in value:
+                        walk(value[key])
+                if kind in ("node", "forward") and isinstance(data, dict):
+                    walk(data)
+
+        walk(result)
+        return result
 
     async def resolve_input(
         self, value: str, *, cache: bool = True, proxy: bool = True,

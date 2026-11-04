@@ -20,7 +20,7 @@ from dataclasses import replace
 
 from ..config import AppConfig, account_directories, update_account
 from ..onebot.network import AccountNetworkConfig, load_or_create_account_network_config
-from ..core.runtime import RuntimeManager
+from ..core.runtime import RuntimeManager, account_media_key
 from ..bridge import discover_logged_accounts
 from .auth import PasswordStore
 from .startup import autostart_task, load_last_bridge, save_last_bridge
@@ -175,6 +175,19 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
     @app.get("/favicon.svg")
     async def favicon():
         return FileResponse(icon_path, media_type="image/svg+xml")
+
+    @app.get("/accounts/{account_key}/media/{media_id}/{name}")
+    async def account_media(account_key: str, media_id: str, name: str):
+        # Standard image consumers do not have WebUI management cookies. Opaque
+        # account/content IDs grant read access only to an already registered file.
+        runtime = next((manager.get(row["account"]) for row in manager.snapshot()
+                        if account_media_key(row["account"]) == account_key), None)
+        if runtime is None:
+            return Response(status_code=404)
+        record = await asyncio.to_thread(runtime.media.get, media_id)
+        if record is None:
+            return Response(status_code=404)
+        return FileResponse(record.path, media_type=record.content_type, filename=record.name)
 
     @app.get("/api/auth-state")
     async def auth_state():
