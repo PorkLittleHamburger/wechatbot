@@ -25,6 +25,20 @@ class ActionDefinition:
     examples: tuple[dict[str, Any], ...] = ()
     read_only: bool = False
 
+    def normalize(self, params: dict[str, Any]) -> dict[str, Any]:
+        result = dict(params)
+        for name, spec in self.params.items():
+            value = result.get(name)
+            if spec.kind == "bool" and isinstance(value, str):
+                if value.lower() in ("true", "yes", "1"):
+                    result[name] = True
+                elif value.lower() in ("false", "no", "0"):
+                    result[name] = False
+            elif spec.kind == "str" and isinstance(value, (int, float)) and not isinstance(value, bool):
+                result[name] = str(value)
+        self.validate(result)
+        return result
+
     def validate(self, params: dict[str, Any]) -> None:
         if not isinstance(params, dict):
             raise ActionValidationError("params 必须是 JSON 对象")
@@ -80,7 +94,8 @@ ACTION_REGISTRY: dict[str, ActionDefinition] = {
         summary="发送私聊消息",
         params={
             "user_id": ParamSpec("int", True, "目标 OneBot user_id"),
-            "message": ParamSpec(required=True, description="消息字符串或消息段数组"),
+            "message": ParamSpec(required=True, description="CQ 字符串、消息段数组或单个消息段对象"),
+            "auto_escape": ParamSpec("bool"),
         },
         returns={"type": "object", "properties": {"message_id": {"type": "integer"}}, "required": ["message_id"]},
         examples=({
@@ -94,7 +109,8 @@ ACTION_REGISTRY: dict[str, ActionDefinition] = {
         summary="发送群消息，支持真实 @",
         params={
             "group_id": ParamSpec("int", True, "目标 OneBot group_id"),
-            "message": ParamSpec(required=True, description="消息字符串或消息段数组"),
+            "message": ParamSpec(required=True, description="CQ 字符串、消息段数组或单个消息段对象"),
+            "auto_escape": ParamSpec("bool"),
         },
         returns={"type": "object", "properties": {"message_id": {"type": "integer"}}, "required": ["message_id"]},
         examples=({
@@ -112,7 +128,8 @@ ACTION_REGISTRY: dict[str, ActionDefinition] = {
         name="send_msg",
         handler="_send_msg",
         summary="根据 message_type 或目标字段发送消息",
-        params={"message": ParamSpec(required=True, description="消息字符串或消息段数组")},
+        params={"message": ParamSpec(required=True, description="CQ 字符串、消息段数组或单个消息段对象"),
+                "auto_escape": ParamSpec("bool")},
         returns={"type": "object", "properties": {"message_id": {"type": "integer"}}, "required": ["message_id"]},
         examples=({
             "summary": "按群号发送",
@@ -132,7 +149,7 @@ ACTION_REGISTRY: dict[str, ActionDefinition] = {
     "get_group_list": ActionDefinition("get_group_list", "_get_group_list", "获取已发现群列表", {}, {"type": "array"}, read_only=True),
     "get_group_info": ActionDefinition(
         "get_group_info", "_get_group_info", "获取群信息",
-        {"group_id": ParamSpec("int", True, "OneBot group_id")}, {"type": "object"}, read_only=True,
+        {"group_id": ParamSpec("int", True, "OneBot group_id"), "no_cache": ParamSpec("bool")}, {"type": "object"}, read_only=True,
     ),
     "get_group_member_list": ActionDefinition(
         "get_group_member_list", "_get_group_member_list", "获取群成员列表",
@@ -141,7 +158,7 @@ ACTION_REGISTRY: dict[str, ActionDefinition] = {
     "get_group_member_info": ActionDefinition(
         "get_group_member_info", "_get_group_member_info", "获取群成员信息",
         {"group_id": ParamSpec("int", True, "OneBot group_id"),
-         "user_id": ParamSpec("int", True, "OneBot user_id")},
+         "user_id": ParamSpec("int", True, "OneBot user_id"), "no_cache": ParamSpec("bool")},
         {"type": "object"}, read_only=True,
     ),
     "get_msg": ActionDefinition(

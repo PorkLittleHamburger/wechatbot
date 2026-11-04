@@ -117,11 +117,12 @@ async def test_link_quote_snapshot_preserves_title_summary_url(helper_path,tmp_p
         mid=int(events[-1]['message'][0]['data']['id'])
         result=(await service.dispatch('get_msg',{'message_id':mid}))['data']
         data=result['message'][0]['data']
-        assert data['link']['url']=='https://example.com/video?a=1&b=2'
+        assert set(data) == {'text'}
+        assert 'https://example.com/video?a=1&b=2' in data['text']
         assert 'Video title' in data['text'] and 'Video summary' in data['text']
         assert '<appmsg>' not in data['text']
         direct=NativeTextService._map_message(native_context(),native_message(LINK))
-        assert HelperDriver(make_config(tmp_path))._convert_raw_data(direct).segments[1].data['link']['url']
+        assert 'https://example.com/video?a=1&b=2' in HelperDriver(make_config(tmp_path))._convert_raw_data(direct).segments[1].data['text']
     finally:
         await service.stop(); mapper.close()
 
@@ -256,7 +257,7 @@ async def test_unmentioned_forward_is_cached_then_resolved_by_quote(helper_path,
         assert int(events[0]['message'][0]['data']['id'])==cached['message_id']
         fid=cached['message'][0]['data']['id']
         payload=(await service.dispatch('get_forward_msg',{'id':fid}))['data']
-        assert payload['records'][1]['children'][0]['message'][0]['data']['link']['url']
+        assert 'https://example.com/video?a=1&b=2' in payload['records'][1]['children'][0]['message'][0]['data']['text']
         assert (await service.dispatch('send_group_forward_msg',{}))['retcode']==1404
     finally:
         receiver.close(3); await service.stop(); mapper.close()

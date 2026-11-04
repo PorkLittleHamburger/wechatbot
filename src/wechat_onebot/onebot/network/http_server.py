@@ -5,12 +5,14 @@ import hmac
 import json
 import logging
 from typing import Any
+from urllib.parse import parse_qsl
 
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 
 from ...protocol import failure
+from ..actions import ACTION_REGISTRY
 from ...service import OneBotService
 from .config import HttpServerEndpoint
 
@@ -29,7 +31,7 @@ def _authorized(endpoint: HttpServerEndpoint, request: Request) -> bool:
     if not endpoint.access_token:
         return True
     presented = _bearer(request.headers.get("authorization")) or request.query_params.get("access_token", "")
-    return hmac.compare_digest(presented, endpoint.access_token)
+    return hmac.compare_digest(presented.encode("utf-8"), endpoint.access_token.encode("utf-8"))
 
 
 class HttpServerAdapter:
@@ -44,33 +46,61 @@ class HttpServerAdapter:
     def _build_app(self) -> FastAPI:
         app = FastAPI(title=f"WeChat OneBot HTTP {self.endpoint.name}")
 
-        async def execute(request: Request):
+        async def execute(request: Request, action: str | None = None):
             if not _authorized(self.endpoint, request):
-                return JSONResponse(failure(1403, "access token 无效"), status_code=401)
-            try:
-                payload = await request.json()
-            except Exception:
-                return JSONResponse(failure(1400, "请求体必须是 JSON"))
-            if not isinstance(payload, dict) or not isinstance(payload.get("action"), str):
-                return JSONResponse(failure(1400, "请求必须包含 action"))
-            return JSONResponse(await self.service.dispatch(payload["action"], payload.get("params"), payload.get("echo")))
+                presented = bool(request.headers.get("authorization") or
+                                 request.query_params.get("access_token"))
+                code = 403 if presented else 401
+                return JSONResponse(failure(1000 + code, "access token 无效"), status_code=code)
+            params = dict(request.query_params)
+            params.pop("access_token", None)
+            if request.method == "POST":
+                body = await request.body()
+                content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                query_only = not body and not content_type
+                if not query_only and content_type not in ("application/json", "application/x-www-form-urlencoded"):
+                    return JSONResponse(failure(1406, "不支持的 Content-Type"), status_code=406)
+                try:
+                    if query_only:
+                        parsed = {}
+                    elif content_type == "application/json":
+                        parsed = json.loads(body)
+                        if not isinstance(parsed, dict):
+                            raise ValueError("请求体必须是 JSON 对象")
+                    else:
+                        parsed = dict(parse_qsl(body.decode("utf-8"), keep_blank_values=True,
+                                                encoding="utf-8", errors="strict"))
+                    params.update(parsed)
+                except (ValueError, UnicodeError):
+                    return JSONResponse(failure(1400, "请求正文格式不正确"), status_code=400)
+            # The configured endpoint retains the gateway's envelope extension.
+            # /:action always uses its path action and the body as parameters.
+            echo = {}
+            if action is None:
+                action = params.get("action")
+                if not isinstance(action, str):
+                    return JSONResponse(failure(1400, "请求必须包含 action"), status_code=400)
+                if "echo" in params:
+                    echo["echo"] = params["echo"]
+                params = params.get("params")
+            base_action = action
+            for suffix in ("_async", "_rate_limited"):
+                if base_action.endswith(suffix):
+                    base_action = base_action[:-len(suffix)]
+                    break
+            if base_action not in ACTION_REGISTRY:
+                response = failure(1404, f"不支持 OneBot 动作: {action}")
+                response.update(echo)
+                return JSONResponse(response, status_code=404)
+            return JSONResponse(await self.service.dispatch(action, params, **echo))
 
-        @app.post(self.endpoint.path)
-        async def post_api(request: Request):
+        async def envelope_api(request: Request):
             return await execute(request)
 
-        @app.post("/{action}")
-        async def post_action(action: str, request: Request):
-            if not _authorized(self.endpoint, request):
-                return JSONResponse(failure(1403, "access token 无效"), status_code=401)
-            try:
-                body = await request.body()
-                params = json.loads(body) if body.strip() else {}
-            except json.JSONDecodeError:
-                return JSONResponse(failure(1400, "请求体必须是 JSON"))
-            if isinstance(params, dict) and isinstance(params.get("action"), str):
-                return JSONResponse(await self.service.dispatch(params["action"], params.get("params"), params.get("echo")))
-            return JSONResponse(await self.service.dispatch(action, params, None))
+        app.add_api_route(self.endpoint.path, envelope_api, methods=["GET", "POST"])
+
+        async def action_api(action: str, request: Request):
+            return await execute(request, action)
 
         @app.get("/healthz")
         async def healthz():
@@ -83,6 +113,10 @@ class HttpServerAdapter:
             if record is None:
                 return JSONResponse(failure(1404, "媒体不存在"), status_code=404)
             return FileResponse(record.path, media_type=record.content_type, filename=record.name)
+
+        # Register after utility routes so /healthz isn't interpreted as an action.
+        app.add_api_route("/{action}", action_api, methods=["GET", "POST"])
+        app.add_api_route("/{action}/", action_api, methods=["GET", "POST"])
 
         return app
 

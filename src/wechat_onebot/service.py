@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import logging
 import time
 import uuid
 from collections import deque
@@ -26,7 +27,12 @@ from .models import (
     Segment,
 )
 from .protocol import failure, message_event, meta_event, notice_event, ok, request_event
-from .protocol.rich_content import materialize_forwards, rich_segments
+from .protocol.rich_content import canonical_forward, materialize_forwards, rich_segments
+from .protocol.codec import normalize_message, serialize_message
+
+
+ECHO_UNSET = object()
+logger = logging.getLogger("wechat-onebot.actions")
 
 
 class OneBotActionError(Exception):
@@ -68,6 +74,11 @@ class OneBotService:
         self.group_mention_only = False
         self._event_sink: EventSink | None = None
         self._recent_events: deque[dict[str, Any]] = deque(maxlen=200)
+        self.rate_limit_interval_ms = 500
+        self._action_tasks: set[asyncio.Task] = set()
+        self._rate_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
+        self._rate_worker: asyncio.Task | None = None
+        self._stopping_actions = False
 
     @property
     def supported_actions(self) -> frozenset[str]:
@@ -79,6 +90,7 @@ class OneBotService:
     async def start(self) -> None:
         if self.started:
             return
+        self._stopping_actions = False
         login = await self.driver.get_login_info()
         if not login.external_user_id:
             raise DriverError("微信账号 ID 为空，无法启动 OneBot")
@@ -95,6 +107,17 @@ class OneBotService:
             return
         self.started = False
         try:
+            self._stopping_actions = True
+            # Cancelling a to_thread await does not stop its native operation.
+            # Stop queue scheduling, then drain owned sends before closing helper.
+            if self._rate_worker is not None:
+                self._rate_worker.cancel()
+                await asyncio.gather(self._rate_worker, return_exceptions=True)
+            await asyncio.gather(*self._action_tasks, return_exceptions=True)
+            self._rate_worker = None
+            while not self._rate_queue.empty():
+                self._rate_queue.get_nowait()
+                self._rate_queue.task_done()
             await self.driver.stop()
         finally:
             if self._owns_message_store:
@@ -141,6 +164,7 @@ class OneBotService:
             reference_id = self._resolve_reference(event)
             if reference_id is not None:
                 payload["message"].insert(0, {"type": "reply", "data": {"id": str(reference_id)}})
+            payload["raw_message"] = serialize_message(payload["message"])
             changed = self.message_store.put(
                 message_id,
                 account=self.account,
@@ -154,10 +178,21 @@ class OneBotService:
         elif isinstance(event, NoticeEvent):
             if event.notice_type == "group_decrease":
                 self.message_store.forget_membership(self.account, event.external_user_id, event.external_chat_id)
-            payload = notice_event(event, self.mapper, self.self_id)
+            recalled_id = None
+            if event.notice_type in ("group_recall", "friend_recall"):
+                recall = event.raw.get("recall", {})
+                native_id = str(recall.get("message_id", "")) if isinstance(recall, dict) else ""
+                original = self.message_store.native_message(self.account, event.external_chat_id, native_id)
+                if original is None:
+                    logger.warning("Skipping recall without a stored original message")
+                    return
+                recalled_id = original["message_id"]
+            payload = notice_event(event, self.mapper, self.self_id, message_id=recalled_id)
         elif isinstance(event, RequestEvent):
             payload = request_event(event, self.mapper, self.self_id)
         else:
+            return
+        if payload is None:
             return
         self._recent_events.append(copy.deepcopy(payload))
         if (isinstance(event, IncomingMessage) and event.is_group and self.group_mention_only
@@ -203,6 +238,7 @@ class OneBotService:
             sequence_key=native_id)
         payload = message_event(snapshot, self.mapper, self.media, self.self_id, message_id=reference_id)
         self._materialize_forwards(payload, reference_id)
+        payload["raw_message"] = serialize_message(payload["message"])
         payload["time"] = 0  # The quote does not provide a verified original timestamp.
         self.message_store.put_reference(reference_id, self.account, payload)
         self.message_store.remember_native_id(self.account, event.external_chat_id, native_id, reference_id)
@@ -219,37 +255,122 @@ class OneBotService:
         payload = self.message_store.get_forward(self.account, str(value))
         if payload is None:
             raise OneBotActionError(1404, '合并转发不在当前账号的消息存储中')
-        return payload
+        return canonical_forward(payload)
 
-    async def dispatch(self, action: str, params: dict[str, Any] | None = None, echo: Any = None) -> dict[str, Any]:
+    async def dispatch(self, action: str, params: dict[str, Any] | None = None, echo: Any = ECHO_UNSET) -> dict[str, Any]:
+        result = await self._dispatch(action, params)
+        if echo is not ECHO_UNSET:
+            result["echo"] = echo
+        return result
+
+    async def _dispatch(self, action: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         if params is None:
             params = {}
         if not isinstance(params, dict):
-            return failure(1400, "params 必须是 JSON 对象", echo)
+            return failure(1400, "params 必须是 JSON 对象")
         try:
+            if not isinstance(action, str):
+                return failure(1400, "action 必须是字符串")
+            mode = ""
+            for suffix in ("_rate_limited", "_async"):
+                if action.endswith(suffix):
+                    mode, action = suffix, action[:-len(suffix)]
+                    break
             definition = ACTION_REGISTRY.get(action)
             if definition is None:
-                return failure(1404, f"不支持 OneBot 动作: {action}", echo)
-            definition.validate(params)
+                return failure(1404, f"不支持 OneBot 动作: {action}")
+            params = definition.normalize(params)
+            if mode:
+                if not self.started or self._stopping_actions:
+                    return failure(1500, "服务尚未启动")
+                if mode == "_rate_limited":
+                    if self._rate_queue.full():
+                        return failure(1500, "限速队列已满")
+                    self._rate_queue.put_nowait((action, copy.deepcopy(params)))
+                    if self._rate_worker is None or self._rate_worker.done():
+                        self._rate_worker = self._background(self._run_rate_queue())
+                else:
+                    if len(self._action_tasks) >= 1000:
+                        return failure(1500, "异步动作过多")
+                    self._background(self._run_background(action, copy.deepcopy(params)))
+                return {"status": "async", "retcode": 1, "data": None}
             handler = getattr(self, definition.handler, None)
             if not callable(handler):
                 raise RuntimeError(f"动作注册表指向不存在的处理器: {definition.handler}")
             data = await handler(params)
-            return ok(data, echo)
+            return ok(data)
         except ActionValidationError as error:
-            return failure(1400, str(error), echo)
+            return failure(1400, str(error))
         except OneBotActionError as error:
-            return failure(error.retcode, str(error), echo, error.data)
+            return failure(error.retcode, str(error), data=error.data)
         except DriverUnsupported as error:
-            return failure(1404, str(error), echo)
+            return failure(1404, str(error))
         except DriverError as error:
-            return failure(1500, str(error), echo)
+            return failure(1500, str(error))
         except (ValueError, TypeError) as error:
-            return failure(1400, str(error), echo)
+            return failure(1400, str(error))
         except Exception as error:
             import logging
             logging.getLogger("wechat-onebot.actions").exception("OneBot 动作失败: %s", action)
-            return failure(1500, f"内部错误: {error}", echo)
+            return failure(1500, f"内部错误: {error}")
+
+    def _background(self, operation) -> asyncio.Task:
+        task = asyncio.create_task(operation)
+        self._action_tasks.add(task)
+        task.add_done_callback(self._action_done)
+        return task
+
+    def _action_done(self, task: asyncio.Task) -> None:
+        self._action_tasks.discard(task)
+        if not task.cancelled() and (error := task.exception()) is not None:
+            logger.warning("Owned action failed: %s", error)
+
+    async def _run_background(self, action, params) -> None:
+        result = await self.dispatch(action, params)
+        if result["status"] == "failed":
+            logger.warning("Async action %s failed: %s", action, result.get("message"))
+
+    async def _run_rate_queue(self) -> None:
+        while True:
+            action, params = await self._rate_queue.get()
+            try:
+                task = self._background(self._run_background(action, params))
+                await asyncio.shield(task)
+            finally:
+                self._rate_queue.task_done()
+            await asyncio.sleep(self.rate_limit_interval_ms / 1000)
+
+    async def handle_quick_operation(self, event: dict[str, Any], operations: dict[str, Any]) -> None:
+        """Execute standard HTTP POST replies through the same validated send path."""
+        if self._stopping_actions:
+            raise OneBotActionError(1500, "服务正在关闭，拒绝新的快速操作")
+        task = self._background(self._handle_quick_operation(event, operations))
+        await asyncio.shield(task)
+
+    async def _handle_quick_operation(self, event: dict[str, Any], operations: dict[str, Any]) -> None:
+        if not isinstance(operations, dict):
+            raise OneBotActionError(1400, "快速操作必须是 JSON 对象")
+        for key in ("delete", "kick", "ban", "approve"):
+            if key in operations and type(operations[key]) is not bool:
+                raise OneBotActionError(1400, f"{key} 必须是布尔值")
+            if operations.get(key) is True or (key == "approve" and key in operations):
+                raise OneBotActionError(1404, f"当前原生桥接不支持快速操作 {key}")
+        if "reply" not in operations:
+            return
+        if event.get("post_type") != "message" or event.get("self_id") != self.self_id:
+            raise OneBotActionError(1400, "仅可回复本账号的消息事件")
+        for key in ("auto_escape", "at_sender"):
+            if key in operations and type(operations[key]) is not bool:
+                raise OneBotActionError(1400, f"{key} 必须是布尔值")
+        message = normalize_message(operations["reply"], auto_escape=operations.get("auto_escape", False))
+        is_group = event.get("message_type") == "group"
+        if is_group and operations.get("at_sender", True) and not event.get("anonymous"):
+            message.insert(0, {"type": "at", "data": {"qq": str(event["user_id"])}})
+        target = "group_id" if is_group else "user_id"
+        response = await self.dispatch("send_group_msg" if is_group else "send_private_msg",
+                                       {target: event[target], "message": message})
+        if response["status"] != "ok":
+            raise OneBotActionError(response["retcode"], response.get("message", "快速回复失败"))
 
     def recent_events(self, limit: int = 50) -> list[dict[str, Any]]:
         count = max(1, min(int(limit), 200))
@@ -299,13 +420,15 @@ class OneBotService:
     async def _send_private_msg(self, params: dict[str, Any]) -> dict[str, Any]:
         user_id = self._required_int(params, "user_id")
         chat_id = self._external_user(user_id)
-        message_id = await self._send_message(chat_id, params.get("message"), is_group=False)
+        message_id = await self._send_message(chat_id, params.get("message"), is_group=False,
+                                              auto_escape=params.get("auto_escape", False))
         return {"message_id": message_id}
 
     async def _send_group_msg(self, params: dict[str, Any]) -> dict[str, Any]:
         group_id = self._required_int(params, "group_id")
         chat_id = self._external_group(group_id)
-        message_id = await self._send_message(chat_id, params.get("message"), is_group=True)
+        message_id = await self._send_message(chat_id, params.get("message"), is_group=True,
+                                              auto_escape=params.get("auto_escape", False))
         return {"message_id": message_id}
 
     async def _send_msg(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -316,16 +439,14 @@ class OneBotService:
             return await self._send_private_msg(params)
         raise OneBotActionError(1400, "send_msg 需要 message_type 或 user_id/group_id")
 
-    async def _send_message(self, chat_id: str, raw_message: Any, *, is_group: bool) -> int:
-        segments = await self._prepare_segments(raw_message, is_group=is_group)
-        if not any(segment.type in ("image", "file", "record", "face") or
+    async def _send_message(self, chat_id: str, raw_message: Any, *, is_group: bool,
+                            auto_escape: bool = False) -> int:
+        segments = await self._prepare_segments(raw_message, is_group=is_group, auto_escape=auto_escape)
+        if not any(segment.type in ("image", "file", "record", "face", "at") or
                    (segment.type == "text" and segment.data["text"]) for segment in segments):
             raise OneBotActionError(1400, "消息没有可发送的内容")
         if any(segment.type == "at" for segment in segments) and not is_group:
             raise OneBotActionError(1400, "私聊消息不支持 at 段")
-        if any(segment.type == "at" for segment in segments) and not any(
-                segment.type == "text" and segment.data.get("text") for segment in segments):
-            raise OneBotActionError(1400, "at 段后必须包含非空 text 段")
         sent = 0
         pending_text: list[str] = []
         pending_at_ids: list[str] = []
@@ -403,23 +524,16 @@ class OneBotService:
             session_key=chat_id,
             nonce=uuid.uuid4().hex,
         )
-        sent_event = {
-            "time": int(time.time()),
-            "self_id": self.self_id,
-            "post_type": "message_sent",
-            "message_type": "group" if is_group else "private",
-            "sub_type": "normal" if is_group else "friend",
-            "message_id": message_id,
-            "group_id": self.mapper.get_or_create("group", chat_id) if is_group else None,
-            "user_id": self.mapper.get_or_create("user", self.account),
-            "target_id": None if is_group else self.mapper.get_or_create("user", chat_id),
-            "message": [{"type": "text", "data": {"text": "[sent]"} }],
-            "raw_message": "",
-        }
-        if is_group:
-            sent_event.pop("target_id", None)
-        else:
-            sent_event.pop("group_id", None)
+        snapshot = IncomingMessage(
+            external_chat_id=chat_id,
+            external_sender_id=self.mapper.reverse("user", self.self_id),
+            is_group=is_group,
+            segments=tuple(Segment(item.type, dict(item.data)) for item in segments),
+            timestamp=int(time.time()))
+        sent_event = message_event(snapshot, self.mapper, self.media, self.self_id, message_id=message_id)
+        sent_event["post_type"] = "message_sent"  # Internal history only; not broadcast as a standard event.
+        if not is_group:
+            sent_event["target_id"] = self.mapper.get_or_create("user", chat_id)
         self.message_store.put(
             message_id,
             account=self.account,
@@ -429,13 +543,9 @@ class OneBotService:
         )
         return message_id
 
-    async def _prepare_segments(self, raw_message: Any, *, is_group: bool) -> list[PreparedSegment]:
-        if isinstance(raw_message, str):
-            raw_segments = [{"type": "text", "data": {"text": raw_message}}]
-        elif isinstance(raw_message, list):
-            raw_segments = raw_message
-        else:
-            raise OneBotActionError(1400, "message 必须是字符串或消息段数组")
+    async def _prepare_segments(self, raw_message: Any, *, is_group: bool,
+                                auto_escape: bool = False) -> list[PreparedSegment]:
+        raw_segments = normalize_message(raw_message, auto_escape=auto_escape)
         prepared: list[PreparedSegment] = []
         for raw in raw_segments:
             if not isinstance(raw, dict):
@@ -445,9 +555,7 @@ class OneBotService:
             if not isinstance(segment_type, str) or not isinstance(data, dict):
                 raise OneBotActionError(1400, "消息段必须包含 type 和 data")
             if segment_type == "reply":
-                # The native bridge has no quoted-reply send primitive. Keep other
-                # segments, especially a real group @, instead of failing the chain.
-                continue
+                raise OneBotActionError(1404, "当前原生桥接不支持引用回复；消息未发送")
             if segment_type in ("node", "forward", "json", "xml", "video", "contact", "music"):
                 raise OneBotActionError(1404, f"当前原生桥接不支持发送 {segment_type} 段")
             if segment_type == "text":
@@ -471,8 +579,20 @@ class OneBotService:
                 file_value = data.get("file")
                 if not file_value:
                     raise OneBotActionError(1404, f"{segment_type} 段缺少 file，且当前桥接不支持 QQ 表情 ID 映射")
+                if segment_type == "image" and data.get("type"):
+                    raise OneBotActionError(1404, "当前原生桥接不支持闪照")
+                if segment_type == "record" and str(data.get("magic", "0")).lower() not in ("0", "false", "no"):
+                    raise OneBotActionError(1404, "当前原生桥接不支持变声")
+                options = {}
+                for key in ("cache", "proxy"):
+                    value = str(data.get(key, "1")).lower()
+                    if value not in ("0", "1", "true", "false", "yes", "no"):
+                        raise OneBotActionError(1400, f"{key} 必须是布尔值")
+                    options[key] = value in ("1", "true", "yes")
+                if "timeout" in data:
+                    options["timeout"] = float(data["timeout"])
                 try:
-                    path = await self.media.resolve_input(str(file_value))
+                    path = await self.media.resolve_input(str(file_value), **options)
                 except MediaError as error:
                     raise OneBotActionError(1400, str(error)) from error
                 prepared.append(PreparedSegment(segment_type, {"path": str(path)}))
@@ -527,7 +647,7 @@ class OneBotService:
         rows = await self.driver.get_group_list()
         row = next((item for item in rows if item.external_group_id == external), None)
         if row is None:
-            return {"group_id": group_number, "group_name": "", "member_count": 0, "max_member_count": 0}
+            raise OneBotActionError(1404, "群不存在或当前不可读取")
         return {
             "group_id": group_number,
             "group_name": row.group_name,
@@ -543,14 +663,25 @@ class OneBotService:
         result = []
         for row in rows:
             profile = self.message_store.profile(self.account, row.external_user_id, external)
-            result.append({
+            result.append(self._member_defaults({
                 "group_id": group_number,
                 "user_id": self.mapper.get_or_create("user", row.external_user_id),
                 "nickname": profile["nickname"],
                 "card": profile["card"],
                 "role": row.role,
-            })
+            }))
         return result
+
+    @staticmethod
+    def _member_defaults(result: dict[str, Any]) -> dict[str, Any]:
+        unknown = {"sex": "unknown", "age": 0, "area": "", "join_time": 0,
+                   "last_sent_time": 0, "level": "", "unfriendly": False, "title": "",
+                   "title_expire_time": 0, "card_changeable": False}
+        unknown_fields = list(unknown)
+        if result.get("role") not in ("owner", "admin", "member"):
+            result["role"] = "member"
+            unknown_fields.append("role")
+        return {**unknown, **result, "unavailable_fields": unknown_fields}
 
     async def _get_group_member_info(self, params: dict[str, Any]) -> dict[str, Any]:
         group_number = self._required_int(params, "group_id")
@@ -577,7 +708,7 @@ class OneBotService:
         }
         if row is not None:
             result["role"] = row.role
-        return result
+        return self._member_defaults(result)
 
     def _remember_members(self, group: str, rows: Sequence[GroupMemberInfo]) -> None:
         profiles = []
@@ -604,7 +735,8 @@ class OneBotService:
             profile = self.message_store.profile(self.account, user)
         if profile is None:
             raise OneBotActionError(1404, "尚未观测到此用户的资料")
-        return {"user_id": number, "nickname": profile["nickname"]}
+        return {"user_id": number, "nickname": profile["nickname"], "sex": "unknown", "age": 0,
+                "unavailable_fields": ["sex", "age"]}
 
     def _history_params(self, params: dict[str, Any]) -> tuple[int, int | None, int, bool]:
         count = int(params.get("count", 20))

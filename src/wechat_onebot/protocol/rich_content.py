@@ -19,7 +19,7 @@ def record_segments(row: dict[str, Any]) -> tuple[Segment, ...]:
         text = '\n'.join(value for value in link.values() if value)
         if not link['url']:
             text += '\n[链接地址不可用]'
-        return (Segment('text', {'text': text or '[链接内容不可用]', 'link': link}),)
+        return (Segment('text', {'text': text or '[链接内容不可用]'}),)
     if kind == 'image' and row.get('image_status') == 'ready' and row.get('image_path'):
         return (Segment('image', {'file': row['image_path'], 'image_quality': row.get('image_quality', 'unknown')}),)
     label = {'image':'图片', 'voice':'语音', 'video':'视频', 'file':'文件',
@@ -81,7 +81,8 @@ def materialize_forwards(payload, *, store, mapper, media, account, message_id):
                 content = [_segment_to_onebot(item, mapper, media) for item in record_segments(row)]
                 if row.get('kind') not in ('text', 'link', 'image') or (row.get('kind') == 'link' and not row.get('url')):
                     budget['unavailable'] = True
-                if row.get('kind') == 'image' and row.get('image_status') != 'ready':
+                if row.get('kind') == 'image' and (row.get('image_status') != 'ready' or
+                        not any(item['type'] == 'image' for item in content)):
                     budget['unavailable'] = True
                 # Registration failure must not expose an unusable local path as a fetched image.
                 for item in content:
@@ -102,7 +103,49 @@ def materialize_forwards(payload, *, store, mapper, media, account, message_id):
                          'content': [{'type':'text', 'data':{'text':
                              '[聊天记录超出解析上限，部分内容未展开]' if budget['truncated'] else '[聊天记录内容不可用]'}}]})
         forward_id = hashlib.sha256(f'{account}\0{message_id}\0{index}'.encode()).hexdigest()[:32]
-        store.put_forward(account, forward_id, {'messages': flat, 'records': tree,
+        store.put_forward(account, forward_id, canonical_forward({'messages': flat, 'records': tree,
                           'title': source.get('title', ''), 'truncated': budget['truncated'],
-                          'status': 'partial' if budget['unavailable'] else 'ready'})
+                          'status': 'partial' if budget['unavailable'] else 'ready'}))
         segment['data'] = {'id': forward_id}
+
+
+def canonical_forward(payload: dict[str, Any]) -> dict[str, Any]:
+    """Add canonical nodes while preserving aliases, including pre-fix stored rows.
+
+    This is a read-time projection; the supplied payload is never modified.
+    Unknown original authors use 0, and no original timestamp is invented.
+    """
+    from .codec import normalize_message
+
+    if isinstance(payload.get('message'), list):
+        return payload
+
+    def standard_content(content):
+        if not isinstance(content, list):
+            return normalize_message(content)
+        result = []
+        for segment in content:
+            kind = segment.get('type')
+            data = segment.get('data') or {}
+            if kind == 'text':
+                data = {'text': str(data.get('text', ''))}
+            elif kind == 'file':
+                text = '[文件] ' + str(data.get('name') or data.get('file') or '内容不可用')
+                text += '\n' + str(data['url']) if data.get('url') else '\n[文件内容不可用]'
+                kind, data = 'text', {'text': text}
+            elif kind == 'face' and data.get('file'):
+                kind, data = 'image', {key: data[key] for key in ('file', 'url') if key in data}
+            elif kind in ('image', 'record', 'video'):
+                data = {key: value for key, value in data.items() if key in ('file', 'url', 'type', 'magic')}
+            result.extend(normalize_message({'type': kind, 'data': data}))
+        return result
+
+    nodes = []
+    for row in payload.get('messages', []):
+        sender = row.get('sender') or {}
+        nodes.append({'type': 'node', 'data': {
+            'user_id': str(sender.get('user_id', 0)),
+            'nickname': str(sender.get('nickname') or ''),
+            'content': standard_content(row.get('content', [])),
+        }})
+    return {**payload, 'message': nodes}

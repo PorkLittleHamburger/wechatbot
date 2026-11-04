@@ -1,133 +1,62 @@
 # OneBot v11 Compatibility
 
-This is a partial implementation with optional community/gateway extensions, not a certification of full v11 conformance. The 2026-11-04 [standards audit](onebot-v11-audit.md) records unresolved differences, including the noncanonical `get_forward_msg` response, CQ/input forms, HTTP behavior, notices and media persistence. Successful AstrBot parsing does not establish compatibility with a strict v11 consumer.
+The core interface targets the official OneBot v11 contract and does not require AstrBot, NoneBot, or a proprietary client SDK. This is a supported capability subset, not an implementation of every QQ API. Native operations unavailable in WeChat fail explicitly. Local administration and optional extensions remain outside the standard.
 
-## Transport
+## Communication
 
-- HTTP API: `POST <configured path>` (default `/`) with `{"action": "...", "params": {...}, "echo": "..."}`
-- New accounts have no default OneBot listeners. HTTP and WS addresses are configured per account in `onebot.json` or WebUI.
-- Convenience HTTP route: `POST /{action}` with a params object body; it stays at the root even when the envelope route uses a custom path
-- Forward WebSocket: the configured endpoint path, for example `/ws`
-- Reverse WebSocket: per-account `wsClients`; HTTP event reporting: `httpClients`
-- HTTP / forward WS action authentication: `Authorization: Bearer <token>` or `?access_token=<token>`; an empty configured token disables this check. Outbound HTTP / reverse WS send the configured Bearer token when non-empty.
-- WebUI authentication: the WebUI token grants a first-login setup session for setting a management password; later logins use that password. Sessions use an independent HttpOnly Cookie. OneBot tokens are not WebUI credentials.
-- Heartbeat: `meta_event.heartbeat`
-- Lifecycle: `meta_event.lifecycle`
+- HTTP API: `GET` or `POST /{action}` and `/{action}/`. Parameters accept query strings, URL-encoded forms, or JSON objects. String booleans such as `"false"` are converted by the action schema.
+- The configured HTTP endpoint also retains the gateway envelope extension: `{"action":"get_status","params":{},"echo":null}`. Standard clients do not need it.
+- HTTP authentication: missing token is 401, wrong token 403; unsupported POST media type 406, malformed body 400, unknown action 404. Execution failures from registered actions retain HTTP 200 and carry a failed OneBot response.
+- HTTP event POST includes `X-Self-ID`. Optional `httpClients[].secret` enables HMAC-SHA1 `X-Signature` over the actual UTF-8 body. Empty/204 responses do nothing; JSON quick replies use the validated send path. Group replies default to a real mention of the sender. Unsupported quick operations are logged explicitly and are not executed.
+- HTTP POST processing completes before WS event broadcast. HTTP reports receive lifecycle `enable`/`disable`; each WS event-capable connection receives `connect`. Enable is queued without blocking startup; shutdown/removal grants reporting a two-second drain, then cancels pending HTTP work. An explicit zero report timeout still waits for the backend during ordinary event ordering, but endpoint removal remains available.
+- Forward WS offers standard `/` (Universal), `/api` (API only), `/event` (Event only), with optional trailing slashes on role paths. A custom Universal path such as `/ws` also offers `/ws/api` and `/ws/event`.
+- Reverse WS supports `role: "Universal"`, `"API"`, or `"Event"` with matching `X-Client-Role` and `X-Self-ID`. Clean closes wait the reconnect interval.
+- WS `echo` is returned unchanged, including explicit `null`, false, arrays and objects. Invalid requests return failed results without closing a healthy connection.
+- All registered actions accept `_async` and `_rate_limited` suffixes. Accepted work returns `status=async`, `retcode=1`, `data=null`. Rate-limited work runs in order at `rateLimitIntervalMs` (default 500); queued rate-limited work is cancelled on shutdown, while in-flight native sends are drained before helper closure. Failures are logged; asynchronous acceptance is not a send receipt.
 
-## Implemented actions
+New accounts have no network endpoints until configured. Tokens are per endpoint; WebUI password/cookie authentication is separate. See [network configuration](network-config.md).
 
-| Action | Status | Notes |
-|---|---|---|
-| `send_private_msg` | Implemented | text, image, file, record, face-file |
-| `send_group_msg` | Implemented | text, image, file, record, face-file, native `at` |
-| `send_msg` | Implemented | routes by `message_type` or ID field |
-| `get_login_info` | Implemented | persisted numeric self ID |
-| `get_status` | Implemented | reports native driver connection state |
-| `get_version_info` | Implemented | protocol v11 |
-| `get_friend_list` | Implemented | native contact cache; may be incomplete |
-| `get_stranger_info` | Implemented | account-scoped observed identity; see lookup limits below |
-| `get_group_list` | Implemented | groups observed by the current native session |
-| `get_group_info` | Implemented | observed group metadata; a mapped group absent from the current list returns empty name and zero counts |
-| `get_group_member_list` | Implemented | requires a ready WeChat group-member cache |
-| `get_group_member_info` | Implemented | native member list, with observed membership fallback only when that list cannot be read |
-| `get_msg` | Implemented | durable per-account SQLite storage; signed 32-bit IDs |
-| `get_forward_msg` | Implemented in current source | persisted parsed forwards; accepts `id` or `message_id`, returns `messages`, `records`, `status`, `truncated`; unavailable IDs fail with 1404 |
-| `get_friend_msg_history` | Implemented | local per-account store, optional `message_id` cursor |
-| `get_group_msg_history` | Implemented | local per-account store, optional `message_id` cursor |
-| `can_send_image` | Implemented | `yes` requires an online driver and `image.send` |
-| `can_send_record` | Implemented | `yes` requires an online driver and `voice.send` |
-| `get_capabilities` | Extension | driver and action capability matrix |
+## Supported actions
 
-## Explicitly unsupported
+| Standard actions | Scope |
+| --- | --- |
+| `send_private_msg`, `send_group_msg`, `send_msg` | Supported segments below; native sends may fail offline |
+| `get_msg` | Account-scoped stored messages and quote snapshots; signed int32 IDs |
+| `get_forward_msg` | Standard `data.message` node array, including old stored forwards |
+| `get_login_info`, `get_status`, `get_version_info` | Current account, native connectivity, app/protocol version |
+| `get_friend_list`, `get_stranger_info` | Native contacts / observed per-account profiles |
+| `get_group_list`, `get_group_info` | Currently readable groups; missing group fails rather than returning fabricated metadata |
+| `get_group_member_list`, `get_group_member_info` | Native roster, or observed membership when the roster is unreadable |
+| `can_send_image`, `can_send_record` | Online state and actual driver capability |
 
-The following actions are absent from the action registry. With valid request parameters they return `status=failed`, `retcode=1404`; they do not report fake success. This list is illustrative: every unregistered action fails the same way (a non-object `params` is rejected first with `1400`).
+Optional extensions: `get_friend_msg_history`, `get_group_msg_history`, `get_capabilities`. They are not prerequisites for standard message/event delivery. Histories only read local observations, not arbitrary PC WeChat history.
 
-- `delete_msg`
-- `send_group_forward_msg`
-- `send_private_forward_msg`
-- `set_group_kick`
-- `set_group_ban`
-- `set_group_whole_ban`
-- `set_group_admin`
-- `set_group_card`
-- `set_group_name`
-- `set_group_leave`
-- `set_essence_msg`
-- `set_msg_emoji_like`
-- `get_cookies`
-- `get_csrf_token`
-- `get_credentials`
+Unregistered actions fail explicitly (`1404` via WS; HTTP 404). These include native recall, group management, QQ credentials, media format conversion and outbound merged forwards. `send_group_forward_msg` and `send_private_forward_msg` are community extensions, not mandatory official v11 public APIs.
 
-## User lookup and role limits
+## Messages and media
 
-`get_stranger_info` takes a positive OneBot numeric `user_id` already mapped in
-this account. An unmapped ID returns `1400`; a mapped user with no observed
-profile after the refresh attempt returns `1404`. A known profile can succeed
-with an empty `nickname`. It returns only `user_id` and `nickname`.
-`no_cache` must be a JSON boolean. If true, or if the cached nickname is missing,
-the service attempts `get_friend_list` and reuses the resulting stored profile;
-a driver failure during that refresh does not erase a previous observation.
-This is not arbitrary stranger lookup or a forced network refresh of non-friends.
+- Sending accepts CQ strings, arrays, or one segment object. CQ text and parameters are escaped separately; `auto_escape=true` sends a string literally. Incoming `raw_message` preserves the full CQ representation, including mentions, media and quotes.
+- Standard `text`, `image`, `record` sending and group `at` are supported. Mention-only chains use native mentions; `qq="all"` remains unsupported. Unknown targets fail; visible `@name` text never substitutes for a native mention.
+- Native quoted sending is unavailable: any outbound `reply` rejects the complete chain with `1404`, before sending. Clients requesting ordinary replies must explicitly omit the segment. Inbound `reply` plus `get_msg` remains supported.
+- Inbound forwarded records use `forward` and standard `get_forward_msg.message` nodes with `data.user_id`, `nickname`, and `content`. Optional `messages`, `records`, and availability metadata are supplementary. Unknown original user IDs are `"0"`; original time text is not fabricated into timestamps. See [rich messages](rich-messages.md).
+- Link titles, URLs and descriptions use standard text. Received generic files use a text download link; WeChat file stickers use `image`. No incoming `file` segment or private `text.data.link` is required.
+- Sending generic `file` and `face.file` remains optional legacy functionality. Standard QQ `face.id`, `share`, `video`, `contact`, `music`, `node`, `forward`, `json` and `xml` sending is explicitly unsupported. Flash images and voice-changing options are rejected rather than ignored.
+- Received media publishes a unique content ID in the standard `file` field, so different files sharing a basename still round-trip unchanged. Media supports received filenames, media IDs, local paths/file URIs, HTTP(S), and base64. HTTP input honors `cache`, `proxy`, and positive finite `timeout`; the default download timeout is 30 seconds. Size limits always apply.
+- Media registrations and URL-cache entries persist in account-local `media.sqlite3`. Ambiguous filenames fail; changed or missing files cannot be returned through old content IDs. Old unindexed account-local filenames can be recovered lazily; old external files require re-registration. Preserve the complete media directory during upgrades.
+- Every segment is prepared before native sends. A later native failure reports partial `sent_segments` where available. Stored outgoing messages contain the accepted content instead of a `[sent]` placeholder. A local message ID is not a recipient receipt.
 
-Native group member queries can expose `owner`, `admin`, `member`, or `unknown`
-according to the native cache. A missing role in the Helper row defaults to
-`member`. Separately, inbound group message events convert an unknown sender
-role to `member` for compatibility. That event value alone is not proof of the
-sender's actual permissions. A member-info response based only on observed
-membership omits `role`; a successfully read native list is authoritative for
-whether the user is currently included. Do not infer membership from a global
-contact profile or invent permissions from a nickname/card.
+Media URLs require an enabled HTTP server reachable from the consumer; WS alone does not serve files. Missing/failed native media becomes explicit standard text, not a successful image with an empty URL.
 
-## Inbound message segments
+## Events and identity
 
-Current source (not the published v0.8.6 ZIP) converts WeChat appmsg type 57 quotes into `reply` segments whose IDs are local signed 32-bit message IDs. AstrBot's `get_msg` lookup returns the original cached message when the native server ID and author match within the same account and conversation. Native-ID aliases persist across restarts. If the original is absent, a separate snapshot supplies embedded text, links, parsed forwards and images obtained through the account-bound native receiver. Missing or failed media remains explicit; unknown original time is `0`. Snapshots do not enter history or emit events and can be refreshed when richer quoted metadata arrives. No arbitrary HTTP media downloader is invoked. Outbound native quoted replies remain unsupported.
+User/group mappings, message IDs, profiles, native-ID aliases and quote snapshots are account-scoped and durable. WeChat nickname and per-group card observations stay separate; empty values do not erase known names. Member lookup never infers membership from a global contact alone. Non-friend nickname reads remain restricted to the verified native cache layouts.
 
-Ordinary link cards (appmsg 5) produce text with title/URL/description and an additional `data.link` object. Forwarded histories (appmsg 19) produce `forward` segments. `get_forward_msg` returns an ordered, flattened OneBot `messages` list with nested boundaries for AstrBot, plus the normalized hierarchical `records` tree. Display authors are preserved as names; unknown verified IDs are `0`, not invented account mappings. Native time text is retained separately; it is not guessed into a Unix timestamp. See [rich messages](rich-messages.md) for limits and availability states.
+Group messages use `sub_type=normal`; `at.data.qq` is a string. Recall notices reuse the original MessageStore ID. Unresolvable recalls, unknown notice operators/subtypes, and incomplete group requests are logged and suppressed rather than emitting invalid events or inventing actors. Membership removal is still recorded locally even if its notice cannot be represented.
 
-The per-account `groupMentionOnly` setting defaults to false. When true, message events from groups reach downstream clients only when their native `at` segments target the bot itself; visible names, mentions of other members, and quote metadata do not qualify. Private messages and notices are unaffected. All observed group messages are still persisted before filtering, so later quotes can resolve them. This setting does not block outbound action calls.
+Profile APIs provide standard fields with unknown defaults (`sex=unknown`, age/timestamps 0, empty strings, conservative false values). Additional `unavailable_fields` identifies unobserved data. Unknown member role is represented as `member` for schema compatibility and marked unavailable; this is not authority to manage a group. Native cache rows may themselves use display-name fallbacks for missing cards.
 
-User observations are persisted in the account message database before event delivery. WeChat nicknames and per-group cards are stored separately; empty observations do not erase known names. Group-member queries and native mention display names share these records. A message-only cached member response omits an unobserved role; an available native member list remains authoritative for membership. The cache is partial and cannot supply names that have never been observed or read from native contacts/members.
+`groupMentionOnly` filters only outer group message reporting. Private messages remain enabled; untriggered group messages are stored for quote resolution. Forwarded inner messages are never replayed as live events. Local WebUI/bridge/account management need not implement OneBot APIs.
 
-The Helper member adapter falls back to the row's display nickname when its group nickname is absent. A stored `card` can therefore be that fallback label rather than an independently observed group card.
+## Verification and limits
 
-On the verified WeChat 4.1.15.56 build, nickname lookup checks the friend cache first, then the non-friend contact LRU by exact user ID. This allows cached non-friend group members to supply sender nicknames without being added as friends. It performs no network refresh and does not add these users to `get_friend_list`; unknown or unstable records remain unavailable. Other builds do not use this LRU layout.
-
-- Private and group text maps to `text`.
-- Native WeChat `@` maps to an `at` segment and sets `to_me=true` when the bot is selected.
-- An image or attachment with an available path maps to `image` or `file`; successful media registration supplies a local `file` name and HTTP `url`.
-- Without a path the Helper adapter may emit text placeholders such as `[图片]` or `[文件或卡片]`; inbound voice, video and emoticons are text placeholders, not native `record`, `video` or `face` media segments.
-- A path is not proof of a ready download: registration errors leave the original `file` value and an empty `url`. Inspect download state and actual file content; do not count placeholders or empty URLs as successful media receipt. HTTP URL reachability also requires a suitable HTTP endpoint; see [network configuration](network-config.md#media-urls).
-
-## Message segment rules
-
-- A `reply` segment is accepted as metadata when the chain contains sendable content. The native bridge cannot create a quoted WeChat reply, so the quote is omitted; group `at` remains a real native mention. A reply-only chain fails without sending.
-- Outbound `node`, `forward`, `json`, `xml`, `video`, `contact`, `music` segments are rejected as unsupported; inbound parsed `forward` segments and `get_forward_msg` are supported independently.
-- `at` is group-only, uses a known numeric OneBot user ID in `data.qq`, and requires non-empty text in the chain. `qq="all"` is unsupported (`1404`); private `at` or a chain without sendable content fails with `1400`.
-- Group sends pass resolved native user IDs to `send_at_text`; a visible `@name` string alone does not create a mention. Display names prefer explicit `data.name`, then stored group card/nickname, then the native ID. Inbound mention metadata identifies targets and does not itself contain their nicknames.
-- String messages are sent as plain text; use segment arrays for `at`, media and reply metadata. CQ-code strings are not parsed into segments.
-- `face` requires a local file, URL, or `base64://` payload. QQ face IDs are not guessed.
-- Remote media URLs are downloaded with a size limit before native sending.
-- Every send segment is validated before the first side effect where possible.
-- If a later segment fails after earlier segments have been sent, the failed response includes `sent_segments` in `data`.
-
-## Storage and result limits
-
-Message history reads only the gateway's local per-account message store; it does
-not fetch PC WeChat history. `count` defaults to 20 and accepts 1–100;
-`message_id` is an optional nonzero signed 32-bit cursor and `reverse_order=true`
-selects newer records. Outbound message records currently contain a `[sent]`
-placeholder rather than the original message chain. A returned message ID is a
-local gateway ID, not a recipient delivery receipt.
-
-`get_capabilities.actions` lists registered handlers, not a promise that every
-action will succeed while offline or with an unavailable native cache. Driver
-errors normally return `1500`, unsupported driver operations `1404`, and invalid
-parameters `1400`. Inspect the response and receive-side result for sends.
-
-Implementation references: [action registry](../src/wechat_onebot/onebot/actions.py),
-[service](../src/wechat_onebot/service.py),
-[event converter](../src/wechat_onebot/protocol/converters.py),
-[Helper adapter](../src/wechat_onebot/driver/helper.py),
-[user profile tests](https://github.com/PorkLittleHamburger/wechatbot/blob/main/tests/test_user_profiles.py),
-[send and action tests](https://github.com/PorkLittleHamburger/wechatbot/blob/main/tests/test_service.py), and
-[non-friend cache tests](https://github.com/PorkLittleHamburger/wechatbot/blob/main/tests/test_nonfriend_names.py). Test sources are not included in the portable package.
+The [audit record](onebot-v11-audit.md) retains the original findings and resolution mapping. Regression tests include consumers that read only standard fields, CQ round trips, four transports, role isolation, signatures, quick operations, recall IDs, account isolation and media restarts. Passing them does not certify every external framework or substitute for native receive-side verification. Test sources are in the source checkout, not the portable package.

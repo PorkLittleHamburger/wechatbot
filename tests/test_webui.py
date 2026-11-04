@@ -171,7 +171,7 @@ def test_network_save_applies_without_restarting_account(tmp_path: Path):
             assert runtime.network.http_servers[0] is not first_adapter
             with httpx.Client(base_url=f"http://127.0.0.1:{http_port}", timeout=3) as http:
                 assert http.post("/", headers={"Authorization": "Bearer onebot-token"},
-                                 json={"action": "get_status"}).status_code == 401
+                                 json={"action": "get_status"}).status_code == 403
                 assert http.post("/", headers={"Authorization": "Bearer rotated-token"},
                                  json={"action": "get_status"}).json()["status"] == "ok"
             assert runtime.driver is driver and driver.online

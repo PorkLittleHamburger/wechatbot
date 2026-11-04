@@ -2,18 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import hmac
-import json
 import logging
 from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
 
-from ...protocol import failure
 from ...service import OneBotService
 from .config import WsServerEndpoint
 from .events import EventConnection, EventHub
+from .requests import websocket_response
 
 
 logger = logging.getLogger("wechat-onebot.network.ws-server")
@@ -30,7 +28,7 @@ def _authorized(endpoint: WsServerEndpoint, headers, query) -> bool:
     if not endpoint.access_token:
         return True
     presented = _bearer(headers.get("authorization")) or (query.get("access_token") or "")
-    return hmac.compare_digest(presented, endpoint.access_token)
+    return hmac.compare_digest(presented.encode("utf-8"), endpoint.access_token.encode("utf-8"))
 
 
 class WsServerAdapter:
@@ -51,32 +49,42 @@ class WsServerAdapter:
             return {"ok": True, "adapter": "ws-server", "name": self.endpoint.name,
                     "connections": self.hub.count, "online": self.service.driver.online}
 
-        @app.websocket(self.endpoint.path)
         async def websocket_api(websocket: WebSocket):
+            role = paths[websocket.url.path]
             if not _authorized(self.endpoint, websocket.headers, websocket.query_params):
                 await websocket.close(code=1008, reason="access token invalid")
                 return
             await websocket.accept()
             connection = EventConnection(websocket.send_text, f"forward:{self.endpoint.name}:{websocket.client}")
-            await self.hub.add(connection)
+            if role != "API":
+                await self.hub.add(connection)
             try:
-                await connection.send_event(self.service.lifecycle_event("connect"))
+                if role != "API":
+                    await connection.send_event(self.service.lifecycle_event("connect"))
                 while True:
-                    raw = await websocket.receive_text()
-                    try:
-                        payload = json.loads(raw)
-                    except json.JSONDecodeError:
-                        await connection.send_event(failure(1400, "消息必须是 JSON"))
-                        continue
-                    if isinstance(payload, dict) and isinstance(payload.get("action"), str):
-                        response = await self.service.dispatch(payload["action"], payload.get("params"), payload.get("echo"))
-                        await connection.send_event(response)
-                    else:
-                        await connection.send_event(failure(1400, "消息必须包含 action"))
+                    message = await websocket.receive()
+                    if message["type"] == "websocket.disconnect":
+                        break
+                    raw = message.get("text")
+                    if raw is None:
+                        raw = message.get("bytes", b"")
+                    if role != "Event":
+                        await connection.send_event(await websocket_response(self.service, raw))
             except WebSocketDisconnect:
                 pass
             finally:
                 await self.hub.remove(connection)
+
+        paths = {"/": "Universal", "/api": "API", "/api/": "API",
+                 "/event": "Event", "/event/": "Event"}
+        configured = self.endpoint.path.rstrip("/") or "/"
+        # Keep custom Universal paths such as /ws and expose role paths beneath them.
+        if configured not in paths:
+            paths.update({configured: "Universal", configured + "/": "Universal",
+                          configured + "/api": "API", configured + "/api/": "API",
+                          configured + "/event": "Event", configured + "/event/": "Event"})
+        for path in paths:
+            app.add_api_websocket_route(path, websocket_api)
 
         return app
 

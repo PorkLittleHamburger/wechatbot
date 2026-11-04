@@ -74,7 +74,7 @@ async def test_send_group_at_text_uses_native_mention(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_astrbot_reply_at_text_uses_native_group_mention(tmp_path: Path):
+async def test_native_reply_unavailable_rejects_entire_chain(tmp_path: Path):
     service, driver, mapper, events = await make_service(tmp_path)
     try:
         groups = (await service.dispatch("get_group_list"))["data"]
@@ -89,13 +89,8 @@ async def test_astrbot_reply_at_text_uses_native_group_mention(tmp_path: Path):
                 {"type": "text", "data": {"text": "\n今日人品值：87 / 100"}},
             ],
         })
-        assert response["status"] == "ok"
-        assert len(driver.sent) == 1
-        assert driver.sent[0].kind == "at_text"
-        assert driver.sent[0].chat_id == "10001@chatroom"
-        assert driver.sent[0].payload["user_ids"] == ["wxid_alice"]
-        assert driver.sent[0].payload["display_names"] == ["Alice"]
-        assert driver.sent[0].payload["text"] == "\n今日人品值：87 / 100"
+        assert response["status"] == "failed" and response["retcode"] == 1404
+        assert driver.sent == []
     finally:
         await service.stop()
         mapper.close()
@@ -110,7 +105,7 @@ async def test_reply_only_and_other_unsupported_segments_do_not_send(tmp_path: P
         reply_only = await service.dispatch("send_private_msg", {
             "user_id": user_id, "message": [{"type": "reply", "data": {"id": "123"}}],
         })
-        assert reply_only["status"] == "failed" and reply_only["retcode"] == 1400
+        assert reply_only["status"] == "failed" and reply_only["retcode"] == 1404
         unsupported = await service.dispatch("send_private_msg", {
             "user_id": user_id,
             "message": [{"type": "text", "data": {"text": "hello"}},

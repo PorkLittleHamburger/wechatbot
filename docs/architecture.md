@@ -81,7 +81,7 @@ a two-stage handoff:
    own `temp` directory;
 2. the elevated helper validates the result, copies it into the account-isolated
    media workspace, removes the native temporary file, and only then emits the
-   final OneBot `image` or `file` segment.
+   final standard OneBot `image` segment or text download link for a generic file.
 
 The account data directory is detected from the running WeChat process and
 account ID. `driver.wechat_data_directory` is an optional explicit override.
@@ -117,3 +117,9 @@ The authoritative action list and segment limits are in [OneBot compatibility](o
 Inbound observations are stored before OneBot delivery; known nonempty names survive blank observations and restarts. Global nicknames and per-group cards are separate. A verified complete native member list replaces observed membership, while leave notices remove membership without erasing historical identity. Nickname lookup tries the friend cache, then the verified 4.1.15.56 non-friend LRU. Missing or unstable native records remain unavailable.
 
 The gateway emits separate `user_id` and `group_id` fields. External clients such as AstrBot may combine these into per-member session identifiers according to their own configuration; this does not change the gateway's group identity.
+
+## Standard message boundary
+
+`protocol/codec.py` normalizes CQ/string/array/object input and serializes complete `raw_message`. Parsed forwards are stored with standard `message`/`node` output plus optional compatibility metadata; old forward rows are projected at read time. The action layer rejects unavailable native semantics before sending. Protocol consumers never need a brand-specific SDK or history/capability extension to receive messages.
+
+Media registrations and download-cache entries are stored in `media.sqlite3` within each account media directory. Native source files must remain available; content IDs are validated against changed or missing files before serving. Account data and media directories must be migrated together.

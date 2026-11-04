@@ -42,7 +42,7 @@ def test_message_event_maps_ids_and_media(tmp_path: Path):
         assert event["user_id"] == mapper.get_or_create("user", "wxid_alice")
         assert event["message"][0] == {
             "type": "at",
-            "data": {"qq": mapper.get_or_create("user", "wxid_bob")},
+            "data": {"qq": str(mapper.get_or_create("user", "wxid_bob"))},
         }
         assert event["message"][1]["data"]["text"] == "hello"
         assert event["message"][2]["type"] == "image"

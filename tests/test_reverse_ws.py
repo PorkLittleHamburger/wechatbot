@@ -48,7 +48,6 @@ async def test_reverse_websocket_adapter_receives_lifecycle_and_actions(tmp_path
         await websocket.send(json.dumps({
             "action": "send_group_msg", "echo": {"seq": 2},
             "params": {"group_id": group_id, "message": [
-                {"type": "reply", "data": {"id": "-183402341"}},
                 {"type": "at", "data": {"qq": user_id, "name": "Alice"}},
                 {"type": "text", "data": {"text": "\n今日人品值：87 / 100"}},
             ]},

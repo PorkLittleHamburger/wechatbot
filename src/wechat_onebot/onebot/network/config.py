@@ -73,6 +73,7 @@ class HttpClientEndpoint:
     access_token: str
     timeout_seconds: float = 10.0
     enabled: bool = True
+    secret: str = ""
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "HttpClientEndpoint":
@@ -86,13 +87,16 @@ class HttpClientEndpoint:
         token = value.get("accessToken", "")
         timeout = value.get("timeoutSeconds", 10.0)
         enabled = value.get("enabled", True)
+        secret = value.get("secret", "")
+        if not isinstance(secret, str):
+            raise ConfigError("httpClients.secret 必须是字符串")
         if not isinstance(token, str):
             raise ConfigError("httpClients.accessToken 必须是字符串")
-        if type(timeout) not in (int, float) or not 0.5 <= float(timeout) <= 120:
-            raise ConfigError("httpClients.timeoutSeconds 必须在 0.5–120 之间")
+        if type(timeout) not in (int, float) or not (timeout == 0 or 0.5 <= float(timeout) <= 120):
+            raise ConfigError("httpClients.timeoutSeconds 必须为 0（无超时）或在 0.5–120 之间")
         if type(enabled) is not bool:
             raise ConfigError("httpClients.enabled 必须是布尔值")
-        return cls(name.strip(), url, token, float(timeout), enabled)
+        return cls(name.strip(), url, token, float(timeout), enabled, secret)
 
 
 @dataclass(frozen=True)
@@ -126,6 +130,7 @@ class WsClientEndpoint:
     access_token: str
     reconnect_seconds: float = 5.0
     enabled: bool = True
+    role: str = "Universal"
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "WsClientEndpoint":
@@ -139,13 +144,16 @@ class WsClientEndpoint:
         token = value.get("accessToken", "")
         reconnect = value.get("reconnectSeconds", 5.0)
         enabled = value.get("enabled", True)
+        role = value.get("role", "Universal")
+        if role not in ("Universal", "API", "Event"):
+            raise ConfigError("wsClients.role 必须是 Universal、API 或 Event")
         if not isinstance(token, str):
             raise ConfigError("wsClients.accessToken 必须是字符串")
         if type(reconnect) not in (int, float) or not 0.5 <= float(reconnect) <= 300:
             raise ConfigError("wsClients.reconnectSeconds 必须在 0.5–300 之间")
         if type(enabled) is not bool:
             raise ConfigError("wsClients.enabled 必须是布尔值")
-        return cls(name.strip(), url, token, float(reconnect), enabled)
+        return cls(name.strip(), url, token, float(reconnect), enabled, role)
 
 
 @dataclass(frozen=True)
@@ -156,9 +164,13 @@ class AccountNetworkConfig:
     ws_servers: tuple[WsServerEndpoint, ...]
     ws_clients: tuple[WsClientEndpoint, ...]
     group_mention_only: bool = False
+    rate_limit_interval_ms: int = 500
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "AccountNetworkConfig":
+        rate_limit = value.get("rateLimitIntervalMs", 500)
+        if type(rate_limit) is not int or rate_limit < 0:
+            raise ConfigError("rateLimitIntervalMs 必须是非负整数")
         mention_only = value.get("groupMentionOnly", False)
         if type(mention_only) is not bool:
             raise ConfigError("groupMentionOnly 必须是布尔值")
@@ -186,12 +198,13 @@ class AccountNetworkConfig:
         if len(binds) != len(set(binds)):
             raise ConfigError("HTTP/WS 服务端不能重复监听同一 host/port")
         return cls(float(heartbeat), *(parsed[key] for key in ("httpServers", "httpClients", "wsServers", "wsClients")),
-                   group_mention_only=mention_only)
+                   group_mention_only=mention_only, rate_limit_interval_ms=rate_limit)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "heartbeatIntervalSeconds": self.heartbeat_interval_seconds,
             "groupMentionOnly": self.group_mention_only,
+            "rateLimitIntervalMs": self.rate_limit_interval_ms,
             "httpServers": [{
                 "name": row.name, "host": row.host, "port": row.port, "path": row.path,
                 "accessToken": row.access_token, "enabled": row.enabled,
@@ -199,6 +212,7 @@ class AccountNetworkConfig:
             "httpClients": [{
                 "name": row.name, "url": row.url, "accessToken": row.access_token,
                 "timeoutSeconds": row.timeout_seconds, "enabled": row.enabled,
+                "secret": row.secret,
             } for row in self.http_clients],
             "wsServers": [{
                 "name": row.name, "host": row.host, "port": row.port, "path": row.path,
@@ -207,6 +221,7 @@ class AccountNetworkConfig:
             "wsClients": [{
                 "name": row.name, "url": row.url, "accessToken": row.access_token,
                 "reconnectSeconds": row.reconnect_seconds, "enabled": row.enabled,
+                "role": row.role,
             } for row in self.ws_clients],
         }
 

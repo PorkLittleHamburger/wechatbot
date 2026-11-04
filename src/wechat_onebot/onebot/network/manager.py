@@ -22,10 +22,12 @@ class OneBotNetworkManager:
     def __init__(self, service: OneBotService, config: AccountNetworkConfig):
         self.service = service
         self.config = config
+        self.service.rate_limit_interval_ms = config.rate_limit_interval_ms
         self.hub = EventHub()
         self.http_servers = [HttpServerAdapter(service, endpoint) for endpoint in config.http_servers if endpoint.enabled]
         self.ws_servers = [WsServerAdapter(service, self.hub, endpoint) for endpoint in config.ws_servers if endpoint.enabled]
-        self.http_clients = [HttpClientAdapter(endpoint) for endpoint in config.http_clients if endpoint.enabled]
+        self.http_clients = [HttpClientAdapter(endpoint, service.handle_quick_operation)
+                             for endpoint in config.http_clients if endpoint.enabled]
         self.ws_clients = [WsClientAdapter(service, self.hub, endpoint) for endpoint in config.ws_clients if endpoint.enabled]
         self._heartbeat_task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
@@ -53,7 +55,7 @@ class OneBotNetworkManager:
                 adapter.start()
             self._heartbeat_task = asyncio.create_task(self._heartbeat_loop(), name="onebot-heartbeat")
             self.started = True
-            await self.emit(self.service.lifecycle_event("connect"))
+            await self._http_lifecycle(self.http_clients, "enable")
         except Exception:
             if self._heartbeat_task is not None:
                 self._heartbeat_task.cancel()
@@ -81,6 +83,7 @@ class OneBotNetworkManager:
             self._heartbeat_task.cancel()
             await asyncio.gather(self._heartbeat_task, return_exceptions=True)
             self._heartbeat_task = None
+        await self._http_lifecycle(self.http_clients, "disable")
         await asyncio.gather(*(adapter.stop() for adapter in self.ws_clients), return_exceptions=True)
         await asyncio.gather(*(adapter.stop() for adapter in self.http_clients), return_exceptions=True)
         await asyncio.gather(*(adapter.stop() for adapter in self.ws_servers), return_exceptions=True)
@@ -94,7 +97,8 @@ class OneBotNetworkManager:
             new_ws_servers, add_ws_servers, drop_ws_servers = self._reconcile(
                 self.ws_servers, config.ws_servers, lambda endpoint: WsServerAdapter(self.service, self.hub, endpoint))
             new_http_clients, add_http_clients, drop_http_clients = self._reconcile(
-                self.http_clients, config.http_clients, HttpClientAdapter)
+                self.http_clients, config.http_clients,
+                lambda endpoint: HttpClientAdapter(endpoint, self.service.handle_quick_operation))
             new_ws_clients, add_ws_clients, drop_ws_clients = self._reconcile(
                 self.ws_clients, config.ws_clients, lambda endpoint: WsClientAdapter(self.service, self.hub, endpoint))
 
@@ -128,6 +132,8 @@ class OneBotNetworkManager:
                 for adapter in removed_servers:
                     if adapter not in stopped_conflicts:
                         await adapter.stop()
+                await self._http_lifecycle(drop_http_clients, "disable")
+                await self._http_lifecycle(add_http_clients, "enable")
                 await asyncio.gather(*(adapter.stop() for adapter in drop_http_clients))
                 await asyncio.gather(*(adapter.stop() for adapter in drop_ws_clients))
                 if config.heartbeat_interval_seconds != self.config.heartbeat_interval_seconds:
@@ -140,6 +146,7 @@ class OneBotNetworkManager:
             self.http_clients = new_http_clients
             self.ws_clients = new_ws_clients
             self.config = config
+            self.service.rate_limit_interval_ms = config.rate_limit_interval_ms
 
     @staticmethod
     def _reconcile(existing, endpoints, factory):
@@ -157,8 +164,22 @@ class OneBotNetworkManager:
                 or right.host in ("0.0.0.0", "::"))
 
     async def emit(self, event: dict[str, Any]) -> None:
-        await self.hub.broadcast(event)
         await asyncio.gather(*(adapter.send_event(event) for adapter in self.http_clients), return_exceptions=True)
+        await asyncio.gather(*(adapter.flush() for adapter in self.http_clients), return_exceptions=True)
+        await self.hub.broadcast(event)
+
+    async def _http_lifecycle(self, adapters, sub_type: str) -> None:
+        event = self.service.lifecycle_event(sub_type)
+        await asyncio.gather(*(adapter.send_event(event) for adapter in adapters))
+        # Enable is queued ahead of subsequent reports without holding account
+        # startup hostage to a remote response. Shutdown has a finite grace period;
+        # stop() then cancels the HTTP requests and drains pending queue entries.
+        if sub_type == "disable":
+            try:
+                async with asyncio.timeout(2):
+                    await asyncio.gather(*(adapter.flush() for adapter in adapters))
+            except TimeoutError:
+                logger.warning("HTTP 生命周期上报未在停机宽限内完成，取消未完成请求")
 
     async def _heartbeat_loop(self) -> None:
         while True:

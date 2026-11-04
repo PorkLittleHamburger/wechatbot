@@ -70,7 +70,7 @@ async def test_member_observation_not_global_contact_controls_group_lookup(tmp_p
         await driver.inject_message(chat_id="10001@chatroom", is_group=True)
         result = await service.dispatch("get_group_member_info", {"group_id": group, "user_id": user})
         assert result["data"]["nickname"] == "Alice"
-        assert result["data"]["card"] == "" and "role" not in result["data"]
+        assert result["data"]["card"] == "" and "role" in result["data"]["unavailable_fields"]
         driver.get_group_member_list = AsyncMock(return_value=())
         assert (await service.dispatch("get_group_member_info", {"group_id": group, "user_id": user}))["retcode"] == 1404
         driver.get_group_member_list = AsyncMock(side_effect=DriverError("unavailable again"))
@@ -91,7 +91,7 @@ async def test_unknown_user_not_fabricated_and_no_cache_refreshes(tmp_path):
         assert (await service.dispatch("get_stranger_info", {"user_id": alice}))["data"]["nickname"] == "Alice"
         driver.friends = (replace(driver.friends[0], nickname="New Alice"),)
         assert (await service.dispatch("get_stranger_info", {"user_id": alice, "no_cache": True}))["data"]["nickname"] == "New Alice"
-        assert (await service.dispatch("get_stranger_info", {"user_id": alice, "no_cache": "false"}))["retcode"] == 1400
+        assert (await service.dispatch("get_stranger_info", {"user_id": alice, "no_cache": "false"}))["retcode"] == 0
     finally:
         await service.stop()
         mapper.close()

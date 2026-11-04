@@ -22,12 +22,12 @@ Node Configuration / General Settings. Saving applies it to the selected account
 without restarting its bridge: when enabled, only group messages with a native
 mention of the bot are reported downstream. Private messages and non-message
 events remain enabled. Filtered group messages stay in local storage for quote
-resolution; outbound action calls are not restricted. This field is available
-in current source, not the published v0.8.6 ZIP.
+resolution; outbound action calls are not restricted. This field is included in v0.9.0.
 
 ```json
 {
   "heartbeatIntervalSeconds": 5,
+  "rateLimitIntervalMs": 500,
   "groupMentionOnly": false,
   "httpServers": [
     {
@@ -45,6 +45,7 @@ in current source, not the published v0.8.6 ZIP.
       "url": "http://127.0.0.1:8080/onebot/event",
       "accessToken": "reporter-token",
       "timeoutSeconds": 10,
+      "secret": "",
       "enabled": false
     }
   ],
@@ -64,6 +65,7 @@ in current source, not the published v0.8.6 ZIP.
       "url": "ws://127.0.0.1:8080/onebot/v11/ws",
       "accessToken": "reverse-token",
       "reconnectSeconds": 5,
+      "role": "Universal",
       "enabled": false
     }
   ]
@@ -75,8 +77,8 @@ in current source, not the published v0.8.6 ZIP.
 - Endpoint names must be non-empty and unique within each list.
 - Duplicate server `host:port` pairs are rejected across both server lists, including disabled entries. Wildcard binds and separate accounts can also conflict at runtime; different paths do not allow sharing a listener.
 - Access tokens are independent per endpoint. An omitted token defaults to an empty string; an empty server token disables action authentication. Configure non-empty credentials before exposing an endpoint.
-- HTTP client events use `Authorization: Bearer <accessToken>` when the token is non-empty. Reporting is outbound event delivery, not an action server or a durable retry queue.
-- Reverse WS clients send `Authorization: Bearer <accessToken>` when non-empty during the handshake, plus `X-Self-ID` and `X-Client-Role: Universal`. HTTP and forward WS action endpoints accept a Bearer token or the `access_token` query parameter.
+- HTTP client events include `X-Self-ID`, plus `Authorization: Bearer <accessToken>` when non-empty. Optional `secret` adds HMAC-SHA1 `X-Signature`. Response JSON can request standard quick replies; unsupported native operations are logged. Reports are not a durable retry queue. HTTP POST and quick operations finish before WS broadcast.
+- Reverse WS clients send `Authorization: Bearer <accessToken>` when non-empty during the handshake, plus `X-Self-ID` and the configured `X-Client-Role` (`Universal`, `API`, or `Event`). HTTP and forward WS action endpoints accept a Bearer token or the `access_token` query parameter.
 - Network changes saved in WebUI apply immediately. Unchanged endpoints retain their connections; the WeChat bridge does not need to be started or restarted.
 - Enabled saved endpoints resume with the management service. Stopping the WeChat bridge leaves the endpoints running and reports the account as offline.
 - Invalid JSON, a non-object root, and invalid validated fields are rejected rather than replaced with defaults. Unknown fields are ignored, and non-object entries in endpoint arrays are skipped; check spelling and saved output instead of relying on strict schema rejection.
@@ -91,6 +93,9 @@ in current source, not the published v0.8.6 ZIP.
 
 | Field | Default when omitted | Validation |
 |---|---|---|
+| `rateLimitIntervalMs` | 500 milliseconds | Nonnegative integer; queued `_rate_limited` action interval |
+| `httpClients[].secret` | Empty string | String; enables signing when nonempty |
+| `wsClients[].role` | `Universal` | `Universal`, `API`, or `Event` |
 | `heartbeatIntervalSeconds` | 5 seconds when parsing; a newly created account inherits the main config value | 0.5–300 seconds |
 | Endpoint lists | `[]` | Arrays |
 | `enabled` | `true` | JSON boolean |
@@ -98,7 +103,7 @@ in current source, not the published v0.8.6 ZIP.
 | Server `port` | Required | Integer 1–65535 |
 | HTTP / WS server `path` | `/` / `/ws` | Starts with `/`, contains no NUL |
 | `accessToken` | Empty string | String |
-| HTTP client `timeoutSeconds` | 10 seconds | 0.5–120 seconds |
+| HTTP client `timeoutSeconds` | 10 seconds | 0 for no timeout, otherwise 0.5–120 seconds |
 | WS client `reconnectSeconds` | 5 seconds | 0.5–300 seconds; retries back off after connection failures |
 | Client `url` | Required | HTTP(S) for HTTP clients, WS(S) for WS clients |
 
@@ -119,3 +124,11 @@ Implementation references: [network config](../src/wechat_onebot/onebot/network/
 [network manager](../src/wechat_onebot/onebot/network/manager.py),
 [account runtime](../src/wechat_onebot/core/runtime.py), and
 [network tests](https://github.com/PorkLittleHamburger/wechatbot/blob/main/tests/test_network_manager.py) (source checkout only).
+
+## Standard role and lifecycle paths
+
+HTTP actions are available at `/{action}` with GET/POST and query, URL-encoded form or JSON parameters. The configured envelope endpoint remains an optional extension. Forward WS offers `/`, `/api`, `/event`; a custom path such as `/ws` additionally offers `/ws/api` and `/ws/event`. API connections do not receive events, and Event connections do not execute actions. HTTP POST receives lifecycle `enable`/`disable`; event-capable WS connections receive `connect`. No client brand selects behavior.
+
+Media registrations persist in the account media directory as `media.sqlite3`. Keep that directory and source media during upgrades; a missing or changed file is unavailable even if its ID exists. Files previously registered by an older release outside the media directory need re-registration or explicit paths.
+
+Lifecycle enable is queued without waiting for the remote backend. Disabling/removing a reporter permits a two-second drain and then cancels unfinished HTTP work. `timeoutSeconds=0` still permits an ordinary report to wait indefinitely before WS broadcast; an administrator can remove the reporter or shut down the network to recover.

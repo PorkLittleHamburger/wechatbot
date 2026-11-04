@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-04** 对代码基线 `23f46eb`（v0.8.6）的维护快照；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-04** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前版本为 v0.9.0；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -41,9 +41,9 @@
 
 - 原生适配只承诺指定构建及指纹，不因版本号相同就放行。非好友昵称 LRU 只验证了 4.1.15.56；没有真实资料时可能缺名。
 - `get_stranger_info` 使用已映射、已观测资料，`no_cache` 只尝试刷新好友资料，不是任意陌生人联网查询。
-- 合并转发发送、撤回动作、群管理和原生引用回复仍不支持。`reply` 混合发送可省略引用效果；必须区分真实原生 @ 与普通文本标签。
-- 某些媒体状态可能只有文本占位、原始路径或空 URL；发送历史也可为 `[sent]` 占位。不能把这些状态当成完整媒体接收或收件回执。
-- 群消息未知角色可输出兼容默认值 `member`，不能证明真实群权限；观测成员资料可能省略角色。
+- 合并转发发送、撤回动作、群管理和原生引用回复仍不支持。出站 `reply` 整条失败，不再静默省略引用；必须区分真实原生 @ 与普通文本标签。
+- 不可用媒体在标准事件中使用明确的文本占位；底层原始诊断可能保留路径或空 URL。旧版发送历史可为 `[sent]` 占位；v0.9.0 新发送保存实际内容。不能把这些状态当成完整媒体接收或收件回执。
+- 群消息未知角色可输出兼容默认值 `member`，不能证明真实群权限；观测成员资料将未知角色标在 `unavailable_fields`，标准 `role` 使用保守的 `member`。
 - Helper 成员行缺少群昵称时，适配器的 `card` 可退回显示昵称；分开存储字段不等于每份 `card` 都是独立的真实群名片。
 - AstrBot UMO 可由用户和群组合。应核对消息实际路由配置中的 `unique_session`，而不是改 Bot 的群 ID。诊断须区分网关事件、客户端正文和微信 UI。
 - 日志位置以实例 `driver.helper_root` 为准；Release、源码和正在运行的实例可能是三个不同状态。详见 [故障排查](troubleshooting.md)。
@@ -66,12 +66,22 @@ v0.8.6 发布时记录：141 项 Bot、27 项相关 helper 回归通过；15 项
 
 ## 后续工作与交接更新
 
-2026-11-04 后续源码实现（尚未发布）：账号 `onebot.json` 新增布尔值 `groupMentionOnly`，WebUI 通用设置可热更新；仅过滤未原生 @ 到机器人的群消息上报，私聊正常，本地存储保留。新增 helper `replies.py` 解析 appmsg 57，`text_service.py` 在文件分流前交付引用正文。消息库新增 `native_message_ids` 和 `reference_snapshots`，按账号/会话保存原消息索引和未缓存引用的快照。OneBot `reply` 的 `get_msg` 可返回已缓存原图；未缓存媒体只给出不可用说明，快照不进入历史。`tests/test_inbound_replies.py` 覆盖解析、过滤、引用、隔离、重启和 WebUI 热更新；发布时复核并更新此未发布标记。
+2026-11-04 v0.9.0 功能：：账号 `onebot.json` 新增布尔值 `groupMentionOnly`，WebUI 通用设置可热更新；仅过滤未原生 @ 到机器人的群消息上报，私聊正常，本地存储保留。新增 helper `replies.py` 解析 appmsg 57，`text_service.py` 在文件分流前交付引用正文。消息库新增 `native_message_ids` 和 `reference_snapshots`，按账号/会话保存原消息索引和未缓存引用的快照。OneBot `reply` 的 `get_msg` 可返回已缓存原图；未缓存媒体只给出不可用说明，快照不进入历史。`tests/test_inbound_replies.py` 覆盖解析、过滤、引用、隔离、重启和 WebUI 热更新；这些功能已纳入 v0.9.0 源码与构建。
 
 优先补充外部客户端端到端兼容、长期运行/重连和媒体消费者可达性验证；这些是待验证方向，不是已确认缺陷或交付承诺。尚无覆盖所有原生能力的无人值守真实环境验收。
 
-2026-11-04 富引用扩展（当前源码、未发布）：`forwarded.py` 递归解析链接及嵌套记录，`ForwardedReceiver` 对整个树与引用内容共享原生图片接收流程；`protocol/rich_content.py` 生成 OneBot 内容与有序转发投影，`forward_messages` 表持久化账号隔离的 `get_forward_msg` 数据。未知原作者 ID 为 0，原时间文本不伪造时间戳；旧引用快照允许被更完整元数据补全。`tests/test_rich_quotes.py` 覆盖多个嵌套 XML 形式、共享额度、图片校验流程、引用与转发读取、缓存及重启。前一段“未缓存媒体只给出不可用说明”是第一阶段实现记录，现已扩展为在具有有效元数据时尝试原生接收；缺失/失败仍明确标注。完整契约见 [富消息与引用](rich-messages.md)。
+2026-11-04 v0.9.0 富引用扩展：`forwarded.py` 递归解析链接及嵌套记录，`ForwardedReceiver` 对整个树与引用内容共享原生图片接收流程；`protocol/rich_content.py` 生成 OneBot 内容与有序转发投影，`forward_messages` 表持久化账号隔离的 `get_forward_msg` 数据。未知原作者 ID 为 0，原时间文本不伪造时间戳；旧引用快照允许被更完整元数据补全。`tests/test_rich_quotes.py` 覆盖多个嵌套 XML 形式、共享额度、图片校验流程、引用与转发读取、缓存及重启。前一段“未缓存媒体只给出不可用说明”是第一阶段实现记录，现已扩展为在具有有效元数据时尝试原生接收；缺失/失败仍明确标注。完整契约见 [富消息与引用](rich-messages.md)。
 
 每次功能、配置、部署或验证状态变化后，同步相关指南与本文件；交接时复核远端 README。记录具体行为、代码入口和可重复验证，不写个人部署路径、账号或代理；明确区分已完成、待验证和规划。此次文档审计范围见 [审计记录](documentation-audit.md)。
 
-2026-11-04 v11 规范审计发现未修复差异：`get_forward_msg` 缺少标准 `message`/`node` 数组、CQ 与单对象输入不完整、HTTP/HTTP POST 行为有缺口、撤回 ID 未对应原消息、媒体索引只存内存等。当前不能宣称所有功能对任意严格 v11 应用通用；代码无 AstrBot 包依赖，但部分格式依赖宽松接入端。后续按 [v11 审计](onebot-v11-audit.md) 的优先级修复并新增标准消费者验收，本轮没有改动协议实现。
+2026-11-04 v0.9.0 修复 v11 核心通用性：标准转发节点、CQ 三种输入和 raw_message、HTTP GET/POST/form/JSON、HTTP POST 签名/快速回复、WS 三角色及 echo、异步/限速、生命周期、原消息撤回 ID、持久化媒体索引。标准测试不依赖 AstrBot。原始证据与修复映射见 [v11 审计](onebot-v11-audit.md)，当前能力与原生限制见 [兼容说明](onebot-compatibility.md)。
+
+接手要点：`protocol/codec.py` 统一消息表示；旧转发用 `canonical_forward` 读取投影。`service.handle_quick_operation` 复用动作发送路径，关闭时取消排队限速工作，已进入原生发送的异步动作必须排空后才关闭 helper，不能取消 `to_thread` 等待就误判原生调用已结束。`onebot/network/requests.py` 保留 echo 的缺省/显式 null 差异。媒体新增账号目录 `media.sqlite3`；迁移需保留媒体目录和原文件，旧版本未索引的外部媒体需重新注册。网络新增 `rateLimitIntervalMs`、HTTP 客户端 `secret` 和 WS 客户端 `role`，默认行为见网络配置。
+
+不要恢复静默丢弃出站 `reply` 的旧行为。微信原生引用、群管理、@全体、转发发送等仍明确不支持；未知通知操作者/子类型或无法关联原消息时，只记录诊断，不伪造标准事件。资料未知默认值与 `unavailable_fields` 不能用来判断真实权限。群成员变动仍更新本地成员观测。
+
+CR 修复重点：HTTP 生命周期 enable 不等待远端响应，停机/移除端点仅给予两秒排空宽限，随后取消未完成 HTTP 请求；普通 timeout=0 上报仍按配置等待，但不能锁死管理恢复。标准媒体 `file` 使用唯一内容 ID，避免不同图片同名后无法按收到的段直接回发。对应回归在 `test_standard_actions.py` 和 `test_transport_conformance.py`。
+
+v0.9.0 发布验证（2026-11-04）：277 项 Bot 回归及 45 项相关 helper 回归通过，源码 compileall、WebUI JavaScript 语法、文档链接及 27 项 vendor 哈希通过。两路独立 CR 的原生发送关闭竞态、HTTP 停机阻塞及同名媒体回发问题已修复并新增回归。原生 C++ 路径编译测试由 Windows CI 验证；本机未安装 MSVC/vswhere，未进行真实微信注入或发送。CI、正式附件和标签状态以发布页面为准，发布不会自动替换实例。
+
+HTTP 快速回复也必须创建服务所有的受保护任务；关闭上报连接只取消等待，服务仍在释放 helper 前等待真实发送结束。不要只为 `_async` / `_rate_limited` 追踪原生任务。
