@@ -7,7 +7,7 @@ Windows 11 x64 个人微信 OneBot v11 网关。本项目包含协议转换、�
 ## 功能
 
 - OneBot v11 HTTP API、HTTP 事件上报、正向 WebSocket 与反向 WebSocket。
-- 私聊、群聊、图片、文件、语音、表情和微信原生群 `@`。
+- 私聊与群聊文本、图片和文件收发，语音及文件形式的表情发送，微信原生群 `@`；具体类型限制见协议兼容说明。
 - 稳定且持久化的 OneBot 用户、群与消息 ID。
 - 本地 WebUI 管理账号扫描、桥接、OneBot 端点、日志和媒体存储。
 - Mock 驱动用于离线测试；Helper 驱动通过固定版本原生桥接读写真实微信消息。
@@ -15,12 +15,18 @@ Windows 11 x64 个人微信 OneBot v11 网关。本项目包含协议转换、�
 
 ## 系统要求
 
-- Windows 11 x64。
-- 源码开发建议使用 Python 3.13 x64。
-- 真实桥接需要安装并登录兼容的 PC 微信，目前验证版本为 **4.1.15.13** 和 **4.1.15.56**。
+- 当前验证平台为 Windows 11 x64。
+- 源码要求 Python 3.11+ x64，建议使用与 CI 一致的 Python 3.13；便携包内置解释器。
+- 真实桥接适配 PC 微信 **4.1.15.13 / 4.1.15.56** 的指定构建，还会核对核心 DLL 指纹；相同版本号不保证兼容。
 - 原生桥接需要管理员权限；Mock 模式不需要微信登录。
 
 PC 微信登录必须由用户在微信客户端中完成。WebUI 不提供扫码登录接口。
+
+## 下载与升级
+
+从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。
+
+使用外部 Launcher 时，先停止目标实例，导入新的 Bot 包并切换实例运行版本，再启动验证。发布 Release 不会自动替换本机实例；保留配置、账号数据和媒体目录。Launcher 的安装、更新和界面以其自身文档为准。
 
 ## 快速开始
 
@@ -39,7 +45,7 @@ python -m venv .venv
 .venv\Scripts\python.exe -m wechat_onebot --config config.json run --mock
 ```
 
-默认 WebUI 为 `http://127.0.0.1:5099/`。首次运行生成 `config.json` 和随机登录凭据；打开 WebUI 后设置管理密码。全新配置没有 OneBot 网络端点，在“节点配置”中添加并保存。
+默认 WebUI 为 `http://127.0.0.1:5099/`，实际地址以配置为准。配置不存在时会生成随机 Token；直接使用上述 Python 命令时，从 `config.json` 的 `webui.access_token` 取得首次登录 Token，登录后设置管理密码。全新账号没有 OneBot 网络端点，在“节点配置”中添加并保存。
 
 启动 Helper 单服务：
 
@@ -55,21 +61,17 @@ python -m venv .venv
 
 微信 4.1.15.56 的昵称读取先查好友缓存，再按用户 ID 查询已验证的非好友联系人 LRU 缓存，因此群成员不必先添加好友。该读取不触发网络刷新；微信尚未缓存资料时仍可能缺名，后续收到带昵称的消息或读取到成员资料后会补全。其他版本不套用这一内存布局。
 
-`config.example.json` 是配置字段样例；实际 `config.json` 和 `data/` 仅保留在本机，不纳入 Git。每个账号的网络配置位于 `data/accounts/<账号>/onebot.json`，ID 映射和媒体文件也按账号隔离。
+`config.example.json` 是带占位 Token 的字段样例，不应原样复制用于运行。实际 `config.json` 和运行数据仅保留在本机。默认账号网络配置为 `data/accounts/<账号>/onebot.json`，用户/群 ID 映射为同目录的 `ids.sqlite3`，消息 ID、消息及用户资料为 `messages.sqlite3`，媒体为 `data/media/<账号>/`。路径可由 `storage` 配置修改，相对路径按配置文件目录解析。
 
-备份或迁移时应保留配置、账号数据和媒体目录，并核对自定义组件路径。不要提交密码、Token、账号标识、消息内容或运行日志。
+备份或迁移时应先停止服务，再复制配置、完整账号数据和媒体目录，避免遗漏 SQLite WAL，并核对自定义组件路径。不要提交密码、Token、账号标识、消息内容或运行日志。
 
 端点、心跳、访问令牌和监听地址说明见 [网络配置](docs/network-config.md)。公开 API 与已知限制见 [OneBot 兼容说明](docs/onebot-compatibility.md)。
 
-### 桥接守护启动故障
+### 故障排查
 
-如果启动桥接时报“文件路径必须是本地路径，不支持网络路径或 URL”，可能是接收文件存储初始化将 `\\?\D:\...` 本地路径误判为网络路径。文件和语音校验支持这种本地盘符前缀并保留长路径能力；UNC、设备路径、URL、备用数据流和映射网络盘仍不支持。此修复需要更新实例使用的 Bot 运行版本。
+启动失败、日志定位、媒体路径与权限的完整步骤见 [故障排查](docs/troubleshooting.md)。下列路径均以当前实例的配置为准。
 
-文件、语音的原生发送入口也支持这种前缀；临时发送快照会为当前用户补充只读/遍历权限，让普通权限运行的微信能够读取管理员进程生成的快照。授权失败会中止本次发送并清理临时目录。
-
-如果提示“桥接 DLL 未正确加载”，错误详情会区分模块缺失与路径不符，并给出预期路径（路径不符时也给出实际路径）。Windows 的 `\\?\` 驱动器路径及 `\\?\UNC\` 网络路径会按完整路径统一比较；其他目录下的同名 DLL 仍会被拒绝。使用启动器时，确认实例已切换到包含修复的新运行版本。
-
-守护启动错误会区分提前退出（含退出码）和等待就绪超时，并显示日志绝对路径。`<helper_root>/logs/bridge_watchdog_startup.log` 保存启动输出，包括日志初始化前的导入错误；`bridge_watchdog.log` 保存守护运行日志。源码默认的 `helper_root` 为 `vendor/helper`；使用外部启动器时，以实例配置的 `driver.helper_root` 为准。读取日志需要与运行服务相应的文件访问权限。
+守护日志在当前 `driver.helper_root` 下的 `logs/bridge_watchdog_startup.log` 和 `logs/bridge_watchdog.log`；提前退出时后者可能尚未生成。DLL 完整路径比较、本地媒体路径校验与微信核心指纹是不同检查，不应通过放宽其中一项绕过其他检查。
 
 ## 测试与验证
 
@@ -89,6 +91,12 @@ pwsh -File .\scripts\build_portable.ps1
 ```
 
 产物位于 `dist/`，包含 `src`、`vendor`、`webui`、`assets`、内置 Python、启动脚本和文件校验清单。包内说明见 [PORTABLE_README.md](PORTABLE_README.md)。
+
+构建会下载或复用缓存的 CPython，并安装锁定依赖，需要相应网络或缓存。CI 验证构建，但不自动发布 Release。
+
+## 文档与交接
+
+全部指南见 [文档索引](docs/README.md)。新维护者及 AI 接手前须阅读 [AGENTS.md](AGENTS.md) 和 [开发交接](docs/HANDOVER.md)。`vendor/helper` 的插件、控制台和网页说明属于上游独立应用参考，不能视作本网关能力；适用范围见 [helper 边界说明](docs/vendor-helper.md)。
 
 ## 目录
 

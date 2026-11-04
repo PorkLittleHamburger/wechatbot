@@ -1,5 +1,7 @@
 # Product
 
+> Upstream helper product/design record, scoped to this directory's standalone application. It is not the WeChatBot gateway specification or current user authorization; see [integration boundaries](../../docs/vendor-helper.md).
+
 <!-- impeccable:product-schema 1 -->
 
 ## Platform
@@ -31,11 +33,11 @@ The operator starts a local Python service, normally with start_web.bat, and ope
 - Preserve existing local accounts, group settings, aliases, databases, and credentials during visual updates.
 - UI copy is Chinese and concise: keep task labels and necessary feedback; avoid repeated explanations. IDs and technical settings remain selectable and readable.
 - Support light and dark themes with browser-local preference; first use follows the system. The dark theme uses neutral black and gray surfaces, not green-tinted surfaces.
-- The supported native client is WeChat 4.1.15.13 x64 on Windows. The native bridge also forwards voice, video and sticker metadata. Monitoring uses placeholders; the default text anti-recall plugin separately caches supported sticker originals from WeChat CDN addresses and re-sends them after recall. Keep this cache bounded and account-isolated; never expose download credentials or raw XML to logs or models.
+- The native client profiles cover the exact fingerprinted Windows x64 builds of WeChat 4.1.15.13 and 4.1.15.56; capability-specific validation limits remain in native/README.md. The native bridge also forwards voice, video and sticker metadata. Monitoring uses placeholders; the standalone helper's default text anti-recall plugin separately caches supported sticker originals from WeChat CDN addresses and re-sends them after recall. Keep this cache bounded and account-isolated; never expose download credentials or raw XML to logs or models.
 
 ## Brand Commitments
 
-Retain the helper name. The user explicitly requested a less generic, less AI-looking interface and delegated design details and hierarchy to the designer. No binding palette, typeface, or illustration was supplied. The incumbent visual treatment may be replaced.
+Historical design brief: retain the helper name and use a less generic interface; design details and hierarchy were delegated in the original upstream conversation. This record does not authorize changes in the current repository or replace current user instructions.
 
 ## Evidence on Hand
 

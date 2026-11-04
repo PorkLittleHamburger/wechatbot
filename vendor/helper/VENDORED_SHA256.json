@@ -73,5 +73,40 @@
     "RelativePath": "wxbot_framework\\contacts.py",
     "Length": 21110,
     "SHA256": "B16D7896C0700DF18F3CC8F29EFAF4A28F17F7F1C0E5AC66D226947B6DD56C3B"
+  },
+  {
+    "RelativePath": "README.md",
+    "Length": 5437,
+    "SHA256": "061EEE7BFD0976FD191C380EDBDCE979B5B423E479EF4BA11AF7252B992A3C9E"
+  },
+  {
+    "RelativePath": "PRODUCT.md",
+    "Length": 6015,
+    "SHA256": "5ACF1530CD0850C0D95047D5BF930364F54043FE16ECDFBF4E00ABB5C9D1FF2F"
+  },
+  {
+    "RelativePath": "DESIGN.md",
+    "Length": 19535,
+    "SHA256": "CF8892BE259F290CEE68D760ADECEF6F7419546DF93368964D7FA9FB9CE2B393"
+  },
+  {
+    "RelativePath": ".impeccable\\surfaces\\webui-index-html.md",
+    "Length": 5660,
+    "SHA256": "623717549659B50FE41547F13DB98ABB7999001EC80F4AAAD3B2E7F82CDF3C9B"
+  },
+  {
+    "RelativePath": "docs\\development\\documentation.md",
+    "Length": 2214,
+    "SHA256": "04D261AAB24E3F5688A7F05C8E3ED3E09A922B2A5E722F1BC17127ABD269E9E1"
+  },
+  {
+    "RelativePath": "docs\\guide\\quick-start.md",
+    "Length": 3982,
+    "SHA256": "6DE1E885B9029116B13D198A1A0ED3DC8FF0E420C68EF0C3D1FADE54280186B6"
+  },
+  {
+    "RelativePath": "docs\\messages\\recall.md",
+    "Length": 6585,
+    "SHA256": "EB23DAB3702784495FCD843DDCD28751858B9C6411EF588996BCD6814E039352"
   }
 ]

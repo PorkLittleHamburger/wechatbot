@@ -1,5 +1,14 @@
 # Repository Guidelines
 
+## Required Handover & Documentation Maintenance
+
+新接手本项目的 AI 必须先阅读本文件、[开发交接](docs/HANDOVER.md) 和 [文档索引](docs/README.md)，再开展工作；交接中的版本、验证记录和待办是带日期的快照，必须核对当前代码与 Git 状态。
+
+- 每次改动后核对受影响的 README、配置、命令、能力限制及交接说明，保证与代码一致；阶段性交接或发布前清查全部项目文档及历史遗留描述。
+- 检查远端默认分支的 README，不能仅凭本地文档宣称远端已更新。使用通用路径、占位值和可配置条件，区分默认值、已实现能力、规划、上游 helper 功能和本机验证结果。
+- 更新交接中的架构入口、关键决策、已知限制、验证证据及未完成事项。不得把个人账号、实例 ID、绝对部署路径、代理地址或一次性测试结果写成通用要求。
+- 保留第三方原文和许可的来源边界；修改 vendored 文件时更新差异声明及相应哈希。验证后提交并推送；发布 Release 仍需用户明确确认。
+
 ## Project Structure & Module Organization
 
 This repository is the standalone Python OneBot v11 gateway for a personal Windows WeChat account. Run commands from the repository root.

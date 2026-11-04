@@ -1,5 +1,7 @@
 # helper
 
+> 集成说明：本目录是固定上游来源及本地补丁的 vendor 快照。下文的入口、端口、插件和配置属于 helper 独立应用，不是 WeChatBot 网关的使用说明。本网关入口见 [根 README](../../README.md)，本地差异和适用范围见 [helper 边界](../../docs/vendor-helper.md) 与 [第三方声明](../../THIRD_PARTY_NOTICES.md)。
+
 Windows 微信机器人 Python 插件框架，提供本地网页管理台和控制台入口。
 
 [在线文档](https://prometheus-first.github.io/helper/) · [快速开始](docs/guide/quick-start.md) · [插件开发](docs/development/plugins.md)

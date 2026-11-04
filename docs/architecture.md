@@ -3,14 +3,12 @@
 ## Layers
 
 ```text
-WeChat 4.1.15.x (Windows x64)
+WeChat 4.1.15.13 / 4.1.15.56 (verified Windows x64 builds)
         |
         v
-Bridge package
-  process/account discovery
-  per-account HelperBridgeSession
-  native DLL lifecycle + normalized bridge events
-  (`driver` is the low-level helper/mock transport implementation)
+Driver implementation + bridge helpers
+  driver/helper.py: native service lifecycle and event conversion
+  bridge/: discovery, process ownership and compatibility wrappers
         |
         v
 Protocol package
@@ -20,7 +18,8 @@ Protocol package
         |
         v
 OneBot package
-  action registry + validation
+  service.py: OneBotService orchestration and action handlers
+  onebot/: action definitions and parameter validation
   durable message/media stores
   per-account network manager
         |
@@ -36,7 +35,7 @@ WebUI
   session-cookie login + SSE state stream + account action proxy
 ```
 
-Each layer owns its account state and lifecycle. External bot applications connect through OneBot endpoints; bridge and management details remain inside the gateway.
+`AccountRuntime` composes account-owned state and lifecycle. These packages are organizational boundaries, not fully decoupled interfaces: the runtime calls `driver.create_driver`; `HelperBridgeSession` subclasses `HelperDriver`, and `OneBotInstance` aliases `OneBotService`. External bot applications connect through OneBot endpoints. The root [handover](HANDOVER.md) lists implementation entry points.
 
 ## Non-negotiable rules
 
@@ -50,14 +49,15 @@ Each layer owns its account state and lifecycle. External bot applications conne
 
 - `wxid` and `chatroom` IDs are external identifiers.
 - OneBot `user_id` and `group_id` are stable positive integers; message IDs are non-zero signed 32-bit integers.
-- Mappings are stored per account in `data/accounts/<account>/ids.sqlite3`.
-- Deterministic hashes are used first; collisions are resolved by sequential probing and stored permanently.
+- User/group mappings are stored per account in `data/accounts/<account>/ids.sqlite3`; deterministic hashes are used first, then sequential collision probing.
+- Message IDs, message history, user profiles and observed group membership are stored in `messages.sqlite3` beside that file. Message identity allocation is implemented separately in `onebot/message_id.py` and `onebot/message_store.py`.
+- These are default paths; `storage.data_dir` and `storage.media_dir` are configurable relative to the configuration file's directory.
 
 ## Driver contract
 
-The OneBot layer depends only on the Bridge session interface; the current native implementation is the helper adapter.
+`service.py` uses the `Driver` contract from `driver/base.py`; `core/runtime.py` creates helper or mock implementations. The `bridge` package provides related lifecycle/discovery helpers and compatibility names, rather than a separate transport abstraction used by every caller.
 
-Required message capabilities:
+Current helper capabilities include:
 
 - private/group text receive and send
 - native group mention
@@ -99,10 +99,20 @@ Core action surface:
 - `can_send_image`
 - `can_send_record`
 - `get_friend_list`
+- `get_stranger_info`
 - `get_group_list`
 - `get_group_info`
 - `get_group_member_list`
 - `get_group_member_info`
 - `get_msg`
+- `get_friend_msg_history`
+- `get_group_msg_history`
+- `get_capabilities` (extension)
 
-Unsupported methods return `retcode=1404`.
+The authoritative action list and segment limits are in [OneBot compatibility](onebot-compatibility.md). Unsupported methods return `retcode=1404`.
+
+## User profiles and client sessions
+
+Inbound observations are stored before OneBot delivery; known nonempty names survive blank observations and restarts. Global nicknames and per-group cards are separate. A verified complete native member list replaces observed membership, while leave notices remove membership without erasing historical identity. Nickname lookup tries the friend cache, then the verified 4.1.15.56 non-friend LRU. Missing or unstable native records remain unavailable.
+
+The gateway emits separate `user_id` and `group_id` fields. External clients such as AstrBot may combine these into per-member session identifiers according to their own configuration; this does not change the gateway's group identity.

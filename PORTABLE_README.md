@@ -4,9 +4,9 @@
 
 ## 启动
 
-1. 安装并登录受支持的 PC 微信版本。当前验证的 Windows x64 版本是 4.1.15.13 和 4.1.15.56。
+1. 安装并登录受支持的 PC 微信版本。当前适配 Windows x64 的 4.1.15.13 和 4.1.15.56 指定构建；还会核对核心 DLL 指纹。
 2. 双击 `start.cmd`。首次运行会在本目录生成 `config.json`，终端会显示首次登录 WebUI 的 Token。
-3. 打开 `http://127.0.0.1:5099/`，使用 Token 设置管理密码。
+3. 打开终端显示的 WebUI 地址（默认 `http://127.0.0.1:5099/`），使用 Token 设置管理密码；已有配置和管理密码会继续使用。
 4. 在“进程与账号”扫描已登录账号并设为机器人账号；在“节点配置”添加 OneBot HTTP、正向 WebSocket 或反向 WebSocket 端点并保存。
 5. 需要收发微信消息时，在账号页启动微信桥接。端点与桥接独立运行。
 
@@ -20,6 +20,8 @@
 
 ## 文件说明
 
+通过外部 Launcher 使用时，先停止目标实例，导入新的 Bot ZIP 并切换实例运行版本，再启动验证。独立运行时先停止服务，将新包解压到新目录并迁移配置和完整数据；核对自定义绝对路径。SQLite 数据应在服务停止后复制，避免遗漏 WAL。不要覆盖仍被实例引用的版本目录。
+
 | 路径 | 内容 |
 | --- | --- |
 | `start.cmd` | 单服务启动入口 |
@@ -30,5 +32,7 @@
 | `BUILD_MANIFEST.json` | 包版本和原生 DLL 校验值 |
 
 `config.json` 和 `data/` 只留在本机。请勿将它们随日志或报错截图公开。查看运行状态和报错请使用 WebUI“日志”页面。原生桥接的使用限制见 `THIRD_PARTY_NOTICES.md` 和 `vendor/helper/LICENSE`。
+
+`data/` 是默认位置，实际路径以 `storage.data_dir` 和 `storage.media_dir` 为准；相对路径按配置文件目录解析。更多说明见 [文档索引](docs/README.md) 和 [故障排查](docs/troubleshooting.md)。`vendor/helper` 的独立应用、插件与端口说明不代表本包的入口。
 
 桥接守护启动失败时，报错会给出日志绝对路径。启动输出（包括导入错误）在 `vendor/helper/logs/bridge_watchdog_startup.log`，运行日志在同目录的 `bridge_watchdog.log`；提前退出可能尚未生成运行日志。通过外部启动器运行时，日志位于实例所配置的 `driver.helper_root` 下的 `logs/`，读取时需具备对应权限。

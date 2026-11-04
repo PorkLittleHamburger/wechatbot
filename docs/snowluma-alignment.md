@@ -5,13 +5,15 @@ SnowLuma, with an independent Python implementation for the helper WeChat
 bridge. Reference and licensing information is in
 [Third-Party Notices](../THIRD_PARTY_NOTICES.md).
 
-## Layer ownership
+## Package responsibilities
+
+This is a design reference, not a claim of complete module separation. `core/runtime.py` currently creates drivers directly, `service.py` owns action orchestration, and `bridge/session.py` and `onebot/instance.py` retain thin compatibility names. See [current architecture](architecture.md) for the implemented call path.
 
 | Package | Responsibility |
 | --- | --- |
 | bridge | Process discovery, account identity, native DLL lifecycle and normalized bridge events |
 | protocol | Event conversion and stable external-to-OneBot identity mapping |
-| onebot | Action validation, message/media persistence and network adapters |
+| onebot + service.py | Action validation/orchestration, message/profile persistence and network adapters; media files are managed by media.py |
 | core | Account runtime composition, configuration and lifecycle |
 | webui | Account selection, bridge controls, network configuration and diagnostics |
 

@@ -79,7 +79,7 @@ def main() -> int:
     (target / "scripts").mkdir()
     for name in ("run_real.ps1", "run_mock.ps1", "wechat-onebot.ps1", "autostart.ps1"):
         shutil.copy2(ROOT / "scripts" / name, target / "scripts" / name)
-    for name in ("THIRD_PARTY_NOTICES.md", "config.example.json", "pyproject.toml",
+    for name in ("AGENTS.md", "PORTABLE_README.md", "THIRD_PARTY_NOTICES.md", "config.example.json", "pyproject.toml",
                  "start.cmd", "enable-autostart.cmd", "disable-autostart.cmd"):
         shutil.copy2(ROOT / name, target / name)
     shutil.copy2(ROOT / "PORTABLE_README.md", target / "README.md")

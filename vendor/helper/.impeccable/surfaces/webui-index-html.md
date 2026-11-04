@@ -7,8 +7,8 @@ related_targets: ["webui/style.css","webui/app.js"]
 
 # Local management console
 
-Mode: Operate. Scope: webui/index.html, webui/style.css, webui/app.js.
-The user confirmed the existing workflow and delegated priority and visual decisions. This is a code-led app redesign; no additional direction approval is needed under that delegation.
+Historical upstream design record. Its scope was helper's own webui/index.html, webui/style.css and webui/app.js, relative to vendor/helper.
+The original conversation delegated visual decisions for that redesign. This is historical context, not current user authorization or instructions for the WeChatBot gateway. See [integration boundaries](../../../../docs/vendor-helper.md).
 
 ## Direction exploration
 

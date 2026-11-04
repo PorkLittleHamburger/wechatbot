@@ -181,6 +181,8 @@ components:
 
 # Design System: helper 本地管理台
 
+> 上游 helper 独立应用的设计记录，范围为本目录下的 `webui/`；不作为根目录 WeChatBot WebUI 的强制设计规范。见 [集成边界](../../docs/vendor-helper.md)。
+
 ## Overview
 
 **Creative North Star: "往来目录"**
