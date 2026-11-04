@@ -8,7 +8,6 @@ import secrets
 import time
 from collections import deque
 from contextlib import asynccontextmanager
-from contextlib import suppress
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -23,7 +22,8 @@ from ..onebot.network import AccountNetworkConfig, load_or_create_account_networ
 from ..core.runtime import RuntimeManager, account_media_key
 from ..bridge import discover_logged_accounts
 from .auth import PasswordStore
-from .startup import autostart_task, load_last_bridge, save_last_bridge
+from .startup import autostart_task, load_last_bridge
+from .bridge_resume import BridgeResumeController
 
 
 COOKIE_NAME = "wechat_onebot_webui"
@@ -92,6 +92,9 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
     sessions = SessionStore()
     passwords = PasswordStore(config.storage.data_dir / "webui-auth.json")
     runtime_logs = _SafeRuntimeLogs()
+    bridge_resume = BridgeResumeController(config, manager, enabled=start_runtime,
+                                           check_seconds=RESUME_CHECK_SECONDS,
+                                           discover=lambda root: discover_logged_accounts(root))
     panel_path = Path(__file__).resolve().parents[3] / "webui" / "index.html"
     icon_path = panel_path.parent.parent / "assets" / "icons" / "wechat-onebot.svg"
 
@@ -110,57 +113,29 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             "configuredPid": config.driver.wechat_pid,
             "lastError": manager.last_error,
             "runtimes": manager.snapshot(),
+            "bridgeResume": bridge_resume.snapshot(),
         }
-
-    async def resume_last_bridge() -> None:
-        account = load_last_bridge(config.storage.data_dir)
-        if not account:
-            return
-        while load_last_bridge(config.storage.data_dir) == account:
-            current = manager.get(account)
-            if current is not None and current.started:
-                return
-            if config.driver.type == "helper":
-                try:
-                    accounts = await asyncio.to_thread(discover_logged_accounts, config.driver.helper_root)
-                except Exception:
-                    manager.last_error = "读取微信登录状态失败，正在重试"
-                    await asyncio.sleep(RESUME_CHECK_SECONDS)
-                    continue
-                if not any(row.wxid == account for row in accounts):
-                    manager.last_error = "等待上次桥接账号登录"
-                    await asyncio.sleep(RESUME_CHECK_SECONDS)
-                    continue
-            try:
-                await manager.start_account(account)
-                manager.last_error = ""
-                return
-            except Exception:
-                manager.last_error = "上次桥接账号已登录，桥接启动失败，正在重试"
-                await asyncio.sleep(RESUME_CHECK_SECONDS)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         root_logger = logging.getLogger()
         root_logger.addHandler(runtime_logs)
-        resume_task = None
         try:
             try:
                 await manager.start_saved_networks()
             except Exception as error:
                 manager.last_error = str(error)
-            if start_runtime:
-                resume_task = asyncio.create_task(resume_last_bridge())
+            await bridge_resume.initialize()
             yield
         finally:
-            if resume_task is not None:
-                resume_task.cancel()
-                with suppress(asyncio.CancelledError):
-                    await resume_task
-            root_logger.removeHandler(runtime_logs)
-            await manager.stop_all()
+            try:
+                await bridge_resume.close()
+            finally:
+                root_logger.removeHandler(runtime_logs)
+                await manager.stop_all()
 
     app = FastAPI(title="WeChat OneBot WebUI", version=config.version, lifespan=lifespan)
+    app.state.bridge_resume = bridge_resume
 
     @app.get("/healthz")
     async def healthz():
@@ -462,23 +437,20 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             return Response("未登录", status_code=401)
         pid = config.driver.wechat_pid if account == config.driver.wechat_account else None
         try:
-            await manager.start_account(account, pid)
-            try:
-                save_last_bridge(config.storage.data_dir, account)
-            except OSError:
-                manager.last_error = "桥接已启动，但无法保存下次自启账号"
-                return {"ok": True, "warning": manager.last_error}
-            manager.last_error = ""
+            warning = await bridge_resume.start_account(account, pid)
+            if warning:
+                return {"ok": True, "warning": warning}
             return {"ok": True}
         except Exception as error:
-            manager.last_error = str(error)
             return {"ok": False, "error": str(error)}
 
     @app.post("/api/accounts/{account}/stop")
     async def account_stop(account: str, request: Request):
         if not authorized(request):
             return Response("未登录", status_code=401)
-        await manager.stop_account(account)
+        warning = await bridge_resume.stop_account(account)
+        if warning:
+            return {"ok": True, "warning": warning}
         return {"ok": True}
 
     return app

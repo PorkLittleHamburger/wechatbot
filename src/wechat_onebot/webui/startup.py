@@ -15,18 +15,33 @@ def last_bridge_path(data_dir: Path) -> Path:
 
 
 def load_last_bridge(data_dir: Path) -> str | None:
+    return load_bridge_intent(data_dir)[0]
+
+
+def load_bridge_intent(data_dir: Path) -> tuple[str | None, str]:
     path = last_bridge_path(data_dir)
     if not path.is_file():
-        return None
+        return None, "stopped"
     value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError("startup.json 必须是 JSON 对象")
     account = value.get("last_account")
     if not isinstance(account, str) or not account:
         raise ValueError("startup.json 中的 last_account 无效")
-    return account
+    desired = value.get("desired", "running")
+    if desired not in ("running", "stopped"):
+        raise ValueError("startup.json 中的 desired 无效")
+    return account, desired
 
 
 def save_last_bridge(data_dir: Path, account: str) -> None:
-    _atomic_write_json(last_bridge_path(data_dir), {"last_account": account})
+    save_bridge_intent(data_dir, account, "running")
+
+
+def save_bridge_intent(data_dir: Path, account: str, desired: str) -> None:
+    if not isinstance(account, str) or not account or desired not in ("running", "stopped"):
+        raise ValueError("桥接恢复意图无效")
+    _atomic_write_json(last_bridge_path(data_dir), {"last_account": account, "desired": desired})
 
 
 def autostart_task(action: str) -> dict[str, bool]:

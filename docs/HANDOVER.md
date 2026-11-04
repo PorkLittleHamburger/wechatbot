@@ -111,3 +111,13 @@ CR 追加修复：Driver.validate_media 提供发送前检查钩子，Helper 复
 v0.9.2 验证记录：新增转发相关 89 项回归及 5 项独立媒体额度回归；全量 422 项通过，1 项符号链接权限相关测试跳过。CR 的四项 P2 已修复并复审无剩余发现；覆盖 Helper 纯格式检查、同链/跨链剩余额度、额外异常进度及空段工作预算。所有发送测试均为离线 Mock/纯文件校验，没有真实微信发送。
 
 2026-11-04 用户已明确授权发布 v0.9.2。功能提交为 `a901fcf`，对应 [Windows CI](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/41804657088) 已通过。发布包由最终发布提交构建，包含此次文档状态更新；正式状态以 [v0.9.2 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/tag/v0.9.2)、标签目标及附件摘要为准。发布不会替换运行实例或修改外部后端配置，真实微信分段发送仍待升级后验证。
+
+## v0.9.3 桥接恢复控制器（源码，待发布）
+
+2026-11-04 与独立 Launcher 项目核对：旧 worker 固定 `start_runtime=False`，实例恢复只启动管理服务；所选版本内的 worker 也不会随 Launcher 本体升级自动更新。修复需两侧配合，不能在 Bot 猜测所有管理启动都要求原生注入。
+
+`webui/bridge_resume.py` 统一启动恢复与显式启停，`app.state.bridge_resume` 暴露能力版本 1 和状态快照；WebUI `/api/status`/状态流附带 `bridgeResume`。目标已登录立即恢复，未登录持续只读等待；`RuntimeManager.start_account` 重新扫描 PID，并用 `AccountNotLoggedInError` 表示启动前目标离线，其他异常明确失败而非无限重试。`startup.json` 新增 `desired`，兼容旧 `last_account`；手动停止持久化 stopped，正常关闭只排空任务不清意图。控制器自有任务保护 HTTP 等待取消后的原生初始化，停止/关闭必须排空，不得恢复旧的取消 await 即释放 helper 的方式。
+
+Launcher 负责明确恢复设置/启动参数、所选 worker 能力握手及状态显示，不新增账号扫描。旧 worker 缺能力须提示升级/重新导入，不能只追加被忽略的参数或误报已恢复。集成契约、错误策略与验证边界见 [桥接自动恢复](bridge-resume.md)。本轮没有部署实际实例、修改运行配置或进行真实微信注入/发送；尚未发布新 Release。
+
+本轮验证：456 项 Bot 测试通过，1 项 Windows 符号链接权限测试跳过；编译、WebUI JavaScript 语法及 5 项前端恢复状态/目标选择场景通过，58 项 Markdown 相对链接与 27 项 vendor 哈希通过。独立 CR 的两项 P2 已修复并复审无剩余发现：失败切换账号后停止原持久化目标仍保存 stopped；关闭等待被重复取消时仍排空线程初始化再释放 runtime。Launcher 侧已用临时导入的验证包与实际嵌入 Python 运行 Mock 子进程，验证 running/stopped/no_target，并模拟未登录到登录和等待期间停止。此为离线跨仓库集成证据，不等同真实微信或 Windows 注销/登录验收；最终远端 CI 与提交状态需按当前分支核对。

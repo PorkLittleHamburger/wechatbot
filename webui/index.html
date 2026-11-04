@@ -676,10 +676,12 @@ function applyStatus(payload) {
   const previousProcessState = S.status && JSON.stringify([S.status.configuredAccount, (S.status.runtimes || []).map((r) => [r.account, r.pid, r.started, r.online])]);
   S.status = payload;
   const runtimes = payload.runtimes || [];
-  S.runtime = S.selectedAccount
-    ? (runtimes.find((r) => r.account === S.selectedAccount) || null)
+  const resumeAccount = payload.bridgeResume && payload.bridgeResume.enabled && payload.bridgeResume.account;
+  const preferredAccount = S.selectedAccount || resumeAccount;
+  S.runtime = preferredAccount
+    ? (runtimes.find((r) => r.account === preferredAccount) || null)
     : (runtimes.find((r) => r.account === payload.configuredAccount) || runtimes[0] || null);
-  S.account = S.selectedAccount || (S.runtime ? S.runtime.account : (payload.configuredAccount || null));
+  S.account = preferredAccount || (S.runtime ? S.runtime.account : (payload.configuredAccount || null));
   if (S.account !== previousAccount) {
     S.loginInfo = null; S.versionInfo = null; S.friends = null; S.groups = null;
     S.network = null; S.storage = null; S.caps = null; S.catalog = null;
@@ -709,13 +711,31 @@ function selectAccount(account, force = false) {
   render();
 }
 
+function bridgeResumeState() {
+  const resume = S.status && S.status.bridgeResume;
+  return resume && (!resume.account || resume.account === S.account) ? resume.state : "disabled";
+}
+
+function bridgeStatusText() {
+  const rt = S.runtime;
+  const states = {waiting_login: "等待微信登录", starting: "正在启动桥接", stopping: "正在停止桥接",
+    failed: "桥接启动或停止失败", no_target: "未选择恢复账号", stopped: "桥接已停止"};
+  if (["waiting_login", "starting", "stopping", "failed"].includes(bridgeResumeState())) return states[bridgeResumeState()];
+  if (rt && rt.online) return "在线";
+  return states[bridgeResumeState()] || (rt && rt.started ? "离线" : "未启动");
+}
+
+function canStopBridge() {
+  return !!(S.runtime && S.runtime.started) || ["waiting_login", "starting"].includes(bridgeResumeState());
+}
+
 function updateChrome() {
   const rt = S.runtime;
   const online = !!(rt && rt.online);
   const started = !!(rt && rt.started);
   const pill = $("#hdrStatus");
   pill.className = "pill" + (online ? " ok" : (started ? " bad" : ""));
-  $("#hdrStatusText").textContent = online ? "在线" : (started ? "离线" : "未启动");
+  $("#hdrStatusText").textContent = bridgeStatusText();
   $("#hdrSelf").textContent = rt && rt.self_id ? rt.self_id : "—";
   $("#hdrPid").textContent = rt && rt.pid ? rt.pid : "—";
   const nickname = (S.loginInfo && S.loginInfo.nickname && S.loginInfo.nickname.trim()) ||
@@ -937,7 +957,7 @@ function renderOverview(root) {
 function syncOverview() {
   const rt = S.runtime; if (!$("#ovOnline")) return;
   if (!rt) {
-    $("#ovOnline").textContent = "未启动";
+    $("#ovOnline").textContent = bridgeStatusText();
     $("#ovOnlineSub").textContent = "driver: " + ((S.status && S.status.driver) || "—");
     $("#ovAccount").textContent = S.account || "—";
     $("#ovAccountSub").textContent = S.account ? "已配置账号" : "未配置";
@@ -948,7 +968,7 @@ function syncOverview() {
   }
   const net = netOf();
   const online = !!rt.online;
-  $("#ovOnline").textContent = online ? "在线" : (rt.started ? "离线" : "未启动");
+  $("#ovOnline").textContent = bridgeStatusText();
   $("#ovOnline").className = "m-value " + (online ? "ok" : "bad");
   $("#ovOnlineSub").textContent = "driver: " + (S.status && S.status.driver || "—");
   const nick = (S.loginInfo && S.loginInfo.nickname && S.loginInfo.nickname.trim()) || "微信账号";
@@ -1077,13 +1097,13 @@ function renderAccount(root) {
     "<div class=\"card accent\"><div class=\"card-b\"><div class=\"acct\">" +
       "<div class=\"avatar lg\">" + esc(initial(nick)) + "</div>" +
       "<div class=\"ac-meta\"><h2>" + esc(nick) + "</h2><p>" + esc(wxid) + "</p>" +
-        "<div class=\"toolbar\" style=\"margin-top:9px\"><span class=\"pill " + (online ? "ok" : "bad") + "\"><i class=\"dot\"></i>" + (online ? "在线" : (rt && rt.started ? "离线" : "未启动")) + "</span>" +
+        "<div class=\"toolbar\" style=\"margin-top:9px\"><span class=\"pill " + (online ? "ok" : "bad") + "\"><i class=\"dot\"></i>" + bridgeStatusText() + "</span>" +
         "<span class=\"badge\">driver " + esc((S.status && S.status.driver) || "—") + "</span>" +
         "<span class=\"badge\">self_id " + esc((rt && rt.self_id) || "—") + "</span>" +
         "<span class=\"badge\" id=\"acPid\">PID " + esc((rt && rt.pid) || (S.status && S.account === S.status.configuredAccount && S.status.configuredPid) || "—") + "</span></div></div>" +
       "<div class=\"toolbar\"><button class=\"btn primary\" data-act=\"acct-start\"" + (!S.account || (rt && rt.started) || S.bridgeBusy ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-play\"/></svg>启动微信桥接</button>" +
         "<button class=\"btn\" data-act=\"acct-restart\"" + (!(rt && rt.started) || S.bridgeBusy ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-refresh\"/></svg>重启微信桥接</button>" +
-        "<button class=\"btn danger\" data-act=\"acct-stop\"" + (!(rt && rt.started) || S.bridgeBusy ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-stop\"/></svg>停止微信桥接</button></div>" +
+        "<button class=\"btn danger\" data-act=\"acct-stop\"" + (!canStopBridge() || S.bridgeBusy ? " disabled" : "") + "><svg class=\"i\"><use href=\"#i-stop\"/></svg>停止微信桥接</button></div>" +
     "</div></div></div>" +
     "<div class=\"grid metrics\">" +
       "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">协议端版本</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-cpu\"/></svg></span></div><div class=\"m-value mono\" id=\"acVer\">" + esc((S.versionInfo && S.versionInfo.app_version) || "—") + "</div><div class=\"m-sub\">app version</div></div>" +
@@ -1117,14 +1137,14 @@ function syncAccount() {
   const rt = S.runtime; const pill = document.querySelector("#view .acct .pill");
   if (pill) {
     pill.className = "pill " + (rt && rt.online ? "ok" : rt && rt.started ? "bad" : "");
-    pill.innerHTML = "<i class=\"dot\"></i>" + (rt && rt.online ? "在线" : (rt && rt.started ? "离线" : "未启动"));
+    pill.innerHTML = "<i class=\"dot\"></i>" + bridgeStatusText();
   }
   const m = $("#acMsg"); if (m && rt) m.textContent = String(rt.message_count ?? 0);
   const pid = $("#acPid"); if (pid) pid.textContent = "PID " + ((rt && rt.pid) || (S.status && S.account === S.status.configuredAccount && S.status.configuredPid) || "—");
   for (const action of ["start", "restart", "stop"]) {
     const button = $("[data-act='acct-" + action + "']");
     if (button && !button.classList.contains("busy")) button.disabled = S.bridgeBusy ||
-      (action === "start" ? !S.account || !!(rt && rt.started) : !(rt && rt.started));
+      (action === "start" ? !S.account || !!(rt && rt.started) : action === "stop" ? !canStopBridge() : !(rt && rt.started));
   }
 }
 
@@ -1902,7 +1922,10 @@ document.getElementById("view").addEventListener("click", async (event) => {
       const peers = ["acct-start", "acct-restart", "acct-stop"].map((name) => $("[data-act='" + name + "']")).filter((button) => button && button !== el);
       peers.forEach((button) => { button.disabled = true; });
       try {
-        if (act === "acct-stop") { await api(base + "/stop", { method: "POST" }); toast("微信桥接已停止，OneBot 端点保持运行", "ok"); }
+        if (act === "acct-stop") {
+          const result = await api(base + "/stop", { method: "POST" });
+          toast(result.warning || "微信桥接已停止，自动恢复已取消，OneBot 端点保持运行", result.warning ? "bad" : "ok");
+        }
         else if (act === "acct-start") { await startRuntime(base); toast("微信桥接已启动", "ok"); }
         else { await api(base + "/stop", { method: "POST" }); await new Promise((r) => setTimeout(r, 800)); await startRuntime(base); toast("微信桥接已重启", "ok"); }
         await refreshStatus(); ensureRuntimeData(); await loadProcesses(false);

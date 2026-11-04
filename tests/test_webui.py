@@ -423,6 +423,29 @@ def test_autostart_connects_as_soon_as_last_account_logs_in(tmp_path: Path, monk
     assert accounts == ["wxid_previous"]
 
 
+def test_waiting_resume_is_authenticated_cancellable_and_survives_restart(tmp_path, monkeypatch):
+    config = make_config(tmp_path)
+    config = replace(config, driver=replace(config.driver, type="helper"))
+    webui_startup.save_last_bridge(config.storage.data_dir, "wxid_previous")
+    monkeypatch.setattr(webui_server, "discover_logged_accounts", lambda _: [])
+    monkeypatch.setattr(webui_server, "RESUME_CHECK_SECONDS", 0.01)
+    manager = RuntimeManager(config)
+    app = create_webui_app(config, manager, start_runtime=True)
+    with TestClient(app) as client:
+        assert client.post("/api/accounts/wxid_previous/stop").status_code == 401
+        assert app.state.bridge_resume.snapshot()["desired"] == "running"
+        login_and_set_password(client)
+        snapshot = client.get("/api/status").json()["bridgeResume"]
+        assert snapshot["state"] == "waiting_login"
+        assert snapshot["supported"] and snapshot["version"] == 1
+        assert client.post("/api/accounts/wxid_previous/stop").json() == {"ok": True}
+        assert client.get("/api/status").json()["bridgeResume"]["state"] == "stopped"
+    second = create_webui_app(config, RuntimeManager(config), start_runtime=True)
+    with TestClient(second):
+        assert second.state.bridge_resume.snapshot()["state"] == "stopped"
+        assert second.state.bridge_resume.snapshot()["account"] == "wxid_previous"
+
+
 @pytest.mark.asyncio
 async def test_runtime_uses_current_account_pid_after_reboot(tmp_path: Path, monkeypatch):
     config = make_config(tmp_path)

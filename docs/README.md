@@ -10,6 +10,7 @@
 | [源码项目 README](https://github.com/PorkLittleHamburger/wechatbot/blob/main/README.md) | 源码环境安装、测试、构建及下载入口 |
 | [便携包说明](../PORTABLE_README.md) | 解压运行、升级、自启和数据迁移；构建时成为包内 README |
 | [网络配置](network-config.md) | 账号端点、鉴权、心跳及连接方向 |
+| [桥接自动恢复](bridge-resume.md) | 登录前后恢复、手动停止及 Launcher 能力握手 |
 | [OneBot 兼容说明](onebot-compatibility.md) | 已实现动作、消息段和外部客户端注意事项 |
 | [v11 通用性审计](onebot-v11-audit.md) | 原始差异、v0.9.0 修复映射及明确的原生限制 |
 | [富消息与引用](rich-messages.md) | 文本、链接、图片、嵌套转发及标准客户端读取方式 |

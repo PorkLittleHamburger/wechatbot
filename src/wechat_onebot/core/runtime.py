@@ -18,6 +18,10 @@ from ..onebot.network import (AccountNetworkConfig, OneBotNetworkManager,
                               load_or_create_account_network_config, save_account_network_config)
 
 
+class AccountNotLoggedInError(RuntimeError):
+    """The selected account disappeared before native startup began."""
+
+
 @dataclass
 class AccountRuntime:
     config: AppConfig
@@ -214,8 +218,10 @@ class RuntimeManager:
         if self.config.driver.type == "helper":
             discovered = await asyncio.to_thread(discover_logged_accounts, self.config.driver.helper_root)
             matches = [row for row in discovered if row.wxid == account]
+            if not matches:
+                raise AccountNotLoggedInError("目标账号未登录，请在 PC 微信中登录")
             if len(matches) != 1:
-                raise RuntimeError("目标账号未登录或无法唯一识别，请在 WebUI 重新扫描")
+                raise RuntimeError("目标账号无法唯一识别，请在 WebUI 重新扫描")
             pid = matches[0].pid
         async with self._lock:
             runtime = await self._ensure_network_locked(account)
