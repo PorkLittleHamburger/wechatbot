@@ -48,4 +48,4 @@ v0.9.0 支持下述能力。只解析收到的内容，不补读完整微信历�
 
 ## 转发发送与入站解析的区别
 
-v0.9.2 源码接收 `send_group_forward_msg` / `send_private_forward_msg` 并有界展开节点，再发送普通文本分段及已支持的普通媒体，不创建原生卡片。调用方无需人为提高长回复阈值。返回明确的转换模式、实际普通消息 ID 及部分发送进度；完整输入/失败语义见 [兼容说明](onebot-compatibility.md#forward-send-conversion-v092-source-not-yet-released)。入站 `get_forward_msg` 的标准读取机制保持独立。
+v0.9.2 源码接收 `send_group_forward_msg` / `send_private_forward_msg` 并有界展开节点，再发送普通文本分段及已支持的普通媒体，不创建原生卡片。调用方无需人为提高长回复阈值。返回明确的转换模式、实际普通消息 ID 及部分发送进度；完整输入/失败语义见 [兼容说明](onebot-compatibility.md#forward-send-conversion-v092)。入站 `get_forward_msg` 的标准读取机制保持独立。

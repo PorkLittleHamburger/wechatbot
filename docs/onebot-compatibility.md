@@ -63,7 +63,7 @@ The [audit record](onebot-v11-audit.md) retains the original findings and resolu
 
 v0.9.1 repairs quoted media delivery and accepts additional unambiguous forward XML container forms. Compact quotes without embedded records and without a cached original still cannot recover historical forward contents; see [rich-message diagnostics](rich-messages.md#quote-delivery-fix).
 
-## Forward-send conversion (v0.9.2 source, not yet released)
+## Forward-send conversion (v0.9.2)
 
 `send_group_forward_msg` takes `group_id` and a nonempty `messages` node array; `send_private_forward_msg` takes `user_id` and the same array. The gateway expands nodes into ordered ordinary message chains. This is an explicit content conversion, not native WeChat merged-forward support, and requires no particular framework or threshold change.
 

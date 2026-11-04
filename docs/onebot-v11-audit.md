@@ -19,7 +19,7 @@
 
 微信原生缺失的能力不会伪装实现：出站引用、@全体、群管理及合并转发发送仍明确失败。收到的文件用标准文本下载链接、微信贴图用图片表示；历史/能力查询为可选扩展。完整当前支持矩阵见 [兼容说明](onebot-compatibility.md)。本轮不以某个框架宽松解析作为验收条件。
 
-v0.9.2 源码新增 `send_group_forward_msg` / `send_private_forward_msg` 的普通消息转换扩展（16 个标准名称 + 5 个扩展名称），原生合并转发卡片仍未实现。它是用户明确要求的降级发送，返回真实普通消息 IDs 及转换模式，当前契约见 [兼容说明](onebot-compatibility.md#forward-send-conversion-v092-source-not-yet-released)。
+v0.9.2 源码新增 `send_group_forward_msg` / `send_private_forward_msg` 的普通消息转换扩展（16 个标准名称 + 5 个扩展名称），原生合并转发卡片仍未实现。它是用户明确要求的降级发送，返回真实普通消息 IDs 及转换模式，当前契约见 [兼容说明](onebot-compatibility.md#forward-send-conversion-v092)。
 
 以下为原始报告：
 

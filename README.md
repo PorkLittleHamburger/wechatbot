@@ -30,11 +30,11 @@ v0.9.0 包含以下能力（升级后才应用于运行实例）：
 
 - 在“节点配置 → 通用设置”开启“群聊仅被 @ 时互动”，保存后对当前账号立即生效；默认关闭。只上报原生 @ 到机器人的群消息，私聊保持正常，其他群消息仍在本地保存供引用使用。它不限制外部客户端主动调用发送 API。
 - 微信引用聊天（appmsg type 57）转换为 OneBot `reply` 段。`get_msg` 优先返回同账号、同会话的已缓存原消息；引用携带完整内容时，也会解析文本、链接和合并转发，并通过原生接口接收可用图片。
-- 合并转发保留作者、原时间文本、消息顺序和嵌套结构；标准客户端可通过 `get_forward_msg` 的 `message` / `node` 数组取得文字、链接与图片。解析有共享的深度、条数和媒体额度，缺失、失败或截断均明确标注。出站微信原生引用回复、合并转发发送仍不支持。详见 [富消息与引用](docs/rich-messages.md)。
+- 合并转发保留作者、原时间文本、消息顺序和嵌套结构；标准客户端可通过 `get_forward_msg` 的 `message` / `node` 数组取得文字、链接与图片。解析有共享的深度、条数和媒体额度，缺失、失败或截断均明确标注。出站微信原生引用回复、原生合并转发卡片发送仍不支持。详见 [富消息与引用](docs/rich-messages.md)。
 
 v0.9.1 修复反向 WS 单独启用时的引用图片 URL，补充转发容器解析与脱敏诊断。原消息未缓存且引用不含记录正文时，仍不能自动拉取历史转发；详见 [引用故障说明](docs/rich-messages.md)。
 
-当前 v0.9.2 源码（待发布）支持将 `send_group_forward_msg` / `send_private_forward_msg` 的节点按顺序转成普通消息发送，避免长回复因合并转发能力缺失而整条失败。不会生成原生聊天记录卡片；详见 [兼容说明](docs/onebot-compatibility.md#forward-send-conversion-v092-source-not-yet-released)。
+v0.9.2 支持将 `send_group_forward_msg` / `send_private_forward_msg` 的节点按顺序转成普通消息发送，避免长回复因合并转发能力缺失而整条失败。不会生成原生聊天记录卡片；详见 [兼容说明](docs/onebot-compatibility.md#forward-send-conversion-v092)。
 
 ## 下载与升级
 
