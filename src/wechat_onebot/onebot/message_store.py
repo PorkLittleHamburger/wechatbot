@@ -60,6 +60,9 @@ class MessageStore:
             message_id INTEGER NOT NULL, PRIMARY KEY(account, session_key, native_id))""")
         self._db.execute("""CREATE TABLE IF NOT EXISTS reference_snapshots (
             message_id INTEGER PRIMARY KEY, account TEXT NOT NULL, payload TEXT NOT NULL)""")
+        self._db.execute("""CREATE TABLE IF NOT EXISTS forward_messages (
+            account TEXT NOT NULL, forward_id TEXT NOT NULL, payload TEXT NOT NULL,
+            PRIMARY KEY(account, forward_id))""")
         # Backfill pre-existing rows with a deterministic local order.
         self._db.execute(
             "INSERT OR IGNORE INTO message_order(message_id) "
@@ -238,9 +241,28 @@ class MessageStore:
     def put_reference(self, message_id: int, account: str, payload: dict[str, Any]) -> None:
         # Quoted metadata is queryable, but is not a newly received history event.
         with self._lock:
-            self._db.execute("INSERT OR IGNORE INTO reference_snapshots VALUES (?,?,?)",
+            self._db.execute("INSERT INTO reference_snapshots VALUES (?,?,?) ON CONFLICT(message_id) "
+                             "DO UPDATE SET payload=excluded.payload WHERE reference_snapshots.account=excluded.account",
                              (message_id, account, json.dumps(payload, ensure_ascii=False)))
             self._db.commit()
+
+    def is_reference(self, message_id: int, account: str) -> bool:
+        with self._lock:
+            return self._db.execute('SELECT 1 FROM reference_snapshots WHERE message_id=? AND account=?',
+                                    (message_id, account)).fetchone() is not None
+
+    def put_forward(self, account: str, forward_id: str, payload: dict[str, Any]) -> None:
+        with self._lock:
+            self._db.execute('INSERT INTO forward_messages VALUES (?,?,?) ON CONFLICT(account,forward_id) '
+                             'DO UPDATE SET payload=excluded.payload',
+                             (account, forward_id, json.dumps(payload, ensure_ascii=False)))
+            self._db.commit()
+
+    def get_forward(self, account: str, forward_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._db.execute('SELECT payload FROM forward_messages WHERE account=? AND forward_id=?',
+                                   (account, forward_id)).fetchone()
+            return json.loads(row[0]) if row else None
 
     def history(
         self,

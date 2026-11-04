@@ -21,3 +21,6 @@ vendor/helper/docs/guide/quick-start.md text eol=lf
 vendor/helper/docs/messages/recall.md text eol=lf
 vendor/helper/wxbot_framework/replies.py text eol=lf
 vendor/helper/native/text_service.py text eol=lf
+vendor/helper/wxbot_framework/forwarded.py text eol=lf
+vendor/helper/wxbot_framework/forwarded_receiver.py text eol=lf
+vendor/helper/docs/messages/forwarded.md text eol=lf

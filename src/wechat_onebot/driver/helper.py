@@ -91,7 +91,7 @@ class HelperDriver(Driver):
     capabilities = frozenset({
         "text.receive", "text.send", "group.text.mention", "image.receive", "image.send",
         "file.receive", "file.send", "voice.send", "emoticon.send", "contact.read",
-        "group.members.read", "request.friend", "message.recall",
+        "group.members.read", "request.friend", "message.recall", "forwarded.receive",
     })
 
     def __init__(self, app_config: AppConfig):
@@ -315,7 +315,13 @@ class HelperDriver(Driver):
             text = strip_at_labels(text)
         if text:
             segments.append(Segment("text", {"text": text}))
-        if msg_type == 3:
+        if data.get('app_type') in (5, 19):
+            from ..protocol.rich_content import rich_segments
+            forwarded = data['app_type'] == 19
+            segments.extend(rich_segments(data.get('forwarded_records' if forwarded else 'rich_records', []),
+                is_forward=forwarded, title=data.get('forwarded_title', ''),
+                truncated=bool(data.get('forwarded_truncated'))))
+        elif msg_type == 3:
             path = data.get("image_path") or ""
             segments.append(Segment("image", {"file": str(path)}) if path else Segment("text", {"text": "[图片]"}))
         elif msg_type == 49 and data.get("app_type") != 57:
@@ -390,13 +396,20 @@ class HelperDriver(Driver):
         at_members = tuple(str(item) for item in data.get("at_members", ()) if item)
         for member in at_members:
             segments.append(Segment("at", {"qq": member}))
-        text = (data.get("msg") or "") if data.get("app_type") == 57 else (message.text or "")
+        text = ((data.get("msg") or "") if data.get("app_type") == 57 else
+                '' if data.get('app_type') in (5, 19) else (message.text or ""))
         if at_members and text:
             from wxbot_framework.mentions import strip_at_labels
             text = strip_at_labels(text)
         if text:
             segments.append(Segment("text", {"text": text}))
-        if msg_type == 3:
+        if data.get('app_type') in (5, 19):
+            from ..protocol.rich_content import rich_segments
+            forwarded = data['app_type'] == 19
+            segments.extend(rich_segments(data.get('forwarded_records' if forwarded else 'rich_records', []),
+                is_forward=forwarded, title=data.get('forwarded_title', ''),
+                truncated=bool(data.get('forwarded_truncated'))))
+        elif msg_type == 3:
             path = message.image_path
             segments.append(Segment("image", {"file": str(path)}) if path else Segment("text", {"text": "[图片]"}))
         elif msg_type == 49 and data.get("app_type") != 57:

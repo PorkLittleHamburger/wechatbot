@@ -7,14 +7,18 @@ from .image_receiver import ImageReceiver
 
 
 class ForwardedReceiver(ImageReceiver):
-    def submit(self, data, forwarded):
+    def submit(self, data, forwarded, *, reference=False):
         if not isinstance(data, dict) or not isinstance(forwarded, ForwardedMessage):
             raise ValueError('合并转发需要已解析的消息')
         if not self._active():
             return False
         # 凭据只在已校验的元数据对象中排队，不进入插件事件或管理台。
         snapshot = {key:value for key,value in data.items() if key not in ('raw_content', 'msg', 'content', 'monitor_only')}
-        snapshot.update(forwarded.public())
+        if reference:
+            snapshot['reply'] = dict(data['reply'], records=forwarded.public()['forwarded_records'])
+            snapshot.update(msg=data.get('msg', ''), content=data.get('content', ''))
+        else:
+            snapshot.update(forwarded.public())
         snapshot['forwarded_status'] = 'ready'
         full = False
         with self._enqueue_lock:
@@ -25,7 +29,7 @@ class ForwardedReceiver(ImageReceiver):
             except queue.Full:
                 full = True
         if full:
-            for item in snapshot['forwarded_records']:
+            for _, item in self._items(forwarded.items, self._rows(snapshot)):
                 if item.get('image_status') == 'pending':
                     item.update(image_status='failed', image_error='转发接收队列已满')
             snapshot['forwarded_status'] = 'partial'
@@ -33,16 +37,25 @@ class ForwardedReceiver(ImageReceiver):
             return False
         return True
 
+    @staticmethod
+    def _rows(data):
+        return data['reply']['records'] if data.get('app_type') == 57 else data['forwarded_records']
+
+    @classmethod
+    def _items(cls, items, rows):
+        for item, row in zip(items, rows):
+            yield item, row
+            yield from cls._items(item.children, row.get('children', []))
+
     def _process(self, data, forwarded):
         saved = []
         delivered = False
         try:
-            for index, item in enumerate(forwarded.items):
+            for item, row in self._items(forwarded.items, self._rows(data)):
                 if not self._active():
                     return
                 if item.kind != 'image':
                     continue
-                row = data['forwarded_records'][index]
                 if item.image is None:
                     data['forwarded_status'] = 'partial'
                     continue
@@ -50,7 +63,8 @@ class ForwardedReceiver(ImageReceiver):
                     body = self._download(item.image)
                     if body is None or not self._active():
                         return
-                    if len(body) != item.image_size or hashlib.md5(body).hexdigest() != item.image.md5:
+                    if ((item.image_size and len(body) != item.image_size) or
+                            hashlib.md5(body).hexdigest() != item.image.md5):
                         raise ValueError('图片校验失败')
                     path = self.store.save(body, sequence=data.get('sequence'))
                     saved.append(path)

@@ -29,6 +29,7 @@
 | `get_group_member_list` | Implemented | requires a ready WeChat group-member cache |
 | `get_group_member_info` | Implemented | native member list, with observed membership fallback only when that list cannot be read |
 | `get_msg` | Implemented | durable per-account SQLite storage; signed 32-bit IDs |
+| `get_forward_msg` | Implemented in current source | persisted parsed forwards; accepts `id` or `message_id`, returns `messages`, `records`, `status`, `truncated`; unavailable IDs fail with 1404 |
 | `get_friend_msg_history` | Implemented | local per-account store, optional `message_id` cursor |
 | `get_group_msg_history` | Implemented | local per-account store, optional `message_id` cursor |
 | `can_send_image` | Implemented | `yes` requires an online driver and `image.send` |
@@ -40,7 +41,6 @@
 The following actions are absent from the action registry. With valid request parameters they return `status=failed`, `retcode=1404`; they do not report fake success. This list is illustrative: every unregistered action fails the same way (a non-object `params` is rejected first with `1400`).
 
 - `delete_msg`
-- `get_forward_msg`
 - `send_group_forward_msg`
 - `send_private_forward_msg`
 - `set_group_kick`
@@ -78,7 +78,9 @@ contact profile or invent permissions from a nickname/card.
 
 ## Inbound message segments
 
-Current source (not the published v0.8.6 ZIP) converts WeChat appmsg type 57 quotes into `reply` segments whose IDs are local signed 32-bit message IDs. AstrBot's `get_msg` lookup returns the original cached message when the native server ID and author match within the same account and conversation. Native-ID aliases persist across restarts. If the original is absent, a separate metadata snapshot supplies quoted text or an explicit unavailable-media placeholder, with unknown original time `0`; snapshots do not enter message history or emit events. Quote XML never triggers arbitrary media downloads. Outbound native quoted replies remain unsupported.
+Current source (not the published v0.8.6 ZIP) converts WeChat appmsg type 57 quotes into `reply` segments whose IDs are local signed 32-bit message IDs. AstrBot's `get_msg` lookup returns the original cached message when the native server ID and author match within the same account and conversation. Native-ID aliases persist across restarts. If the original is absent, a separate snapshot supplies embedded text, links, parsed forwards and images obtained through the account-bound native receiver. Missing or failed media remains explicit; unknown original time is `0`. Snapshots do not enter history or emit events and can be refreshed when richer quoted metadata arrives. No arbitrary HTTP media downloader is invoked. Outbound native quoted replies remain unsupported.
+
+Ordinary link cards (appmsg 5) produce text with title/URL/description and an additional `data.link` object. Forwarded histories (appmsg 19) produce `forward` segments. `get_forward_msg` returns an ordered, flattened OneBot `messages` list with nested boundaries for AstrBot, plus the normalized hierarchical `records` tree. Display authors are preserved as names; unknown verified IDs are `0`, not invented account mappings. Native time text is retained separately; it is not guessed into a Unix timestamp. See [rich messages](rich-messages.md) for limits and availability states.
 
 The per-account `groupMentionOnly` setting defaults to false. When true, message events from groups reach downstream clients only when their native `at` segments target the bot itself; visible names, mentions of other members, and quote metadata do not qualify. Private messages and notices are unaffected. All observed group messages are still persisted before filtering, so later quotes can resolve them. This setting does not block outbound action calls.
 
@@ -97,7 +99,7 @@ On the verified WeChat 4.1.15.56 build, nickname lookup checks the friend cache 
 ## Message segment rules
 
 - A `reply` segment is accepted as metadata when the chain contains sendable content. The native bridge cannot create a quoted WeChat reply, so the quote is omitted; group `at` remains a real native mention. A reply-only chain fails without sending.
-- `node`, `forward`, `json`, `xml`, `video`, `contact`, `music` are rejected as unsupported.
+- Outbound `node`, `forward`, `json`, `xml`, `video`, `contact`, `music` segments are rejected as unsupported; inbound parsed `forward` segments and `get_forward_msg` are supported independently.
 - `at` is group-only, uses a known numeric OneBot user ID in `data.qq`, and requires non-empty text in the chain. `qq="all"` is unsupported (`1404`); private `at` or a chain without sendable content fails with `1400`.
 - Group sends pass resolved native user IDs to `send_at_text`; a visible `@name` string alone does not create a mention. Display names prefer explicit `data.name`, then stored group card/nickname, then the native ID. Inbound mention metadata identifies targets and does not itself contain their nicknames.
 - String messages are sent as plain text; use segment arrays for `at`, media and reply metadata. CQ-code strings are not parsed into segments.

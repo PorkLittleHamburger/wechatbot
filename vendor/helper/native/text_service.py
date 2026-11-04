@@ -405,10 +405,37 @@ class NativeTextService(NativeFileHelperService):
                 if quoted is not None and data['sender_id']:
                     data.update(app_type=57, reply=quoted['reply'],
                                 msg=quoted['text'], content=quoted['text'])
+                    from wxbot_framework.forwarded import parse_reference_content
+                    rich = parse_reference_content(data['reply']['type'], data['reply']['content'])
+                    if rich is not None:
+                        data['reply'].update(records=rich.public()['forwarded_records'],
+                            title=rich.title, is_forward=rich.is_forward, truncated=rich.truncated)
+                        if data['reply']['type'] != 1:
+                            data['reply']['content'] = ''
+                        from wxbot_framework.forwarded_receiver import ForwardedReceiver
+                        rows = list(ForwardedReceiver._items(rich.items, data['reply']['records']))
+                        images = any(item.kind == 'image' for item, _ in rows)
+                        receiver = getattr(self, '_forwarded_receiver', None)
+                        allowed = images and (not self.image_allowlist or data['chat_id'] in self.image_allowlist)
+                        if images and receiver is not None and allowed:
+                            receiver.submit(data, rich, reference=True)
+                            return None
+                        for _, row in rows:
+                            if row.get('image_status') == 'pending':
+                                row.update(image_status='unavailable', image_error='引用图片接收器不可用或会话不允许下载')
+                    return data
+                from wxbot_framework.forwarded import parse_link, ForwardedError
+                try:
+                    link = parse_link(data['raw_content'])
+                except ForwardedError:
+                    link = None
+                if link is not None:
+                    data.update(app_type=5, rich_records=link.public()['forwarded_records'],
+                                forwarded_truncated=link.truncated)
                     return data
                 from wxbot_framework.forwarded import ForwardedError, parse_forwarded
                 try:
-                    forwarded = parse_forwarded(body)
+                    forwarded = parse_forwarded(data['raw_content'])
                 except ForwardedError as error:
                     if error.forwarded or '<recorditem' in body:
                         data.update(app_type=19, forwarded_status='failed')
@@ -417,7 +444,8 @@ class NativeTextService(NativeFileHelperService):
                     data['forwarded_status'] = 'pending'
                     if self.image_allowlist and data['chat_id'] not in self.image_allowlist:
                         data['forwarded_status'] = 'metadata'
-                        for item in data['forwarded_records']:
+                        from wxbot_framework.forwarded_receiver import ForwardedReceiver
+                        for _, item in ForwardedReceiver._items(forwarded.items, data['forwarded_records']):
                             if item.get('image_status') == 'pending':
                                 item['image_status'] = 'skipped'
                 if getattr(message, 'reserved', 0) & 1:
@@ -435,9 +463,16 @@ class NativeTextService(NativeFileHelperService):
                     if self._forwarded_receiver is not None and (
                             not self.image_allowlist or data['chat_id'] in self.image_allowlist):
                         self._forwarded_receiver.submit(data, forwarded)
-                    return None
+                        return None
+                    from wxbot_framework.forwarded_receiver import ForwardedReceiver
+                    for _, item in ForwardedReceiver._items(forwarded.items, data['forwarded_records']):
+                        if item.get('image_status') == 'pending':
+                            item.update(image_status='unavailable', image_error='图片接收器不可用')
+                    return data
                 if data.get('app_type') == 19 or data.get('metadata_unavailable'):
-                    return None
+                    data.update(app_type=19, forwarded_records=[],
+                                forwarded_error='转发内容未携带可展开记录或解析失败')
+                    return data
                 if self._file_receiver is not None and (
                         not self.image_allowlist or data["chat_id"] in self.image_allowlist):
                     self._file_receiver.submit(data)

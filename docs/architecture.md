@@ -105,6 +105,7 @@ Core action surface:
 - `get_group_member_list`
 - `get_group_member_info`
 - `get_msg`
+- `get_forward_msg` (persisted parsed inbound forwards)
 - `get_friend_msg_history`
 - `get_group_msg_history`
 - `get_capabilities` (extension)

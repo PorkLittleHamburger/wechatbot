@@ -26,6 +26,7 @@ from .models import (
     Segment,
 )
 from .protocol import failure, message_event, meta_event, notice_event, ok, request_event
+from .protocol.rich_content import materialize_forwards, rich_segments
 
 
 class OneBotActionError(Exception):
@@ -136,6 +137,7 @@ class OneBotService:
             )
             payload = message_event(event, self.mapper, self.media, self.self_id,
                                     message_id=message_id)
+            self._materialize_forwards(payload, message_id)
             reference_id = self._resolve_reference(event)
             if reference_id is not None:
                 payload["message"].insert(0, {"type": "reply", "data": {"id": str(reference_id)}})
@@ -176,9 +178,10 @@ class OneBotService:
             return None
         cached = self.message_store.native_message(self.account, event.external_chat_id, native_id)
         user_id = self.mapper.get_or_create("user", sender)
-        if cached and cached.get("user_id") == user_id:
+        if (cached and cached.get("user_id") == user_id and
+                not self.message_store.is_reference(cached['message_id'], self.account)):
             return cached["message_id"]
-        if cached:
+        if cached and cached.get("user_id") != user_id:
             return None  # Do not replace a known message's identity with quoted metadata.
         kind = reference.get("type")
         text = reference.get("content", "") if kind == 1 else {
@@ -191,14 +194,32 @@ class OneBotService:
             external_chat_id=event.external_chat_id, external_sender_id=sender,
             segments=(Segment("text", {"text": text[:65536]}),),
             sender_name=str(reference.get("sender_name", ""))[:256], is_group=event.is_group)
+        if isinstance(reference.get('records'), list):
+            snapshot = replace(snapshot, segments=rich_segments(reference['records'],
+                is_forward=bool(reference.get('is_forward')), title=reference.get('title', ''),
+                truncated=bool(reference.get('truncated'))))
         reference_id = self.message_store.get_or_allocate_id(
             account=self.account, event_name="reference_snapshot", session_key=event.external_chat_id,
             sequence_key=native_id)
         payload = message_event(snapshot, self.mapper, self.media, self.self_id, message_id=reference_id)
+        self._materialize_forwards(payload, reference_id)
         payload["time"] = 0  # The quote does not provide a verified original timestamp.
         self.message_store.put_reference(reference_id, self.account, payload)
         self.message_store.remember_native_id(self.account, event.external_chat_id, native_id, reference_id)
         return reference_id
+
+    def _materialize_forwards(self, payload, message_id):
+        materialize_forwards(payload, store=self.message_store, mapper=self.mapper, media=self.media,
+                             account=self.account, message_id=message_id)
+
+    async def _get_forward_msg(self, params):
+        value = params.get('id', params.get('message_id'))
+        if isinstance(value, bool) or not isinstance(value, (str, int)) or not 0 < len(str(value)) <= 128:
+            raise OneBotActionError(1400, '需要有效的转发 id 或 message_id')
+        payload = self.message_store.get_forward(self.account, str(value))
+        if payload is None:
+            raise OneBotActionError(1404, '合并转发不在当前账号的消息存储中')
+        return payload
 
     async def dispatch(self, action: str, params: dict[str, Any] | None = None, echo: Any = None) -> dict[str, Any]:
         if params is None:

@@ -70,6 +70,10 @@ class ActionDefinition:
 
 
 ACTION_REGISTRY: dict[str, ActionDefinition] = {
+    "get_forward_msg": ActionDefinition(
+        "get_forward_msg", "_get_forward_msg", "读取当前账号已解析的合并转发",
+        {"id": ParamSpec(), "message_id": ParamSpec()}, {"type": "object"}, read_only=True,
+    ),
     "send_private_msg": ActionDefinition(
         name="send_private_msg",
         handler="_send_private_msg",

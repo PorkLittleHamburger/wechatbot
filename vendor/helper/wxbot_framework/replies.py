@@ -15,7 +15,7 @@ def parse_reply(content):
     except (ET.ParseError, ValueError):
         return None
     app = root if root.tag == 'appmsg' else root.find('appmsg')
-    if app is None or app.findtext('type') != '57':
+    if app is None or (app.findtext('type') or '').strip() != '57':
         return None
     refer = app.find('refermsg')
     if refer is None:
@@ -32,5 +32,5 @@ def parse_reply(content):
     return {'text': app.findtext('title') or '', 'reply': {
         'native_message_id': native_id, 'sender_id': sender,
         'sender_name': (refer.findtext('displayname') or '')[:256],
-        'type': kind, 'content': (refer.findtext('content') or '')[:65536],
+        'type': kind, 'content': refer.findtext('content') or '',
     }}
