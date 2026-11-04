@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 import httpx
 import pytest
 import uvicorn
+import websockets
 
 from test_webui import make_config
 from wechat_onebot.core.runtime import RuntimeManager, account_media_key
@@ -20,6 +21,28 @@ from wechat_onebot.webui import create_webui_app
 @pytest.mark.asyncio
 async def test_ws_only_quoted_image_can_be_downloaded_over_real_http_without_management_cookie(tmp_path):
     config = make_config(tmp_path)
+    connected = asyncio.Event()
+    quoted_result = asyncio.get_running_loop().create_future()
+
+    async def standard_client(websocket):
+        assert websocket.request.headers["X-Client-Role"] == "Universal"
+        async for raw in websocket:
+            payload = json.loads(raw)
+            if payload.get("meta_event_type") == "lifecycle":
+                connected.set()
+            elif payload.get("post_type") == "message":
+                assert payload["message"][0]["type"] == "reply"
+                await websocket.send(json.dumps({"action": "get_msg", "echo": "quote",
+                    "params": {"message_id": payload["message"][0]["data"]["id"]}}))
+            elif payload.get("echo") == "quote" and not quoted_result.done():
+                quoted_result.set_result(payload)
+
+    reverse_server = await websockets.serve(standard_client, "127.0.0.1", 0)
+    reverse_port = reverse_server.sockets[0].getsockname()[1]
+    network = AccountNetworkConfig.from_dict({"groupMentionOnly": True, "wsClients": [
+        {"name": "standard-client", "url": f"ws://127.0.0.1:{reverse_port}"}]})
+    account_network = config.storage.data_dir / "accounts" / "wxid_robot" / "onebot.json"
+    account_network.write_text(json.dumps(network.to_dict()), encoding="utf-8")
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
@@ -38,6 +61,7 @@ async def test_ws_only_quoted_image_can_be_downloaded_over_real_http_without_man
         # No OneBot HTTP endpoint is configured; no legacy API port is opened.
         runtime = await manager.start_account("wxid_robot")
         assert runtime.network.config.http_servers == ()
+        await asyncio.wait_for(connected.wait(), 3)
         active_base = runtime.media.public_base_url
         image = runtime.media_dir / "inbound" / "same.png"
         body = b"\x89PNG\r\n\x1a\nfixture"
@@ -47,10 +71,12 @@ async def test_ws_only_quoted_image_can_be_downloaded_over_real_http_without_man
             (Segment("image", {"file": str(image)}),), external_message_id="9001", is_group=True))
         runtime.media.public_base_url = active_base
         await runtime.service._on_driver_event(IncomingMessage("g@chatroom", "asker",
-            (Segment("text", {"text": "evaluate"}),), external_message_id="9002", is_group=True,
+            (Segment("at", {"qq": "wxid_robot"}), Segment("text", {"text": "evaluate"})),
+            external_message_id="9002", is_group=True,
             raw={"reply": {"native_message_id": "9001", "sender_id": "author", "type": 3}}))
-        event = runtime.service.recent_events()[-1]
-        reference = (await runtime.service.dispatch("get_msg", {"message_id": event["message"][0]["data"]["id"]}))["data"]
+        response = await asyncio.wait_for(quoted_result, 3)
+        assert response["status"] == "ok"
+        reference = response["data"]
         url = reference["message"][0]["data"]["url"]
         assert urlparse(url).port == port
         async with httpx.AsyncClient(trust_env=False) as client:
@@ -69,6 +95,8 @@ async def test_ws_only_quoted_image_can_be_downloaded_over_real_http_without_man
     finally:
         server.should_exit = True
         await asyncio.wait_for(serving, 5)
+        reverse_server.close()
+        await reverse_server.wait_closed()
 
 
 @pytest.mark.asyncio
