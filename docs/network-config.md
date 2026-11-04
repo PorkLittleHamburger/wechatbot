@@ -112,7 +112,7 @@ uses random tokens, but neither case supplies tokens for new account endpoints.
 
 ## Media URLs
 
-WS-only accounts still need HTTP image downloads. In v0.9.1 source, media URLs use the first enabled OneBot HTTP server when available; otherwise the gateway's existing main HTTP application serves `/accounts/<opaque-account-key>/media/<content-id>/<name>` on its configured WebUI host/port. The legacy top-level OneBot port is not advertised unless it has a real listener. No additional OneBot HTTP node or management login cookie is required for these read-only media URLs.
+WS-only accounts still need HTTP image downloads. From v0.9.1, media URLs use the first enabled OneBot HTTP server when available; otherwise the gateway's existing main HTTP application serves `/accounts/<opaque-account-key>/media/<content-id>/<name>` on its configured WebUI host/port. The legacy top-level OneBot port is not advertised unless it has a real listener. No additional OneBot HTTP node or management login cookie is required for these read-only media URLs.
 
 Wildcard hosts become loopback, and IPv6 addresses are bracketed. The advertised host must be reachable from the consumer; loopback only works on the same machine. Management APIs still require their normal authentication. Media routes only serve already registered resources in the selected account, validate content identity, and never create a runtime from an unknown URL.
 
