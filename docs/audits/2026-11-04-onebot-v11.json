@@ -1,0 +1,118 @@
+{
+  "audit_date": "2026-11-04",
+  "code_revision": "7b62bdd8742e587a246e046e4130da0be9a26efc",
+  "spec_revision": "d4456ee706f9ada9c2dfde56a2bcfc69752600e4",
+  "environment": "synthetic MockDriver and in-process HTTP clients; no real sends",
+  "standard_api_count": 38,
+  "registered_api_count": 19,
+  "extensions": [
+    "get_capabilities",
+    "get_friend_msg_history",
+    "get_group_msg_history"
+  ],
+  "standard_unimplemented": [
+    "clean_cache",
+    "delete_msg",
+    "get_cookies",
+    "get_credentials",
+    "get_csrf_token",
+    "get_group_honor_info",
+    "get_image",
+    "get_record",
+    "send_like",
+    "set_friend_add_request",
+    "set_group_add_request",
+    "set_group_admin",
+    "set_group_anonymous",
+    "set_group_anonymous_ban",
+    "set_group_ban",
+    "set_group_card",
+    "set_group_kick",
+    "set_group_leave",
+    "set_group_name",
+    "set_group_special_title",
+    "set_group_whole_ban",
+    "set_restart"
+  ],
+  "inbound_at_qq_type": "int",
+  "cq_string": {
+    "retcode": 0,
+    "driver_last_send": "text",
+    "payload": {
+      "text": "[CQ:at,qq=929545038] hello"
+    }
+  },
+  "single_segment_object_retcode": 1400,
+  "async_action_retcode": 1404,
+  "null_echo_present": false,
+  "string_boolean_retcode": 1400,
+  "stranger_info_fields": [
+    "nickname",
+    "user_id"
+  ],
+  "recall_identity": {
+    "original_message_id": -289629376,
+    "notice_message_id": 826648125,
+    "get_msg_notice_id_retcode": 1404
+  },
+  "join_notice_keys": [
+    "group_id",
+    "notice_type",
+    "post_type",
+    "raw",
+    "self_id",
+    "time",
+    "user_id"
+  ],
+  "forward_response": {
+    "keys": [
+      "messages",
+      "records",
+      "status",
+      "title",
+      "truncated"
+    ],
+    "standard_message_field_present": false,
+    "messages_item_keys": [
+      "content",
+      "path",
+      "sender",
+      "source_time",
+      "time"
+    ]
+  },
+  "http": {
+    "get_login_info_status": 405,
+    "form_status_and_retcode": [
+      200,
+      1400
+    ],
+    "invalid_action_status": 200,
+    "invalid_json_status": 200,
+    "wrong_token_status": 401
+  },
+  "http_post": {
+    "x_self_id_present": false,
+    "quick_reply_sent": false
+  },
+  "received_filename_resend_retcode": 1400,
+  "media_index_survives_restart": false,
+  "standard_registered": [
+    "can_send_image",
+    "can_send_record",
+    "get_forward_msg",
+    "get_friend_list",
+    "get_group_info",
+    "get_group_list",
+    "get_group_member_info",
+    "get_group_member_list",
+    "get_login_info",
+    "get_msg",
+    "get_status",
+    "get_stranger_info",
+    "get_version_info",
+    "send_group_msg",
+    "send_msg",
+    "send_private_msg"
+  ]
+}

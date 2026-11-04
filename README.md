@@ -4,6 +4,8 @@ Windows 11 x64 个人微信 OneBot v11 网关。本项目包含协议转换、�
 
 仓库仅包含 Bot 网关开发内容。机器人回复逻辑、AI 行为和业务流程由外部 OneBot v11 客户端实现。
 
+当前为 OneBot v11 的部分实现及社区扩展，不代表完整标准符合性；尚未修复的通用性差异见 [v11 审计](docs/onebot-v11-audit.md)。对 AstrBot 的兼容验证不能代替严格协议验收。
+
 ## 功能
 
 - OneBot v11 HTTP API、HTTP 事件上报、正向 WebSocket 与反向 WebSocket。

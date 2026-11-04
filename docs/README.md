@@ -11,6 +11,7 @@
 | [便携包说明](../PORTABLE_README.md) | 解压运行、升级、自启和数据迁移；构建时成为包内 README |
 | [网络配置](network-config.md) | 账号端点、鉴权、心跳及连接方向 |
 | [OneBot 兼容说明](onebot-compatibility.md) | 已实现动作、消息段和外部客户端注意事项 |
+| [v11 通用性审计](onebot-v11-audit.md) | 对照官方规范的已知格式、传输及语义差异；不等于已修复 |
 | [富消息与引用](rich-messages.md) | 文本、链接、图片、嵌套转发及 AstrBot 读取方式 |
 | [故障排查](troubleshooting.md) | 日志定位、桥接路径、媒体权限和昵称缺失 |
 | [原生桥接验证](live-preflight.md) | 只读检查与有副作用的真实验证边界 |

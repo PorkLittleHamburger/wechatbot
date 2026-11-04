@@ -1,5 +1,7 @@
 # OneBot v11 Compatibility
 
+This is a partial implementation with optional community/gateway extensions, not a certification of full v11 conformance. The 2026-11-04 [standards audit](onebot-v11-audit.md) records unresolved differences, including the noncanonical `get_forward_msg` response, CQ/input forms, HTTP behavior, notices and media persistence. Successful AstrBot parsing does not establish compatibility with a strict v11 consumer.
+
 ## Transport
 
 - HTTP API: `POST <configured path>` (default `/`) with `{"action": "...", "params": {...}, "echo": "..."}`
