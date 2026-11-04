@@ -287,11 +287,14 @@ class MediaStore:
 
     async def resolve_input(
         self, value: str, *, cache: bool = True, proxy: bool = True,
-        timeout: float | None = None,
+        timeout: float | None = None, max_bytes: int | None = None,
     ) -> Path:
         """Resolve media; cache/proxy/timeout control HTTP(S) downloads only."""
         if not isinstance(value, str) or not value.strip():
             raise MediaError("媒体 file 字段不能为空")
+        if max_bytes is not None and (type(max_bytes) is not int or max_bytes <= 0):
+            raise MediaError("媒体剩余字节额度必须为正整数")
+        limit = self.max_bytes if max_bytes is None else min(self.max_bytes, max_bytes)
         if not isinstance(cache, bool) or not isinstance(proxy, bool):
             raise MediaError("媒体 cache/proxy 必须为布尔值")
         if timeout is not None and (
@@ -301,13 +304,13 @@ class MediaStore:
             raise MediaError("媒体 timeout 必须为大于 0 的有限秒数")
         value = value.strip()
         if value.startswith("base64://"):
-            return await self._resolve_base64(value[9:])
+            return await self._resolve_base64(value[9:], max_bytes=limit)
         # urlparse treats a raw Windows drive letter as a URL scheme.
         if os.name == "nt" and (Path(value).is_absolute() or Path(value).drive):
-            return self._validate_path(Path(value))
+            return self._validate_path(Path(value), max_bytes=limit)
         parsed = urlparse(value)
         if parsed.scheme in ("http", "https"):
-            return await self._download(value, cache=cache, proxy=proxy, timeout=timeout)
+            return await self._download(value, cache=cache, proxy=proxy, timeout=timeout, max_bytes=limit)
         if parsed.scheme == "file":
             path = Path(unquote(parsed.path))
             if os.name == "nt" and parsed.netloc:
@@ -326,18 +329,18 @@ class MediaStore:
                         self.register(candidate)
                 registered = self._resolve_registered(value)
             if registered is not None:
-                return registered
+                return self._validate_path(registered, max_bytes=limit)
             path = Path(value)
             if not path.is_absolute():
                 path = self.media_dir / path
-        return self._validate_path(path)
+        return self._validate_path(path, max_bytes=limit)
 
-    def _validate_path(self, path: Path) -> Path:
+    def _validate_path(self, path: Path, *, max_bytes: int | None = None) -> Path:
         try:
             resolved = path.resolve()
             if not resolved.is_file():
                 raise MediaError(f"媒体文件不存在: {resolved}")
-            if resolved.stat().st_size > self.max_bytes:
+            if resolved.stat().st_size > (self.max_bytes if max_bytes is None else max_bytes):
                 raise MediaError("媒体文件超过大小限制")
             return resolved
         except MediaError:
@@ -345,12 +348,15 @@ class MediaStore:
         except (OSError, ValueError) as error:
             raise MediaError(f"媒体文件不可用: {path}") from error
 
-    async def _resolve_base64(self, encoded: str) -> Path:
+    async def _resolve_base64(self, encoded: str, *, max_bytes: int | None = None) -> Path:
+        limit = self.max_bytes if max_bytes is None else max_bytes
+        if len(encoded) > 4 * ((limit + 2) // 3):
+            raise MediaError("base64 媒体数据超过大小限制")
         try:
             data = base64.b64decode(encoded, validate=True)
         except (binascii.Error, ValueError) as error:
             raise MediaError("base64 媒体数据无效") from error
-        if len(data) > self.max_bytes:
+        if len(data) > limit:
             raise MediaError("base64 媒体数据超过大小限制")
         suffix = _sniff_suffix(data)
         target = self.media_dir / "cache" / f"{uuid.uuid4().hex}{suffix}"
@@ -359,7 +365,7 @@ class MediaStore:
 
     async def _download(
         self, url: str, *, cache: bool = True, proxy: bool = True,
-        timeout: float | None = None,
+        timeout: float | None = None, max_bytes: int | None = None,
     ) -> Path:
         if cache:
             with closing(self._connect()) as connection:
@@ -369,8 +375,8 @@ class MediaStore:
             if row is not None:
                 record = self.get(row[0])
                 if record is not None:
-                    return record.path
-        limit = self.max_bytes
+                    return self._validate_path(record.path, max_bytes=max_bytes)
+        limit = self.max_bytes if max_bytes is None else max_bytes
         chunks: list[bytes] = []
         total = 0
         headers = {"User-Agent": "wechat-onebot/0.1"}

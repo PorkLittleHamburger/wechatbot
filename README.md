@@ -34,6 +34,8 @@ v0.9.0 包含以下能力（升级后才应用于运行实例）：
 
 v0.9.1 修复反向 WS 单独启用时的引用图片 URL，补充转发容器解析与脱敏诊断。原消息未缓存且引用不含记录正文时，仍不能自动拉取历史转发；详见 [引用故障说明](docs/rich-messages.md)。
 
+当前 v0.9.2 源码（待发布）支持将 `send_group_forward_msg` / `send_private_forward_msg` 的节点按顺序转成普通消息发送，避免长回复因合并转发能力缺失而整条失败。不会生成原生聊天记录卡片；详见 [兼容说明](docs/onebot-compatibility.md#forward-send-conversion-v092-source-not-yet-released)。
+
 ## 下载与升级
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。

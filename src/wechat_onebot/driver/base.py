@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable, Sequence
+import asyncio
+from pathlib import Path
 
 from ..models import (
     DriverEvent,
@@ -25,6 +27,14 @@ class DriverUnsupported(DriverError):
 
 class Driver(ABC):
     capabilities: frozenset[str] = frozenset()
+
+    async def validate_media(self, kind: str, path: str) -> None:
+        """Preflight local input; native drivers additionally check their formats."""
+        def validate():
+            source = Path(path)
+            if not source.is_file() or source.stat().st_size == 0:
+                raise ValueError("媒体必须是非空本地文件")
+        await asyncio.to_thread(validate)
 
     @property
     @abstractmethod

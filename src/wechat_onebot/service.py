@@ -29,6 +29,7 @@ from .models import (
 from .protocol import failure, message_event, meta_event, notice_event, ok, request_event
 from .protocol.rich_content import canonical_forward, materialize_forwards, rich_segments
 from .protocol.codec import normalize_message, serialize_message
+from .protocol import outbound_forward as forwarding
 
 
 ECHO_UNSET = object()
@@ -79,6 +80,7 @@ class OneBotService:
         self._rate_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
         self._rate_worker: asyncio.Task | None = None
         self._stopping_actions = False
+        self._send_lock = asyncio.Lock()
 
     @property
     def supported_actions(self) -> frozenset[str]:
@@ -445,14 +447,107 @@ class OneBotService:
             return await self._send_private_msg(params)
         raise OneBotActionError(1400, "send_msg 需要 message_type 或 user_id/group_id")
 
+    async def _send_group_forward_msg(self, params: dict[str, Any]) -> dict[str, Any]:
+        group = self._external_group(self._required_int(params, "group_id"))
+        return await self._send_forward(group, params["messages"], is_group=True)
+
+    async def _send_private_forward_msg(self, params: dict[str, Any]) -> dict[str, Any]:
+        user = self._external_user(self._required_int(params, "user_id"))
+        return await self._send_forward(user, params["messages"], is_group=False)
+
+    async def _send_forward(self, chat_id: str, messages: Any, *, is_group: bool) -> dict[str, Any]:
+        if self._stopping_actions or len(self._action_tasks) >= 1000:
+            raise OneBotActionError(1500, "服务正在关闭或待处理动作过多")
+        task = self._background(self._send_forward_owned(chat_id, messages, is_group=is_group))
+        return await asyncio.shield(task)
+
+    async def _send_forward_owned(self, chat_id: str, messages: Any, *, is_group: bool) -> dict[str, Any]:
+        try:
+            plan = forwarding.expand_forward(messages,
+                lookup_message=lambda mid: self.message_store.get(mid, account=self.account),
+                lookup_forward=lambda fid: (
+                    canonical_forward(value) if (value := self.message_store.get_forward(self.account, fid)) else None))
+        except forwarding.ForwardSendError as error:
+            raise OneBotActionError(error.retcode, str(error)) from error
+        media_kinds = ("image", "file", "record", "face")
+        if sum(segment["type"] in media_kinds for chain in plan.chains for segment in chain) > forwarding.MAX_MEDIA:
+            raise OneBotActionError(1400, "转发发送超出媒体额度")
+        prepared = []
+        media_budget = {"count": 0, "bytes": 0}
+        estimated_sends = 0
+        for chain in plan.chains:
+            segments = await self._prepare_segments(chain, is_group=is_group, media_budget=media_budget)
+            self._validate_sendable(segments, is_group=is_group)
+            required = {"text": "text.send", "at": "group.text.mention", "image": "image.send",
+                        "file": "file.send", "record": "voice.send", "face": "emoticon.send"}
+            for segment in segments:
+                if required[segment.type] not in self.driver.capabilities:
+                    raise OneBotActionError(1404, f"当前驱动不支持 {segment.type} 发送")
+            pending_text: list[str] = []
+            has_at = False
+
+            def count_text():
+                nonlocal estimated_sends, has_at
+                text = "".join(pending_text)
+                if text or has_at:
+                    estimated_sends += len(_split_utf8(text or " ", 900 if has_at else 1023))
+                pending_text.clear()
+                has_at = False
+
+            for segment in segments:
+                if segment.type in ("image", "file", "record", "face"):
+                    count_text()
+                    estimated_sends += 1
+                elif segment.type == "text":
+                    pending_text.append(segment.data["text"])
+                else:
+                    has_at = True
+            count_text()
+            if estimated_sends > forwarding.MAX_NATIVE_SENDS:
+                raise OneBotActionError(1400, "转发发送超出媒体或分段额度")
+            prepared.append(segments)
+        ids: list[int] = []
+        sent = 0
+        async with self._send_lock:
+            try:
+                for segments in prepared:
+                    message_id, count = await self._send_prepared_message(chat_id, segments, is_group=is_group)
+                    ids.append(message_id)
+                    sent += count
+            except OneBotActionError as error:
+                partial = int((error.data or {}).get("sent_segments", 0))
+                error.data = {"forward_mode": "normal_messages", "native_forward": False,
+                              "message_ids": ids, "sent_segments": sent + partial}
+                raise
+        return {"message_id": ids[0], "message_ids": ids, "forward_mode": "normal_messages",
+                "native_forward": False, "node_count": plan.node_count, "sent_segments": sent}
+
     async def _send_message(self, chat_id: str, raw_message: Any, *, is_group: bool,
                             auto_escape: bool = False) -> int:
+        if self._stopping_actions or len(self._action_tasks) >= 1000:
+            raise OneBotActionError(1500, "服务正在关闭或待处理动作过多")
+        task = self._background(self._send_message_owned(chat_id, raw_message,
+                                                        is_group=is_group, auto_escape=auto_escape))
+        return await asyncio.shield(task)
+
+    async def _send_message_owned(self, chat_id: str, raw_message: Any, *, is_group: bool,
+                                 auto_escape: bool = False) -> int:
         segments = await self._prepare_segments(raw_message, is_group=is_group, auto_escape=auto_escape)
+        self._validate_sendable(segments, is_group=is_group)
+        async with self._send_lock:
+            message_id, _ = await self._send_prepared_message(chat_id, segments, is_group=is_group)
+            return message_id
+
+    @staticmethod
+    def _validate_sendable(segments: list[PreparedSegment], *, is_group: bool) -> None:
         if not any(segment.type in ("image", "file", "record", "face", "at") or
                    (segment.type == "text" and segment.data["text"]) for segment in segments):
             raise OneBotActionError(1400, "消息没有可发送的内容")
         if any(segment.type == "at" for segment in segments) and not is_group:
             raise OneBotActionError(1400, "私聊消息不支持 at 段")
+
+    async def _send_prepared_message(self, chat_id: str, segments: list[PreparedSegment],
+                                     *, is_group: bool) -> tuple[int, int]:
         sent = 0
         pending_text: list[str] = []
         pending_at_ids: list[str] = []
@@ -525,32 +620,45 @@ class OneBotService:
             if error.data is None and sent:
                 error.data = {"sent_segments": sent}
             raise
-        message_id = self.message_store.allocate_sent_id(
-            account=self.account,
-            session_key=chat_id,
-            nonce=uuid.uuid4().hex,
-        )
-        snapshot = IncomingMessage(
-            external_chat_id=chat_id,
-            external_sender_id=self.mapper.reverse("user", self.self_id),
-            is_group=is_group,
-            segments=tuple(Segment(item.type, dict(item.data)) for item in segments),
-            timestamp=int(time.time()))
-        sent_event = message_event(snapshot, self.mapper, self.media, self.self_id, message_id=message_id)
-        sent_event["post_type"] = "message_sent"  # Internal history only; not broadcast as a standard event.
-        if not is_group:
-            sent_event["target_id"] = self.mapper.get_or_create("user", chat_id)
-        self.message_store.put(
-            message_id,
-            account=self.account,
-            event_name="private_message_sent",
-            session_key=chat_id,
-            payload=sent_event,
-        )
-        return message_id
+        except DriverError as error:
+            code = 1404 if isinstance(error, DriverUnsupported) else 1500
+            raise OneBotActionError(code, str(error), {"sent_segments": sent}) from error
+        except Exception as error:
+            logger.exception("普通消息发送期间发生内部错误")
+            raise OneBotActionError(1500, "消息发送期间发生内部错误",
+                                    {"sent_segments": sent}) from error
+        try:
+            message_id = self.message_store.allocate_sent_id(
+                account=self.account,
+                session_key=chat_id,
+                nonce=uuid.uuid4().hex,
+            )
+            snapshot = IncomingMessage(
+                external_chat_id=chat_id,
+                external_sender_id=self.mapper.reverse("user", self.self_id),
+                is_group=is_group,
+                segments=tuple(Segment(item.type, dict(item.data)) for item in segments),
+                timestamp=int(time.time()))
+            sent_event = message_event(snapshot, self.mapper, self.media, self.self_id, message_id=message_id)
+            sent_event["post_type"] = "message_sent"  # Internal history only; not broadcast as a standard event.
+            if not is_group:
+                sent_event["target_id"] = self.mapper.get_or_create("user", chat_id)
+            self.message_store.put(
+                message_id,
+                account=self.account,
+                event_name="private_message_sent",
+                session_key=chat_id,
+                payload=sent_event,
+            )
+        except Exception as error:
+            logger.exception("发送后保存消息记录失败")
+            raise OneBotActionError(1500, "微信发送已执行，但消息记录保存失败",
+                                    {"sent_segments": sent}) from error
+        return message_id, sent
 
     async def _prepare_segments(self, raw_message: Any, *, is_group: bool,
-                                auto_escape: bool = False) -> list[PreparedSegment]:
+                                auto_escape: bool = False,
+                                media_budget: dict[str, int] | None = None) -> list[PreparedSegment]:
         raw_segments = normalize_message(raw_message, auto_escape=auto_escape)
         prepared: list[PreparedSegment] = []
         for raw in raw_segments:
@@ -582,6 +690,8 @@ class OneBotService:
                     "name": str(data.get("name") or ""),
                 }))
             elif segment_type in ("image", "file", "record", "face"):
+                if media_budget is not None and media_budget["count"] >= forwarding.MAX_MEDIA:
+                    raise OneBotActionError(1400, "转发发送超出媒体额度")
                 file_value = data.get("file")
                 if not file_value:
                     raise OneBotActionError(1404, f"{segment_type} 段缺少 file，且当前桥接不支持 QQ 表情 ID 映射")
@@ -597,8 +707,19 @@ class OneBotService:
                     options[key] = value in ("1", "true", "yes")
                 if "timeout" in data:
                     options["timeout"] = float(data["timeout"])
+                if media_budget is not None:
+                    remaining = forwarding.MAX_MEDIA_BYTES - media_budget["bytes"]
+                    if remaining <= 0:
+                        raise OneBotActionError(1400, "转发发送超出媒体字节额度")
+                    options["max_bytes"] = remaining
                 try:
                     path = await self.media.resolve_input(str(file_value), **options)
+                    if media_budget is not None:
+                        media_budget["count"] += 1
+                        media_budget["bytes"] += path.stat().st_size
+                        if media_budget["bytes"] > forwarding.MAX_MEDIA_BYTES:
+                            raise OneBotActionError(1400, "转发发送超出媒体字节额度")
+                        await self.driver.validate_media(segment_type, str(path))
                 except MediaError as error:
                     raise OneBotActionError(1400, str(error)) from error
                 prepared.append(PreparedSegment(segment_type, {"path": str(path)}))
@@ -811,6 +932,11 @@ class OneBotService:
             "capabilities": sorted(self.driver.capabilities),
             "actions": sorted(self.supported_actions),
             "action_catalog": action_catalog(),
+            "forward_send": {"mode": "normal_messages", "native_forward": False,
+                             "max_nodes": forwarding.MAX_NODES, "max_depth": forwarding.MAX_DEPTH,
+                             "max_segments": forwarding.MAX_SEGMENTS, "max_text_bytes": forwarding.MAX_TEXT_BYTES,
+                             "max_media": forwarding.MAX_MEDIA, "max_media_bytes": forwarding.MAX_MEDIA_BYTES,
+                             "max_estimated_sends": forwarding.MAX_NATIVE_SENDS},
         }
 
 

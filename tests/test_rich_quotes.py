@@ -258,7 +258,7 @@ async def test_unmentioned_forward_is_cached_then_resolved_by_quote(helper_path,
         fid=cached['message'][0]['data']['id']
         payload=(await service.dispatch('get_forward_msg',{'id':fid}))['data']
         assert 'https://example.com/video?a=1&b=2' in payload['records'][1]['children'][0]['message'][0]['data']['text']
-        assert (await service.dispatch('send_group_forward_msg',{}))['retcode']==1404
+        assert (await service.dispatch('send_group_forward_msg',{}))['retcode']==1400
     finally:
         receiver.close(3); await service.stop(); mapper.close()
 

@@ -499,6 +499,30 @@ class HelperDriver(Driver):
         except Exception as error:
             raise DriverError(f"图片发送失败: {error}") from error
 
+    async def validate_media(self, kind: str, path: str) -> None:
+        """Use helper's pure file validators without making native calls."""
+        self._require_service()
+
+        def validate():
+            if kind == "image":
+                from wxbot_framework.images import validate_image_path
+                validate_image_path(path)
+            elif kind == "face":
+                from wxbot_framework.emoticons import validate_emoticon_path
+                validate_emoticon_path(path)
+            elif kind == "record":
+                from wxbot_framework.voices import inspect_voice_file, _load_encoder
+                inspect_voice_file(path)
+                with Path(path).open("rb") as source:
+                    if source.read(4) == b"RIFF":
+                        _load_encoder()
+            elif kind == "file":
+                from wxbot_framework.files import inspect_file
+                inspect_file(path)
+            else:
+                raise ValueError(f"未知媒体类型: {kind}")
+        await asyncio.to_thread(validate)
+
     async def send_file(self, chat_id: str, path: str) -> bool:
         import asyncio
         self._require_service()

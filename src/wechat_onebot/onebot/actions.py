@@ -84,6 +84,16 @@ class ActionDefinition:
 
 
 ACTION_REGISTRY: dict[str, ActionDefinition] = {
+    "send_group_forward_msg": ActionDefinition(
+        "send_group_forward_msg", "_send_group_forward_msg", "将转发节点按顺序降级为普通群消息发送",
+        {"group_id": ParamSpec("int", True), "messages": ParamSpec(required=True)},
+        {"type": "object"},
+    ),
+    "send_private_forward_msg": ActionDefinition(
+        "send_private_forward_msg", "_send_private_forward_msg", "将转发节点按顺序降级为普通私聊消息发送",
+        {"user_id": ParamSpec("int", True), "messages": ParamSpec(required=True)},
+        {"type": "object"},
+    ),
     "get_forward_msg": ActionDefinition(
         "get_forward_msg", "_get_forward_msg", "读取当前账号已解析的合并转发",
         {"id": ParamSpec(), "message_id": ParamSpec()}, {"type": "object"}, read_only=True,
