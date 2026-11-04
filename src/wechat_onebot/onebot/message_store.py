@@ -55,6 +55,11 @@ class MessageStore:
             """
         )
         self._db.execute("CREATE INDEX IF NOT EXISTS messages_account_time ON messages(account, created_at)")
+        self._db.execute("""CREATE TABLE IF NOT EXISTS native_message_ids (
+            account TEXT NOT NULL, session_key TEXT NOT NULL, native_id TEXT NOT NULL,
+            message_id INTEGER NOT NULL, PRIMARY KEY(account, session_key, native_id))""")
+        self._db.execute("""CREATE TABLE IF NOT EXISTS reference_snapshots (
+            message_id INTEGER PRIMARY KEY, account TEXT NOT NULL, payload TEXT NOT NULL)""")
         # Backfill pre-existing rows with a deterministic local order.
         self._db.execute(
             "INSERT OR IGNORE INTO message_order(message_id) "
@@ -202,14 +207,40 @@ class MessageStore:
         with self._lock:
             if account is None:
                 row = self._db.execute(
-                    "SELECT payload FROM messages WHERE message_id=?", (int(message_id),)
+                    "SELECT payload FROM messages WHERE message_id=? UNION ALL "
+                    "SELECT payload FROM reference_snapshots WHERE message_id=? LIMIT 1",
+                    (int(message_id), int(message_id))
                 ).fetchone()
             else:
                 row = self._db.execute(
-                    "SELECT payload FROM messages WHERE message_id=? AND account=?",
-                    (int(message_id), account),
+                    "SELECT payload FROM messages WHERE message_id=? AND account=? UNION ALL "
+                    "SELECT payload FROM reference_snapshots WHERE message_id=? AND account=? LIMIT 1",
+                    (int(message_id), account, int(message_id), account),
                 ).fetchone()
             return json.loads(row[0]) if row else None
+
+    def remember_native_id(self, account: str, session_key: str, native_id: str, message_id: int) -> None:
+        if not native_id or len(native_id) > 20 or not native_id.isascii() or not native_id.isdecimal() or int(native_id) == 0:
+            return
+        with self._lock:
+            self._db.execute("INSERT INTO native_message_ids VALUES (?,?,?,?) "
+                             "ON CONFLICT(account,session_key,native_id) DO UPDATE SET message_id=excluded.message_id",
+                             (account, session_key, native_id, message_id))
+            self._db.commit()
+
+    def native_message(self, account: str, session_key: str, native_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._db.execute("SELECT message_id FROM native_message_ids "
+                                   "WHERE account=? AND session_key=? AND native_id=?",
+                                   (account, session_key, native_id)).fetchone()
+            return self.get(row[0], account=account) if row else None
+
+    def put_reference(self, message_id: int, account: str, payload: dict[str, Any]) -> None:
+        # Quoted metadata is queryable, but is not a newly received history event.
+        with self._lock:
+            self._db.execute("INSERT OR IGNORE INTO reference_snapshots VALUES (?,?,?)",
+                             (message_id, account, json.dumps(payload, ensure_ascii=False)))
+            self._db.commit()
 
     def history(
         self,

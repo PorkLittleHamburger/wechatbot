@@ -17,9 +17,18 @@ example tokens with independent credentials.
 
 ## Structure
 
+`groupMentionOnly` is a strict JSON boolean, default `false`. WebUI exposes it under
+Node Configuration / General Settings. Saving applies it to the selected account
+without restarting its bridge: when enabled, only group messages with a native
+mention of the bot are reported downstream. Private messages and non-message
+events remain enabled. Filtered group messages stay in local storage for quote
+resolution; outbound action calls are not restricted. This field is available
+in current source, not the published v0.8.6 ZIP.
+
 ```json
 {
   "heartbeatIntervalSeconds": 5,
+  "groupMentionOnly": false,
   "httpServers": [
     {
       "name": "http",

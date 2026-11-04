@@ -155,9 +155,13 @@ class AccountNetworkConfig:
     http_clients: tuple[HttpClientEndpoint, ...]
     ws_servers: tuple[WsServerEndpoint, ...]
     ws_clients: tuple[WsClientEndpoint, ...]
+    group_mention_only: bool = False
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "AccountNetworkConfig":
+        mention_only = value.get("groupMentionOnly", False)
+        if type(mention_only) is not bool:
+            raise ConfigError("groupMentionOnly 必须是布尔值")
         heartbeat = value.get("heartbeatIntervalSeconds", 5.0)
         if type(heartbeat) not in (int, float) or not 0.5 <= float(heartbeat) <= 300:
             raise ConfigError("heartbeatIntervalSeconds 必须在 0.5–300 之间")
@@ -181,11 +185,13 @@ class AccountNetworkConfig:
         ]
         if len(binds) != len(set(binds)):
             raise ConfigError("HTTP/WS 服务端不能重复监听同一 host/port")
-        return cls(float(heartbeat), *(parsed[key] for key in ("httpServers", "httpClients", "wsServers", "wsClients")))
+        return cls(float(heartbeat), *(parsed[key] for key in ("httpServers", "httpClients", "wsServers", "wsClients")),
+                   group_mention_only=mention_only)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "heartbeatIntervalSeconds": self.heartbeat_interval_seconds,
+            "groupMentionOnly": self.group_mention_only,
             "httpServers": [{
                 "name": row.name, "host": row.host, "port": row.port, "path": row.path,
                 "accessToken": row.access_token, "enabled": row.enabled,

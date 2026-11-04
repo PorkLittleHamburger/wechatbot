@@ -23,6 +23,7 @@ from .models import (
     IncomingMessage,
     NoticeEvent,
     RequestEvent,
+    Segment,
 )
 from .protocol import failure, message_event, meta_event, notice_event, ok, request_event
 
@@ -63,6 +64,7 @@ class OneBotService:
         self.message_store = message_store or MessageStore(":memory:")
         self.self_id: int = 0
         self.started = False
+        self.group_mention_only = False
         self._event_sink: EventSink | None = None
         self._recent_events: deque[dict[str, Any]] = deque(maxlen=200)
 
@@ -134,6 +136,9 @@ class OneBotService:
             )
             payload = message_event(event, self.mapper, self.media, self.self_id,
                                     message_id=message_id)
+            reference_id = self._resolve_reference(event)
+            if reference_id is not None:
+                payload["message"].insert(0, {"type": "reply", "data": {"id": str(reference_id)}})
             changed = self.message_store.put(
                 message_id,
                 account=self.account,
@@ -141,6 +146,7 @@ class OneBotService:
                 session_key=session_key,
                 payload=payload,
             )
+            self.message_store.remember_native_id(self.account, session_key, event.external_message_id, message_id)
             if not changed:
                 return
         elif isinstance(event, NoticeEvent):
@@ -152,8 +158,47 @@ class OneBotService:
         else:
             return
         self._recent_events.append(copy.deepcopy(payload))
+        if (isinstance(event, IncomingMessage) and event.is_group and self.group_mention_only
+                and not any(segment.type == "at" and str(segment.data.get("qq")) ==
+                            self.mapper.reverse("user", self.self_id) for segment in event.segments)):
+            return
         if self._event_sink is not None:
             await self._event_sink(payload)
+
+    def _resolve_reference(self, event: IncomingMessage) -> int | None:
+        reference = event.raw.get("reply")
+        if not isinstance(reference, dict):
+            return None
+        native_id = reference.get("native_message_id", "")
+        sender = reference.get("sender_id", "")
+        if (not isinstance(native_id, str) or not native_id.isascii() or not native_id.isdecimal()
+                or not 0 < len(native_id) <= 20 or int(native_id) == 0 or not isinstance(sender, str) or not sender):
+            return None
+        cached = self.message_store.native_message(self.account, event.external_chat_id, native_id)
+        user_id = self.mapper.get_or_create("user", sender)
+        if cached and cached.get("user_id") == user_id:
+            return cached["message_id"]
+        if cached:
+            return None  # Do not replace a known message's identity with quoted metadata.
+        kind = reference.get("type")
+        text = reference.get("content", "") if kind == 1 else {
+            3: "[引用图片：原图未缓存]", 34: "[引用语音：原消息未缓存]",
+            43: "[引用视频：原消息未缓存]", 49: "[引用文件或卡片：原消息未缓存]",
+        }.get(kind, "[引用消息：原消息未缓存]")
+        if not isinstance(text, str):
+            return None
+        snapshot = IncomingMessage(
+            external_chat_id=event.external_chat_id, external_sender_id=sender,
+            segments=(Segment("text", {"text": text[:65536]}),),
+            sender_name=str(reference.get("sender_name", ""))[:256], is_group=event.is_group)
+        reference_id = self.message_store.get_or_allocate_id(
+            account=self.account, event_name="reference_snapshot", session_key=event.external_chat_id,
+            sequence_key=native_id)
+        payload = message_event(snapshot, self.mapper, self.media, self.self_id, message_id=reference_id)
+        payload["time"] = 0  # The quote does not provide a verified original timestamp.
+        self.message_store.put_reference(reference_id, self.account, payload)
+        self.message_store.remember_native_id(self.account, event.external_chat_id, native_id, reference_id)
+        return reference_id
 
     async def dispatch(self, action: str, params: dict[str, Any] | None = None, echo: Any = None) -> dict[str, Any]:
         if params is None:

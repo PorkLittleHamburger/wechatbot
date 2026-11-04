@@ -400,6 +400,12 @@ class NativeTextService(NativeFileHelperService):
                 return data
             forwarded = None
             if message.type == 49:
+                from wxbot_framework.replies import parse_reply
+                quoted = parse_reply(data['raw_content'])
+                if quoted is not None and data['sender_id']:
+                    data.update(app_type=57, reply=quoted['reply'],
+                                msg=quoted['text'], content=quoted['text'])
+                    return data
                 from wxbot_framework.forwarded import ForwardedError, parse_forwarded
                 try:
                     forwarded = parse_forwarded(body)

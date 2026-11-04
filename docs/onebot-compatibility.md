@@ -78,6 +78,10 @@ contact profile or invent permissions from a nickname/card.
 
 ## Inbound message segments
 
+Current source (not the published v0.8.6 ZIP) converts WeChat appmsg type 57 quotes into `reply` segments whose IDs are local signed 32-bit message IDs. AstrBot's `get_msg` lookup returns the original cached message when the native server ID and author match within the same account and conversation. Native-ID aliases persist across restarts. If the original is absent, a separate metadata snapshot supplies quoted text or an explicit unavailable-media placeholder, with unknown original time `0`; snapshots do not enter message history or emit events. Quote XML never triggers arbitrary media downloads. Outbound native quoted replies remain unsupported.
+
+The per-account `groupMentionOnly` setting defaults to false. When true, message events from groups reach downstream clients only when their native `at` segments target the bot itself; visible names, mentions of other members, and quote metadata do not qualify. Private messages and notices are unaffected. All observed group messages are still persisted before filtering, so later quotes can resolve them. This setting does not block outbound action calls.
+
 User observations are persisted in the account message database before event delivery. WeChat nicknames and per-group cards are stored separately; empty observations do not erase known names. Group-member queries and native mention display names share these records. A message-only cached member response omits an unobserved role; an available native member list remains authoritative for membership. The cache is partial and cannot supply names that have never been observed or read from native contacts/members.
 
 The Helper member adapter falls back to the row's display nickname when its group nickname is absent. A stored `card` can therefore be that fallback label rather than an independently observed group card.

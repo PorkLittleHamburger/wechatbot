@@ -16,6 +16,8 @@ The native bridge is built from the helper bridge sources and MinHook 1.3.4. It 
 
 Local changes relative to the pinned helper commit:
 
+- `wxbot_framework/replies.py` and `native/text_service.py` add bounded XML parsing for inbound appmsg type 57 quote metadata and deliver it before attachment handling. They do not fetch quoted media or add an outbound native quote primitive. The gateway resolves local OneBot reply IDs separately.
+
 - Local documentation corrections in `README.md`, `PRODUCT.md`, `DESIGN.md`, `.impeccable/surfaces/webui-index-html.md`, `docs/development/documentation.md`, `docs/guide/quick-start.md`, and `docs/messages/recall.md` distinguish the standalone upstream application from this gateway, qualify historical design authorization, and correct client profiles, receive verification, recall-plugin controls, and documentation workflow scope. Licenses and copyright notices are preserved. See [integration boundaries](docs/vendor-helper.md).
 
 - `native/bridge_watchdog.py` explicitly adds its native module directory before internal imports so it works with isolated embeddable Python.

@@ -108,5 +108,15 @@
     "RelativePath": "docs\\messages\\recall.md",
     "Length": 6585,
     "SHA256": "EB23DAB3702784495FCD843DDCD28751858B9C6411EF588996BCD6814E039352"
+  },
+  {
+    "RelativePath": "wxbot_framework\\replies.py",
+    "Length": 1323,
+    "SHA256": "E17DF677CDB01B0A5505586EDF78681620526768EF7D2DBB79B22A77553D9195"
+  },
+  {
+    "RelativePath": "native\\text_service.py",
+    "Length": 36721,
+    "SHA256": "CED9EDBE8ED2A5D635E6FA5FA3F037A4F1842E031C048498D1F717B8FC07CEFE"
   }
 ]

@@ -56,6 +56,7 @@ class AccountRuntime:
         service = OneBotInstance(account_config, driver, mapper, media,
                                 message_store=message_store, account=selected_account)
         service.self_id = mapper.get_or_create("user", selected_account)
+        service.group_mention_only = network_config.group_mention_only
         network = OneBotNetworkManager(service, network_config)
         return cls(config=account_config, account=selected_account, pid=selected_pid,
                    account_dir=account_dir, media_dir=media_dir, mapper=mapper,
@@ -105,6 +106,7 @@ class AccountRuntime:
         if self.closed:
             raise RuntimeError("账号 Runtime 已关闭")
         await self.network.reconfigure(config)
+        self.service.group_mention_only = config.group_mention_only
         self.media.public_base_url = _network_public_base_url(config, self.config)
 
     def snapshot(self) -> dict[str, object]:

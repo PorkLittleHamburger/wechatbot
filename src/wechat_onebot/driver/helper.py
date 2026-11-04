@@ -309,7 +309,7 @@ class HelperDriver(Driver):
         at_members = tuple(str(item) for item in data.get("at_members", ()) if item)
         for member in at_members:
             segments.append(Segment("at", {"qq": member}))
-        text = str(data.get("msg") or data.get("content") or "") if msg_type == 1 else ""
+        text = str(data.get("msg") or data.get("content") or "") if msg_type == 1 or data.get("app_type") == 57 else ""
         if at_members and text:
             from wxbot_framework.mentions import strip_at_labels
             text = strip_at_labels(text)
@@ -318,7 +318,7 @@ class HelperDriver(Driver):
         if msg_type == 3:
             path = data.get("image_path") or ""
             segments.append(Segment("image", {"file": str(path)}) if path else Segment("text", {"text": "[图片]"}))
-        elif msg_type == 49:
+        elif msg_type == 49 and data.get("app_type") != 57:
             path = data.get("file_path") or ""
             segments.append(Segment("file", {"file": str(path), "name": data.get("file_name", "")}) if path else Segment("text", {"text": "[文件或卡片]"}))
         elif msg_type == 34:
@@ -390,7 +390,7 @@ class HelperDriver(Driver):
         at_members = tuple(str(item) for item in data.get("at_members", ()) if item)
         for member in at_members:
             segments.append(Segment("at", {"qq": member}))
-        text = message.text or ""
+        text = (data.get("msg") or "") if data.get("app_type") == 57 else (message.text or "")
         if at_members and text:
             from wxbot_framework.mentions import strip_at_labels
             text = strip_at_labels(text)
@@ -399,7 +399,7 @@ class HelperDriver(Driver):
         if msg_type == 3:
             path = message.image_path
             segments.append(Segment("image", {"file": str(path)}) if path else Segment("text", {"text": "[图片]"}))
-        elif msg_type == 49:
+        elif msg_type == 49 and data.get("app_type") != 57:
             path = message.file_path
             segments.append(Segment("file", {"file": str(path), "name": data.get("file_name", "")}) if path else Segment("text", {"text": "[文件或卡片]"}))
         elif msg_type == 34:

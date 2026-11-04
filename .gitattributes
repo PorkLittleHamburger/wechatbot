@@ -19,3 +19,5 @@ vendor/helper/.impeccable/surfaces/webui-index-html.md text eol=lf
 vendor/helper/docs/development/documentation.md text eol=lf
 vendor/helper/docs/guide/quick-start.md text eol=lf
 vendor/helper/docs/messages/recall.md text eol=lf
+vendor/helper/wxbot_framework/replies.py text eol=lf
+vendor/helper/native/text_service.py text eol=lf

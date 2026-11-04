@@ -1217,7 +1217,8 @@ function renderConnect(root) {
   const general = S.configTab === "general" ?
     "<div class=\"grid cols-2\"><div class=\"card\"><div class=\"card-h\"><h2>通用设置</h2></div><div class=\"card-b\"><label class=\"field\"><span>心跳间隔（秒）</span>" +
     "<input class=\"input\" type=\"number\" min=\"0.5\" max=\"300\" step=\"0.5\" id=\"heartbeatInput\" value=\"" + esc(S.network.heartbeatIntervalSeconds ?? 5) + "\"></label>" +
-    "<p class=\"small muted\">保存后立即更新网络配置，无需重启账号。</p></div><div class=\"config-save-footer\">" + saveButton + "</div></div>" +
+    "<label class=\"field\"><span><input type=\"checkbox\" id=\"groupMentionOnly\"" + (S.network.groupMentionOnly ? " checked" : "") + "> 群聊仅被 @ 时互动</span></label>" +
+    "<p class=\"small muted\">开启后仅上报原生 @ 到机器人的群消息。私聊保持正常，其他群消息仍在本地保存以支持引用。保存后立即生效。</p></div><div class=\"config-save-footer\">" + saveButton + "</div></div>" +
     "<div class=\"card\"><div class=\"card-h\"><h2>当前运行时</h2></div><div class=\"card-b\"><div class=\"kv\">" +
     "<div><div class=\"k\">账号</div><div class=\"v\">" + esc(S.account) + "</div></div><div><div class=\"k\">状态</div><div class=\"v\">" + (rt.online ? "在线" : rt.started ? "离线" : "未启动") + "</div></div>" +
     "<div><div class=\"k\">事件连接</div><div class=\"v\">" + esc((rt.network && rt.network.connections) || 0) + "</div></div><div><div class=\"k\">self_id</div><div class=\"v\">" + esc(rt.self_id || "—") + "</div></div>" +
@@ -1281,6 +1282,7 @@ async function loadNetwork() {
 function collectNetwork() {
   const heartbeat = $("#heartbeatInput");
   const out = { heartbeatIntervalSeconds: heartbeat ? Number(heartbeat.value) : (S.network.heartbeatIntervalSeconds ?? 5),
+    groupMentionOnly: $("#groupMentionOnly") ? $("#groupMentionOnly").checked : (S.network.groupMentionOnly ?? false),
     httpServers: S.network.httpServers || [], httpClients: S.network.httpClients || [], wsServers: S.network.wsServers || [], wsClients: S.network.wsClients || [] };
   if (NET_SECTIONS.some((sec) => sec.kind === S.configTab)) out[S.configTab] = [];
   $$("#view .endpoint").forEach((card) => {
