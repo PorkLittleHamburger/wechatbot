@@ -17,7 +17,7 @@ def nonfriend_memory(monkeypatch):
     from wxbot_framework.group_members import _hash
     head, entry, sentinel, buckets, index, contact, strings = [0x740000000 + n * 0x1000 for n in range(7)]
 
-    def make(name="Non-friend Nick", *, modern=True, friend_name=""):
+    def make(name="Non-friend Nick", *, modern=True, friend_name="", profile=None):
         ram = ContactMemory(friend_name)
         for address in (head, entry, sentinel, buckets, index, contact, strings):
             ram.add(address, 0x1000)
@@ -34,7 +34,7 @@ def nonfriend_memory(monkeypatch):
         ram.q(index + 0x30, entry)
         ram.s(contact + 8, PEER, strings + 256)
         ram.s(contact + 0xD8, name, strings + 384)
-        return updated_memory(ram) if modern else ram
+        return updated_memory(ram, profile) if profile is not None else updated_memory(ram) if modern else ram
 
     return make, read_contact_name, BASE, SELF, PEER, CACHE, contact, strings
 
@@ -43,6 +43,16 @@ def nonfriend_memory(monkeypatch):
 def test_nonfriend_nickname_is_read_from_distinct_lru(nonfriend_memory, name):
     make, lookup, base, account, peer, *_ = nonfriend_memory
     assert lookup(make(name).read, base, peer, expected_account=account) == name
+
+
+@pytest.mark.parametrize("version", ["4.2.0.11", "4.2.0.12"])
+@pytest.mark.parametrize("name,expected", [("Group Member", "Group Member"), ("Bad\n", None)])
+def test_42_nonfriend_layout_and_raw_name_validation(nonfriend_memory, version, name, expected):
+    from wxbot_framework.native_profiles import CORE_PROFILES
+    make, lookup, base, account, peer, *_ = nonfriend_memory
+    profile = next(item for item in CORE_PROFILES if item.version == version)
+    ram = make(name, profile=profile)
+    assert lookup(ram.read, base, peer, expected_account=account) == expected
 
 
 def test_friends_still_take_priority_and_unknown_ids_do_not_match(nonfriend_memory):

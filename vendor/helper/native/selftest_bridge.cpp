@@ -41,6 +41,13 @@ static volatile LONG live_completions = 0;
 static volatile LONG live_tasks = 0;
 static bool hook_created = false;
 static bool factory_hook_created = false;
+#ifdef WXBOT_QUOTE_SEND
+static bool quote_manager_hook_created = false;
+#endif
+#ifdef WXBOT_LOCAL_RECALL
+static bool local_recall_hook_created = false;
+static volatile LONG local_recall_enabled = 0;
+#endif
 static bool image_download_factory_hook_created = false;
 static DWORD factory_tls = TLS_OUT_OF_INDEXES;
 using ReceiveFunction = uintptr_t (__fastcall*)(void*, const uintptr_t*, uint8_t, uint8_t);
@@ -73,8 +80,13 @@ struct ReceivedMessage {
 #ifdef WXBOT_MESSAGE_ID_RECEIVE
     uint64_t native_message_id;
 #endif
+#ifdef WXBOT_VOICE_RECEIVE
+    uint32_t voice_offset, voice_size; // Binary slice within image_xml, after its XML NUL.
+#endif
 };
-#ifdef WXBOT_MESSAGE_ID_RECEIVE
+#ifdef WXBOT_VOICE_RECEIVE
+static_assert(sizeof(ReceivedMessage) == 267568, "Unexpected media receive V6 ABI");
+#elif defined(WXBOT_MESSAGE_ID_RECEIVE)
 static_assert(sizeof(ReceivedMessage) == 267560, "Unexpected media receive V5 ABI");
 #elif defined(WXBOT_LARGE_MEDIA_RECEIVE)
 static_assert(sizeof(ReceivedMessage) == 267552, "Unexpected media receive V4 ABI");
@@ -92,7 +104,8 @@ static uint64_t receive_sequence = 0;
 
 static void enqueue_received(const char* sender, const char* receiver, const char* text,
                              const char* source = nullptr, uint32_t type = 1, const char* image_xml = nullptr,
-                             uint32_t reserved = 0, uint64_t native_message_id = 0) {
+                             uint32_t reserved = 0, uint64_t native_message_id = 0,
+                             const void* voice = nullptr, uint32_t voice_size = 0) {
     // 大型转发内容留在堆上，避免消耗微信接收线程的栈。
     auto storage = std::unique_ptr<ReceivedMessage>(new (std::nothrow) ReceivedMessage{});
     if (!storage) return;
@@ -119,6 +132,19 @@ static void enqueue_received(const char* sender, const char* receiver, const cha
     if (image_xml) strcpy_s(message.image_xml, image_xml);
 #else
     (void)image_xml;
+#endif
+#ifdef WXBOT_VOICE_RECEIVE
+    if (type == 34 && voice && voice_size) {
+        const size_t offset = std::strlen(message.image_xml) + 1;
+        if (offset < sizeof(message.image_xml) && voice_size <= sizeof(message.image_xml) - offset) {
+            std::memcpy(message.image_xml + offset, voice, voice_size);
+            message.voice_offset = static_cast<uint32_t>(offset);
+            message.voice_size = voice_size;
+        }
+    }
+#else
+    (void)voice;
+    (void)voice_size;
 #endif
     AcquireSRWLockExclusive(&receive_lock);
     if (receive_count == std::size(received_messages)) {
@@ -617,6 +643,9 @@ extern "C" __declspec(dllexport) DWORD WINAPI WxWaitForTasks(void*) {
 }
 
 extern "C" __declspec(dllexport) DWORD WINAPI WxRemoveSelfTest(void*) {
+#ifdef WXBOT_LOCAL_RECALL
+    InterlockedExchange(&local_recall_enabled, 0);
+#endif
     const auto target = reinterpret_cast<void*>(core_address(core_base, 0x178f100));
     MH_STATUS status = MH_OK;
     if (hook_created) {
@@ -647,6 +676,22 @@ extern "C" __declspec(dllexport) DWORD WINAPI WxRemoveSelfTest(void*) {
         status = MH_DisableHook(factory_target);
         if (status != MH_OK && status != MH_ERROR_DISABLED) return 600 + status;
     }
+#ifdef WXBOT_QUOTE_SEND
+    auto quote_manager_target = quote_manager_hook_created
+        ? reinterpret_cast<void*>(core_address(core_base, 0x6f4d90)) : nullptr;
+    if (quote_manager_hook_created) {
+        status = MH_DisableHook(quote_manager_target);
+        if (status != MH_OK && status != MH_ERROR_DISABLED) return 600 + status;
+    }
+#endif
+#ifdef WXBOT_LOCAL_RECALL
+    auto local_recall_target = local_recall_hook_created
+        ? reinterpret_cast<void*>(core_address(core_base, 0x1852d70)) : nullptr;
+    if (local_recall_hook_created) {
+        status = MH_DisableHook(local_recall_target);
+        if (status != MH_OK && status != MH_ERROR_DISABLED) return 600 + status;
+    }
+#endif
     void* image_factory_target = reinterpret_cast<void*>(core_address(core_base, 0x5240720));
     if (image_download_factory_hook_created) {
         status = MH_DisableHook(image_factory_target);
@@ -661,6 +706,12 @@ extern "C" __declspec(dllexport) DWORD WINAPI WxRemoveSelfTest(void*) {
 #endif
 #ifdef WXBOT_FRIEND_RECEIVE
     hooks_present = hooks_present || friend_receive_hook_created;
+#endif
+#ifdef WXBOT_QUOTE_SEND
+    hooks_present = hooks_present || quote_manager_hook_created;
+#endif
+#ifdef WXBOT_LOCAL_RECALL
+    hooks_present = hooks_present || local_recall_hook_created;
 #endif
     if (!hooks_present) return 0;
     if (hook_created) {
@@ -691,10 +742,28 @@ extern "C" __declspec(dllexport) DWORD WINAPI WxRemoveSelfTest(void*) {
         status = MH_RemoveHook(image_factory_target);
         if (status != MH_OK) return 600 + status;
     }
+#ifdef WXBOT_QUOTE_SEND
+    if (quote_manager_hook_created) {
+        status = MH_RemoveHook(quote_manager_target);
+        if (status != MH_OK) return 600 + status;
+    }
+#endif
+#ifdef WXBOT_LOCAL_RECALL
+    if (local_recall_hook_created) {
+        status = MH_RemoveHook(local_recall_target);
+        if (status != MH_OK) return 600 + status;
+    }
+#endif
     status = MH_Uninitialize();
     if (status == MH_OK) {
         hook_created = false; receive_hook_created = false; factory_hook_created = false;
         image_download_factory_hook_created = false;
+#ifdef WXBOT_LOCAL_RECALL
+        local_recall_hook_created = false;
+#endif
+#ifdef WXBOT_QUOTE_SEND
+        quote_manager_hook_created = false;
+#endif
 #ifdef WXBOT_RECALL_RECEIVE
         recall_receive_hook_created = false;
 #endif

@@ -311,7 +311,7 @@ def _read_friend_cache_name(read_memory, core_base, wxid, *, expected_account=No
         return None
     try:
         profile = select_memory_profile(read_memory, core_base)
-        if profile is None:
+        if profile is None or CONTACT_CACHE_VTABLE_RVA not in profile.rvas:
             return None
         rva = profile.rva
         def read(address, length):
@@ -401,15 +401,14 @@ def _read_friend_cache_name(read_memory, core_base, wxid, *, expected_account=No
 
 
 def _read_nonfriend_cache_name(read_memory, core_base, wxid, *, expected_account=None):
-    """Read the verified 4.1.15.56 non-friend LRU without requesting a refresh."""
+    """Read exact-ID non-friend LRU records on the explicitly verified builds."""
     account = read_current_account(read_memory, core_base)
     if not account or (expected_account is not None and account != expected_account):
         return None
     try:
         profile = select_memory_profile(read_memory, core_base)
-        # The common contact prefix and LRU +0x108 are documented for this build
-        # in _directory_records. Do not assume the same layout on other builds.
-        if profile is None or profile.version != "4.1.15.56":
+        # Each listed layout has separate upstream or local fixture evidence.
+        if profile is None or profile.version not in ("4.1.15.56", "4.2.0.11", "4.2.0.12"):
             return None
         from .group_members import _StableReader, _find_room
         directory = _DirectoryReader(read_memory)
@@ -433,5 +432,6 @@ def _read_nonfriend_cache_name(read_memory, core_base, wxid, *, expected_account
 
 def read_contact_name(read_memory, core_base, wxid, *, expected_account=None):
     """Read an exact-ID nickname from friends, then the verified non-friend LRU."""
+    validate_account(wxid)
     return (_read_friend_cache_name(read_memory, core_base, wxid, expected_account=expected_account)
             or _read_nonfriend_cache_name(read_memory, core_base, wxid, expected_account=expected_account))

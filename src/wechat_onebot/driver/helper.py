@@ -88,11 +88,24 @@ class HelperDriver(Driver):
     screenshots, mouse clicks, or keyboard simulation for sending messages.
     """
 
-    capabilities = frozenset({
+    _capabilities = frozenset({
         "text.receive", "text.send", "group.text.mention", "image.receive", "image.send",
         "file.receive", "file.send", "voice.send", "emoticon.send", "contact.read",
         "group.members.read", "request.friend", "message.recall", "forwarded.receive",
     })
+
+    @property
+    def capabilities(self) -> frozenset[str]:
+        if self._backend is None:
+            return self._capabilities
+        supported = self._backend.capabilities
+        # Gateway-only names differ from helper's vocabulary. Rich quotes and
+        # forward parsing remain gateway-local on every supported core build.
+        available = self._capabilities & supported
+        available |= {"forwarded.receive"}
+        if "friend.request.receive" in supported:
+            available |= {"request.friend"}
+        return frozenset(available)
 
     def __init__(self, app_config: AppConfig):
         self.config = app_config
@@ -269,6 +282,9 @@ class HelperDriver(Driver):
         # the same identity again with ready/failed metadata; suppressing this copy
         # avoids duplicate placeholder events and false text-only content.
         if data.get("monitor_only") and msg_type in (3, 49):
+            return None
+        if ((msg_type == 34 and data.get("voice_status") == "pending") or
+                (msg_type == 43 and data.get("video_status") == "pending")):
             return None
         if msg_type == 37:
             request = data.get("friend_request") or {}

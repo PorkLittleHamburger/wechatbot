@@ -1,93 +1,18 @@
 [
   {
-    "RelativePath": "native\\build\\selftest_bridge.dll",
-    "Length": 37888,
-    "SHA256": "457E87F9B12AE0C18203DE372DE0EF870440D76D5007B005350064C59DB0D387"
+    "RelativePath": ".github\\workflows\\docs.yml",
+    "Length": 1217,
+    "SHA256": "7373E74432D98A7467F63AD5FB3BE1360846F1AA4F1AA7CA1C0DC03129A54786"
   },
   {
-    "RelativePath": "native\\bridge_watchdog.py",
-    "Length": 1620,
-    "SHA256": "9BCBF50FA277C054615398E8032E73DDC9ABDDC8A930CF30FFCC37A09BBECCEB"
+    "RelativePath": ".gitignore",
+    "Length": 968,
+    "SHA256": "B0877849ECEC7192E0ED3AB463344140C8F0ACDB6448BB94654D26C82DD9BF9D"
   },
   {
-    "RelativePath": "wxbot_framework\\bridge_lifecycle.py",
-    "Length": 8168,
-    "SHA256": "B351250388C9EA117232EF517E509E32CEB36AE5886FB7CEBEACE31083F62E07"
-  },
-  {
-    "RelativePath": "native\\run_selftest.py",
-    "Length": 36837,
-    "SHA256": "D2BE8C61E5447208A5CFF1916368F5B8DA3EE51C115D551FEFAEC86A073D3BE1"
-  },
-  {
-    "RelativePath": "native\\filehelper_service.py",
-    "Length": 11730,
-    "SHA256": "4A8D54E5ABF90EEF0F8DF9B5699E0E38787B6964798BCCCBC604962F1D7AA6A0"
-  },
-  {
-    "RelativePath": "wxbot_framework\\local_paths.py",
-    "Length": 577,
-    "SHA256": "BFFB44C2CD613FED93BED9A225710DE457C7C2AC5004B9ED29677BC9AD966E69"
-  },
-  {
-    "RelativePath": "native\\build_text\\text_bridge.dll",
-    "Length": 105472,
-    "SHA256": "517C9C9711F9E1CF32E644C2D845384986486884975F0ED17F80515142A8088C"
-  },
-  {
-    "RelativePath": "native\\local_file_path.h",
-    "Length": 640,
-    "SHA256": "DF9D1EC74B57045FEEE2EFEAEA7D6C2545EF8F14D8929FB915858A5F240F7DF0"
-  },
-  {
-    "RelativePath": "native\\file_send.h",
-    "Length": 15491,
-    "SHA256": "E9794701EF1BF96153B82BCCE80518FD6F4112AC41E4308D8FDB37CE46559A36"
-  },
-  {
-    "RelativePath": "native\\voice_send.h",
-    "Length": 12477,
-    "SHA256": "6214492D126FE77AFECE60EF959DAA193CDB7E2287FE3EA6A1973BA56C431DC3"
-  },
-  {
-    "RelativePath": "wxbot_framework\\snapshot_access.py",
-    "Length": 5345,
-    "SHA256": "98F914B73D344CA774E14DDCA8B03836097A262639E36B614DB3A78818BD8B18"
-  },
-  {
-    "RelativePath": "wxbot_framework\\files.py",
-    "Length": 6516,
-    "SHA256": "09DB66DB356177FDC324D13517450328820D21B920B9EF16FA38F7C91CDD0C6C"
-  },
-  {
-    "RelativePath": "wxbot_framework\\voices.py",
-    "Length": 10658,
-    "SHA256": "80A7BBFCA2D222D514D4FEB7CF68CAF7BF9CA5B6F2ACC8DFC2A6C5BF70B379C3"
-  },
-  {
-    "RelativePath": "wxbot_framework\\sdk.py",
-    "Length": 26072,
-    "SHA256": "DA1A09CDCAAD3DFF1F79618B6204B5CC3CCD4009C59E0315727ECAB7CA0388B1"
-  },
-  {
-    "RelativePath": "wxbot_framework\\contacts.py",
-    "Length": 21110,
-    "SHA256": "B16D7896C0700DF18F3CC8F29EFAF4A28F17F7F1C0E5AC66D226947B6DD56C3B"
-  },
-  {
-    "RelativePath": "README.md",
-    "Length": 5437,
-    "SHA256": "061EEE7BFD0976FD191C380EDBDCE979B5B423E479EF4BA11AF7252B992A3C9E"
-  },
-  {
-    "RelativePath": "PRODUCT.md",
-    "Length": 6015,
-    "SHA256": "5ACF1530CD0850C0D95047D5BF930364F54043FE16ECDFBF4E00ABB5C9D1FF2F"
-  },
-  {
-    "RelativePath": "DESIGN.md",
-    "Length": 19535,
-    "SHA256": "CF8892BE259F290CEE68D760ADECEF6F7419546DF93368964D7FA9FB9CE2B393"
+    "RelativePath": ".impeccable\\design.json",
+    "Length": 41357,
+    "SHA256": "EF48757175B80B8A3DC6C846ACF53C7F77E17F57F85773E2167C4788787D2513"
   },
   {
     "RelativePath": ".impeccable\\surfaces\\webui-index-html.md",
@@ -95,29 +20,1419 @@
     "SHA256": "623717549659B50FE41547F13DB98ABB7999001EC80F4AAAD3B2E7F82CDF3C9B"
   },
   {
+    "RelativePath": "DESIGN.md",
+    "Length": 19535,
+    "SHA256": "CF8892BE259F290CEE68D760ADECEF6F7419546DF93368964D7FA9FB9CE2B393"
+  },
+  {
+    "RelativePath": "LICENSE",
+    "Length": 3071,
+    "SHA256": "5339B5D2B3F8A5F33CD8DBA07020D0E304F2C92F14D3CE4A332C5D23C3F163BD"
+  },
+  {
+    "RelativePath": "PRODUCT.md",
+    "Length": 6508,
+    "SHA256": "3FEB9A41303D0341EEEE71383C36D04C0B24683512D6E9C95D59DFDDE3867C6E"
+  },
+  {
+    "RelativePath": "README.md",
+    "Length": 7165,
+    "SHA256": "2C04204722FEBCE3C3CB265C01D2D20640CBE4513605E73BF6E7BEFB7E6976E2"
+  },
+  {
+    "RelativePath": "THIRD_PARTY_NOTICES.md",
+    "Length": 1205,
+    "SHA256": "747A95CBF0E2A285890C4C78C73D3D24BE64D156B0B736E3811B808FCE39B7B3"
+  },
+  {
+    "RelativePath": "VENDORED_COMMIT.txt",
+    "Length": 41,
+    "SHA256": "A7C1027DA0B44D579F5B23B6E1CD4E60E2BFA9E8D0C2A27BCE3522AC2BDEE2B5"
+  },
+  {
+    "RelativePath": "bot_config.example.json",
+    "Length": 2114,
+    "SHA256": "5A1EB1C572C0C9D77B16B19DE57E0490C43AC408393006FEC6F4CCD7BF9D5D8D"
+  },
+  {
+    "RelativePath": "docs\\.vitepress\\config.mts",
+    "Length": 3416,
+    "SHA256": "C1CC49F9978F508C584F8AE4BB7A3C77D33206FC483170F5D2F9BA53832204D2"
+  },
+  {
+    "RelativePath": "docs\\.vitepress\\theme\\index.ts",
+    "Length": 93,
+    "SHA256": "79B3CC1810C19627B0A468EB7011FD26E808E6C2CD14E379EF0F78FDCFFF7D47"
+  },
+  {
+    "RelativePath": "docs\\.vitepress\\theme\\style.css",
+    "Length": 840,
+    "SHA256": "7AC0C4747DFDA29EE3011E017926463A883DDD0329013202993B4814CD85F7CD"
+  },
+  {
     "RelativePath": "docs\\development\\documentation.md",
     "Length": 2214,
     "SHA256": "04D261AAB24E3F5688A7F05C8E3ED3E09A922B2A5E722F1BC17127ABD269E9E1"
   },
   {
+    "RelativePath": "docs\\development\\plugins.md",
+    "Length": 14557,
+    "SHA256": "102F9D017676502648AD3D170C1F39C9ADCACBD31F43AC89EF7BD26DC83F3E9B"
+  },
+  {
+    "RelativePath": "docs\\development\\structure.md",
+    "Length": 4593,
+    "SHA256": "DEC7B36056FB60CAE87270A564AB5F63A44D29AF114E8083A808AC5F72E3765A"
+  },
+  {
+    "RelativePath": "docs\\guide\\account-and-groups.md",
+    "Length": 3295,
+    "SHA256": "7057D4C9167E973339F1C7DC7F19EC9996A05F3331E287EDCA32265EB235AE64"
+  },
+  {
+    "RelativePath": "docs\\guide\\commands.md",
+    "Length": 2642,
+    "SHA256": "9B472692037FBCF3A9F9946C12FA55DD6491DBFDD82A84B08D7D06841CEF1D22"
+  },
+  {
+    "RelativePath": "docs\\guide\\configuration.md",
+    "Length": 10808,
+    "SHA256": "32083DE3AC7092A341CE6830E87E3F85D77D8D72F7A2C4F5F88CA4C44AB45CB6"
+  },
+  {
+    "RelativePath": "docs\\guide\\faq.md",
+    "Length": 6083,
+    "SHA256": "7988EE03CFD33BDE745F9CD33A9751F62A1598BE6F409F0189FB7DEF4AF4D846"
+  },
+  {
+    "RelativePath": "docs\\guide\\features.md",
+    "Length": 9110,
+    "SHA256": "EB6C6D3B90D544F62848D93EF7E086E16C5EDC2917C4FC7436CF876BE612B8DA"
+  },
+  {
+    "RelativePath": "docs\\guide\\friends-and-groups.md",
+    "Length": 9694,
+    "SHA256": "A1E05F9311FCFA5EA5768B45C32AF281691E32823CF866F7DD87BB038F513850"
+  },
+  {
+    "RelativePath": "docs\\guide\\license.md",
+    "Length": 1542,
+    "SHA256": "AA53F3B72818308C35B068D45E7F198CC63D7CDB2DAA94AEE806883081FB7413"
+  },
+  {
     "RelativePath": "docs\\guide\\quick-start.md",
-    "Length": 3982,
-    "SHA256": "6DE1E885B9029116B13D198A1A0ED3DC8FF0E420C68EF0C3D1FADE54280186B6"
+    "Length": 4069,
+    "SHA256": "FA8A2ED6A603C35C24C7C6DA3E96F6278D44B139183BB34B6556DE01431210A0"
+  },
+  {
+    "RelativePath": "docs\\guide\\web-panel.md",
+    "Length": 27020,
+    "SHA256": "A1138BA4B61C7134254DF5B478BA82853FBBFECA01B58407274B6782BE4F8DDB"
+  },
+  {
+    "RelativePath": "docs\\index.md",
+    "Length": 5316,
+    "SHA256": "9AD58CF38525BC5E9DC9F4C71C262035BFFEC4FBC351670464E688B8BEB8582C"
+  },
+  {
+    "RelativePath": "docs\\messages\\emoticons.md",
+    "Length": 3215,
+    "SHA256": "55FE07926CBCF9E6D4BD10EC9F2054E87481CB525E645E75DBC481CE1A7722FB"
+  },
+  {
+    "RelativePath": "docs\\messages\\files.md",
+    "Length": 3623,
+    "SHA256": "F1EE1B9ABD7A3C28CB6735EA6FCFFF4EA36752296FF7201BAE8C49DDC75B73AC"
+  },
+  {
+    "RelativePath": "docs\\messages\\forwarded.md",
+    "Length": 4357,
+    "SHA256": "27A75741D064F2855B3BF2A1FCFA96B7DF9B9A65461F6DCB4C0ED3C77E59A5FA"
+  },
+  {
+    "RelativePath": "docs\\messages\\gallery.md",
+    "Length": 2048,
+    "SHA256": "B4A98015050A4C8D9C8A061AD246CC107A18DEFD7806CCB90EDD6F422B686B8D"
+  },
+  {
+    "RelativePath": "docs\\messages\\images.md",
+    "Length": 3221,
+    "SHA256": "C456B14C60EF19F7FA227EBDF322594AA51A49D32E5571C74CA48C38605E5CA8"
   },
   {
     "RelativePath": "docs\\messages\\recall.md",
-    "Length": 6585,
-    "SHA256": "EB23DAB3702784495FCD843DDCD28751858B9C6411EF588996BCD6814E039352"
+    "Length": 8780,
+    "SHA256": "AE97F3CBB01272595F633731913F2CFB299E563663FDC8E7A446DE9327DEE8C3"
   },
   {
-    "RelativePath": "wxbot_framework\\replies.py",
-    "Length": 2726,
-    "SHA256": "9C4BBF78C4563B0897944016F6550EBD93E7BF128487E8DA5D5E0CE7F30336DE"
+    "RelativePath": "docs\\messages\\text.md",
+    "Length": 4920,
+    "SHA256": "2F74473EC8F14355586A45C6AD80384AE286F0C3E920B36EFEE62D1187389343"
+  },
+  {
+    "RelativePath": "docs\\messages\\videos.md",
+    "Length": 1613,
+    "SHA256": "4053830678EBBE4B3A8341FD39D7971813049973928D1D44A44DE7965EE2953B"
+  },
+  {
+    "RelativePath": "docs\\messages\\voice.md",
+    "Length": 6428,
+    "SHA256": "CB01C04AFC2A088CE33BCADAB2ED78BDF25BFF666277627EE64695E6FC91DB7E"
+  },
+  {
+    "RelativePath": "docs\\public\\logo.svg",
+    "Length": 251,
+    "SHA256": "6EAC39FDB0A3C878A7C2E5A9E607CF29B9494F1B0632BA5D87484B2029C4213E"
+  },
+  {
+    "RelativePath": "image_generation.example.json",
+    "Length": 142,
+    "SHA256": "C247F44C30BF03C6DF2B8D1BE0DF846C62BFDA2E431DC38B412D98F90D1C080A"
+  },
+  {
+    "RelativePath": "llm_config.example.json",
+    "Length": 219,
+    "SHA256": "D28B19A0BD4961AE42C24DE15EB2B5F827D9F4CBF36F036DA53681F038B5B73D"
+  },
+  {
+    "RelativePath": "main.py",
+    "Length": 5057,
+    "SHA256": "4CABFD5560AE5538AAF687745EBCC6FD2C260502D98AE6E2EFF751ADEE7EF1AC"
+  },
+  {
+    "RelativePath": "members_config.example.json",
+    "Length": 120,
+    "SHA256": "DBC451CC4F14506475214FCDA56A02B32128123292CF9BBD6C2FED29925C2D11"
+  },
+  {
+    "RelativePath": "native\\README.md",
+    "Length": 7658,
+    "SHA256": "E817C43BDBA1B66E447E1AB4990139DB54F88CC3B57CF8FBED90BB97EEA2F28C"
+  },
+  {
+    "RelativePath": "native\\article_bridge.cpp",
+    "Length": 32504,
+    "SHA256": "C3FED4EC7697730F6085EA6D28CC7762D9522AABC89CBC20F9A33CB4CF163B82"
+  },
+  {
+    "RelativePath": "native\\article_transport.py",
+    "Length": 24131,
+    "SHA256": "6DB2F453C2039B7995E17B48ED5E19DF133971659634D34605F971FE2FE47446"
+  },
+  {
+    "RelativePath": "native\\bridge_watchdog.py",
+    "Length": 1620,
+    "SHA256": "9BCBF50FA277C054615398E8032E73DDC9ABDDC8A930CF30FFCC37A09BBECCEB"
+  },
+  {
+    "RelativePath": "native\\build\\selftest_bridge.dll",
+    "Length": 38912,
+    "SHA256": "24001A991512E70DF1BFDA5B6906712816A86C4DC7BCC6798126B2BE9C1029E4"
+  },
+  {
+    "RelativePath": "native\\build_article\\article_bridge.dll",
+    "Length": 72192,
+    "SHA256": "81984ADB697E38ABD327C0D3C26368AB2A1B84DBDB6707F3D933342079163890"
+  },
+  {
+    "RelativePath": "native\\build_bridges.ps1",
+    "Length": 2808,
+    "SHA256": "6ACBA3D2F136888DE2E233E056E8D8AFA401AB19B8C759CDDD2F2242B99CEC08"
+  },
+  {
+    "RelativePath": "native\\build_text\\text_bridge.dll",
+    "Length": 162304,
+    "SHA256": "AD48C056E2F2FB20F516B722DEF7334D20C27D885C900500B0E60A0F07D07371"
+  },
+  {
+    "RelativePath": "native\\compatibility.json",
+    "Length": 928,
+    "SHA256": "E2DAE78D028A300FEB767AD01A4E128C7D2A5E2DB037ADD4E15505B89E097709"
+  },
+  {
+    "RelativePath": "native\\core_version.h",
+    "Length": 12653,
+    "SHA256": "18AF2225FD3D745FFC65E6BC1EC7D0669E909B7227E9FDD1E31D670EC60A433C"
+  },
+  {
+    "RelativePath": "native\\emoticon_send.h",
+    "Length": 14278,
+    "SHA256": "80D35ACF54922D28046375DB1E860A8FA7B3F2A092C68FB3BDEE2A6E1BB2F980"
+  },
+  {
+    "RelativePath": "native\\file_download.h",
+    "Length": 13173,
+    "SHA256": "24A202D7B8C148D377CDBF5996C568DE1067CEE08376EEE11DD07E16772A05E5"
+  },
+  {
+    "RelativePath": "native\\file_send.h",
+    "Length": 17738,
+    "SHA256": "9157DCC3A4AD831EB430FD052E317FAADEBFF67B6996777A0829B05EEDB265D8"
+  },
+  {
+    "RelativePath": "native\\filehelper_service.py",
+    "Length": 12085,
+    "SHA256": "9D03ADACA720C99C96CE1AA5CB2F9A5C0AFC7738416DC5E79BCF78E0ED282504"
+  },
+  {
+    "RelativePath": "native\\friend_add.h",
+    "Length": 8237,
+    "SHA256": "4B370909407575C971191741E9EA21053384069C03218386FB734EDA84462F34"
+  },
+  {
+    "RelativePath": "native\\friend_receive.h",
+    "Length": 4711,
+    "SHA256": "9A71389C72E89F3DFEA45BA5ADB35EB6D86957B2978E88E757E29D974C24901A"
+  },
+  {
+    "RelativePath": "native\\friend_request.h",
+    "Length": 10087,
+    "SHA256": "76A9A0F7E2ED9DBAC19991045DF0BA99793C2E2BE6667F25950D867306193D89"
+  },
+  {
+    "RelativePath": "native\\group_management.h",
+    "Length": 13590,
+    "SHA256": "42C1F0E8CC1EE6EC614EFDC1C86E30B65CC032E244C51D7056759B72B454E329"
+  },
+  {
+    "RelativePath": "native\\image_download.h",
+    "Length": 20479,
+    "SHA256": "F8605BC47AC39827AA5DEBFD2DF729F7683D4552711805B9B74239566E8A0799"
+  },
+  {
+    "RelativePath": "native\\image_send.h",
+    "Length": 11276,
+    "SHA256": "5C37C691A1AD4CBE8F750029541BCC1A856C267CA5937F7B1AC3602275E48CB0"
+  },
+  {
+    "RelativePath": "native\\local_file_path.h",
+    "Length": 640,
+    "SHA256": "DF9D1EC74B57045FEEE2EFEAEA7D6C2545EF8F14D8929FB915858A5F240F7DF0"
+  },
+  {
+    "RelativePath": "native\\local_recall.h",
+    "Length": 6278,
+    "SHA256": "E5AFC979F0EF60360D884F34AC6701BC4A07E84D4179264B1588F1994C661813"
+  },
+  {
+    "RelativePath": "native\\local_recall_transport.py",
+    "Length": 2167,
+    "SHA256": "2447EB9CCBE70DA5E0B56BF57DCBF00E434F248E455598E7FA082493DF400031"
+  },
+  {
+    "RelativePath": "native\\moments_interaction_bridge.h",
+    "Length": 28658,
+    "SHA256": "107F830C18D52C81B3041BE204AA3EEC45CC5CAE2832C3361E59189CE8DBC02B"
+  },
+  {
+    "RelativePath": "native\\moments_interaction_call.h",
+    "Length": 8088,
+    "SHA256": "1871F4A54A9D4AAF2393DDF9387AEB7930E6FD81226542A568B6992F61201436"
+  },
+  {
+    "RelativePath": "native\\moments_interaction_transport.py",
+    "Length": 8383,
+    "SHA256": "06B409C1A8130B1CD4D522880A9736EC23159253B4B84CA37B7EC579057ABE96"
+  },
+  {
+    "RelativePath": "native\\moments_send.h",
+    "Length": 45207,
+    "SHA256": "736DF659770EC182778CC18A60C534463B536423AC3921E38ABA0F8707AF7EA3"
+  },
+  {
+    "RelativePath": "native\\moments_task_lifetime.h",
+    "Length": 4814,
+    "SHA256": "E0422A2C240876B813C19641DAD4A1CACFAC07006978EDB6F5C842AF3524D68D"
+  },
+  {
+    "RelativePath": "native\\moments_transport.py",
+    "Length": 26518,
+    "SHA256": "E138D9279D9D5B9924D8226D3E48F8FCE2FA804CFFA0EBEDF5A040DEFDB0BF8F"
+  },
+  {
+    "RelativePath": "native\\quote_send.h",
+    "Length": 9568,
+    "SHA256": "06DD560B1B9710208066DF3289CEA4D5DCF30923A3524E60C582CA597BA214DD"
+  },
+  {
+    "RelativePath": "native\\run_selftest.py",
+    "Length": 43127,
+    "SHA256": "F93CDE85C055CAB6B1B4EC672DBC92847A01B8B28557DDE152D3AA9ADEECA154"
+  },
+  {
+    "RelativePath": "native\\selftest_bridge.cpp",
+    "Length": 35385,
+    "SHA256": "3992EB603D568586F1E8AE3222C9BF527BB9EF434ED52ACA9973B36D87A113E6"
+  },
+  {
+    "RelativePath": "native\\text_bridge.cpp",
+    "Length": 33557,
+    "SHA256": "F56434DFA46FFA106949374CB44ABEE4C313678379860FDAAC9C3DC6ADF28A35"
   },
   {
     "RelativePath": "native\\text_service.py",
-    "Length": 39327,
-    "SHA256": "CF58A6D20D62E26330F79EB52AF3BD54F20C6F9EB4D14ADBF8D4EDB9C302F049"
+    "Length": 57162,
+    "SHA256": "1FB66C66E945277A7EF2762D068B02954AD9E2760031CC43F6CE6F1962C530F0"
+  },
+  {
+    "RelativePath": "native\\vendor\\minhook-1.3.4\\AUTHORS.txt",
+    "Length": 214,
+    "SHA256": "073B4E8B0A5A0CD9F4DFA838369F4FC7A4F47151D930B4E1FD891644060A897F"
+  },
+  {
+    "RelativePath": "native\\vendor\\minhook-1.3.4\\LICENSE.txt",
+    "Length": 4365,
+    "SHA256": "D5C2224982B0B95A16B098A561335FA93F3EAF4D0AA964B7843EDB986DF78DC8"
+  },
+  {
+    "RelativePath": "native\\vendor\\minhook-1.3.4\\include\\MinHook.h",
+    "Length": 7530,
+    "SHA256": "62DFF05E63155C6BF8135C36A0D79DEDBDCAAEDE9DA26FE38DAF0BEA34323E38"
+  },
+  {
+    "RelativePath": "native\\vendor\\minhook-1.3.4\\src\\buffer.c",
+    "Length": 9814,
+    "SHA256": "0AB484D7870C3A8E7A3A1EE61E2070072CF445ED85B619D4C4207FED34356D99"
+  },
+  {
+    "RelativePath": "native\\vendor\\minhook-1.3.4\\src\\buffer.h",
+    "Length": 1820,
+    "SHA256": "9769702BD625249E59A19EDE05C84365FCC7707E1FA0E5DF08DF42227CEE13E3"
+  },
+  {
+    "RelativePath": "native\\vendor\\minhook-1.3.4\\src\\hde\\hde32.c",
+    "Length": 9318,
+    "SHA256": "5DA4941E9044F7B325C7F952B5840089E365F374740B7FE7318805D08C0D6C32"
+  },
+  {
+    "RelativePath": "native\\vendor\\minhook-1.3.4\\src\\hde\\hde32.h",
+    "Length": 2450,
+    "SHA256": "5132DE5BE8AC7A9D054420F5CAEF0FB01437FAA892F03B3CDC77F795973BF15A"
+  },
+  {
+    "RelativePath": "native\\vendor\\minhook-1.3.4\\src\\hde\\hde64.c",
+    "Length": 9507,
+    "SHA256": "824EAFA315322E6DA105A7CE4EC1FC0E0ADEEE0106D32152FBB0B59E709BD15C"
+  },
+  {
+    "RelativePath": "native\\vendor\\minhook-1.3.4\\src\\hde\\hde64.h",
+    "Length": 2602,
+    "SHA256": "E99AA4997BDA14B534C614C3D8CB78A72C4ACA91A1212C8B03EC605D1D75E36E"
+  },
+  {
+    "RelativePath": "native\\vendor\\minhook-1.3.4\\src\\hde\\pstdint.h",
+    "Length": 1662,
+    "SHA256": "604D1CDF45C5A95BC9CF1BBF39CA05EF83013541101D34971C5CD7577E3D5247"
+  },
+  {
+    "RelativePath": "native\\vendor\\minhook-1.3.4\\src\\hde\\table32.h",
+    "Length": 3508,
+    "SHA256": "43BF687A9FFF071B5F46070DB4D36C846F8E069CDC57485EE897C499AACDDE23"
+  },
+  {
+    "RelativePath": "native\\vendor\\minhook-1.3.4\\src\\hde\\table64.h",
+    "Length": 3577,
+    "SHA256": "B774446D2F110CE954FB0A710F4693C5562DDBD8D56FE84106F2EE80DB8B50A2"
+  },
+  {
+    "RelativePath": "native\\vendor\\minhook-1.3.4\\src\\hook.c",
+    "Length": 26626,
+    "SHA256": "EDCCE4C81985D7DD5B73FEAE96D6498C8F749B1BCA4C3D2D9926EA9A17A84755"
+  },
+  {
+    "RelativePath": "native\\vendor\\minhook-1.3.4\\src\\trampoline.c",
+    "Length": 10718,
+    "SHA256": "F13A169F803FF5A8E45C58CE668B4377A9878C0FC4452369B8A1325065186B2B"
+  },
+  {
+    "RelativePath": "native\\vendor\\minhook-1.3.4\\src\\trampoline.h",
+    "Length": 3759,
+    "SHA256": "53ED9934492320617A27BFD952FFE7F5B7A4A1D09963D4512447082FE7B727B4"
+  },
+  {
+    "RelativePath": "native\\voice_send.h",
+    "Length": 12477,
+    "SHA256": "6214492D126FE77AFECE60EF959DAA193CDB7E2287FE3EA6A1973BA56C431DC3"
+  },
+  {
+    "RelativePath": "package-lock.json",
+    "Length": 88782,
+    "SHA256": "3603CEC316580511A6D8906ED106015991809C106D75835FDC49B206702A503D"
+  },
+  {
+    "RelativePath": "package.json",
+    "Length": 343,
+    "SHA256": "D198CE606BFA5A7896FB89F81E23F369FB812CC61CA5527F09CB1A16FBF8D60B"
+  },
+  {
+    "RelativePath": "plugins\\_template\\__init__.py",
+    "Length": 890,
+    "SHA256": "B878F009E4DC7B382CF8A58B04B9E483C2435753E0B61546E9FFDBFBF43F5F3C"
+  },
+  {
+    "RelativePath": "plugins\\_template\\plugin.json",
+    "Length": 616,
+    "SHA256": "F70E17376353E1164AFD423AC87FAE61D2C78BBA9C7269378CBFBEDAD01DBC9C"
+  },
+  {
+    "RelativePath": "plugins\\anti_recall\\README.md",
+    "Length": 2581,
+    "SHA256": "2011A18CA84F2BD768E4B0680306ED05875010134645F8C5E20399F789437A36"
+  },
+  {
+    "RelativePath": "plugins\\anti_recall\\__init__.py",
+    "Length": 6366,
+    "SHA256": "CFD6AAE154AC26EFACE064DAE4FB6D4FEC8E5F1377AEA05262E8E8276DA79F3D"
+  },
+  {
+    "RelativePath": "plugins\\anti_recall\\plugin.json",
+    "Length": 429,
+    "SHA256": "51EA12719448D314D4A499D9AE1F9CCC39F1851347B303AF98C3B78CECCF2AD8"
+  },
+  {
+    "RelativePath": "plugins\\anti_recall\\stickers.py",
+    "Length": 10775,
+    "SHA256": "803ED73535668C9F58B7219414229EBCB3A3A60908CBC4C893AE5C1D7F18E60F"
+  },
+  {
+    "RelativePath": "plugins\\anti_recall_file\\README.md",
+    "Length": 1373,
+    "SHA256": "CDBCF2BF4A46B8BAFA7D42D63C9C0A66DEA98C7704575EFC6CDAA8E5076A022F"
+  },
+  {
+    "RelativePath": "plugins\\anti_recall_file\\__init__.py",
+    "Length": 355,
+    "SHA256": "ECF97183AF81A3DBB234F32B8DAF6617395E9823C1460C66BCDCD7AA9C470462"
+  },
+  {
+    "RelativePath": "plugins\\anti_recall_file\\plugin.json",
+    "Length": 389,
+    "SHA256": "B5EE722329A46D58DA43746D7384754250F446707AACF23F12441371ECB3150F"
+  },
+  {
+    "RelativePath": "plugins\\anti_recall_image\\README.md",
+    "Length": 1174,
+    "SHA256": "314238F152C5B5FE089D2DCE4A6E1FF63BBC28BF175E3EDC7476E55DE7D7E0FA"
+  },
+  {
+    "RelativePath": "plugins\\anti_recall_image\\__init__.py",
+    "Length": 351,
+    "SHA256": "173CEEF4807669AF892576886760E709E5D87695CBA5990CAD5A07F7767298EC"
+  },
+  {
+    "RelativePath": "plugins\\anti_recall_image\\plugin.json",
+    "Length": 375,
+    "SHA256": "2934B37354BFDD344760E06563638DF372B91896C519E21B71D3327AAAA64534"
+  },
+  {
+    "RelativePath": "plugins\\anti_recall_local\\README.md",
+    "Length": 541,
+    "SHA256": "D90B73140C7F369ED8BE6E662325E77A6F7EB9B66B605B1E73D3985FECBD27FE"
+  },
+  {
+    "RelativePath": "plugins\\anti_recall_local\\__init__.py",
+    "Length": 388,
+    "SHA256": "570FA35891D75F1E9AB656923A0AC13D70FD0B6F091EB8E6B64E98EA4DD6CFF3"
+  },
+  {
+    "RelativePath": "plugins\\anti_recall_local\\plugin.json",
+    "Length": 250,
+    "SHA256": "93756E9AF2B9C5C5092F53A774309C891052B538FC8A7BE7175AE89215E747BC"
+  },
+  {
+    "RelativePath": "plugins\\anti_recall_voice\\README.md",
+    "Length": 947,
+    "SHA256": "E7D875F21E30534F19CFF78A1B891688D48D7DE778E3CA4F32B7AC79A3A7C71F"
+  },
+  {
+    "RelativePath": "plugins\\anti_recall_voice\\__init__.py",
+    "Length": 396,
+    "SHA256": "AA7814D39DC8712E1436ADECF443C73605083F583CEE9A0900333D295E13B9EF"
+  },
+  {
+    "RelativePath": "plugins\\anti_recall_voice\\plugin.json",
+    "Length": 321,
+    "SHA256": "E85E7261E1134AD0FE753C1D12DD0A42B9E1D22D9D9B0F26B14D519F1BC6238A"
+  },
+  {
+    "RelativePath": "plugins\\chat_records\\__init__.py",
+    "Length": 631,
+    "SHA256": "EA21A7977D1BF36035461D9CBC6FAB974A3388238BDD875308F8893BE48C1CED"
+  },
+  {
+    "RelativePath": "plugins\\chat_records\\plugin.json",
+    "Length": 301,
+    "SHA256": "00ECADCF8B002FD5A200726D5A3F631045FAA43085D9B66471F7579D67F4701E"
+  },
+  {
+    "RelativePath": "plugins\\chat_summary\\README.md",
+    "Length": 740,
+    "SHA256": "F8787556433DE423E2F0D2C6E8120BA7CD03F953AC9F2E4C3F1E0E4B5C25DA50"
+  },
+  {
+    "RelativePath": "plugins\\chat_summary\\__init__.py",
+    "Length": 4218,
+    "SHA256": "1FE687C6C0E4C641537BDB9B603165E2732AAF877EFF17B6D8AA173CF4D31F80"
+  },
+  {
+    "RelativePath": "plugins\\chat_summary\\plugin.json",
+    "Length": 576,
+    "SHA256": "D6C2CFC1E28552EF3865EFC484E802731548BE933268BC67320197ADB8A8BF61"
+  },
+  {
+    "RelativePath": "plugins\\echo\\__init__.py",
+    "Length": 525,
+    "SHA256": "FCD9217737B9BF98F79CA0EBA8BD4624CF0E4E9B7D9FE81BD3B8E046E8423CC3"
+  },
+  {
+    "RelativePath": "plugins\\echo\\plugin.json",
+    "Length": 246,
+    "SHA256": "2C6F685EA96668A49A36998C5931EB3E14AF71837A2C48E30D1E61E36E7EFCBA"
+  },
+  {
+    "RelativePath": "plugins\\friend_auto_accept\\README.md",
+    "Length": 733,
+    "SHA256": "51104D2F194ABD0F12D17AC0EAFA36E972E730238E59F4C47ABA84730FD9C7CE"
+  },
+  {
+    "RelativePath": "plugins\\friend_auto_accept\\__init__.py",
+    "Length": 1576,
+    "SHA256": "4C303F88B5850131C4ACD4FEBB75052B97CF8736D78796E05500CC5963345515"
+  },
+  {
+    "RelativePath": "plugins\\friend_auto_accept\\plugin.json",
+    "Length": 353,
+    "SHA256": "17383D04117E071C513FB77ADC9854657753EBB32487BE5442572B4419D25C8D"
+  },
+  {
+    "RelativePath": "plugins\\group_notice\\README.md",
+    "Length": 1219,
+    "SHA256": "47CA5A933DB768523DA4245BFD2226A55A8537F86C226CB46168FB6729319D90"
+  },
+  {
+    "RelativePath": "plugins\\group_notice\\__init__.py",
+    "Length": 2418,
+    "SHA256": "9DCA200103FFCFF9A6CFB640DEB1014E630B312B8611D795405BB0B7E37037AE"
+  },
+  {
+    "RelativePath": "plugins\\group_notice\\plugin.json",
+    "Length": 335,
+    "SHA256": "2111AB4CD1C0C27C6469F5F1E2C0A6E097A5A24B99CFD3E9391C77A0A01A178C"
+  },
+  {
+    "RelativePath": "plugins\\id_responder\\__init__.py",
+    "Length": 441,
+    "SHA256": "8BBC6D26415D6BEFA47D67C94B9DC85F782913EF5D10A974F16022C05F835A1F"
+  },
+  {
+    "RelativePath": "plugins\\id_responder\\plugin.json",
+    "Length": 240,
+    "SHA256": "C24292A89C17094ED7D6818082DBB57EC857B5DD1FC0745294A9CCA0CA27328F"
+  },
+  {
+    "RelativePath": "plugins\\idiom_chain\\README.md",
+    "Length": 860,
+    "SHA256": "55506DF8AF66C21D03A0A151CCA5EAC8C75578A031BEE9FDF7B4EA7C99E04383"
+  },
+  {
+    "RelativePath": "plugins\\idiom_chain\\__init__.py",
+    "Length": 6524,
+    "SHA256": "BA13E0ABF321DD54B3E4240121D0A2AB96BF24CEE1847DAC63AA837397C2989A"
+  },
+  {
+    "RelativePath": "plugins\\idiom_chain\\judge.py",
+    "Length": 2779,
+    "SHA256": "C93EEAE647C625997D019AE520C4264423A0B3C3930BA7326B441AC2C2ED05A3"
+  },
+  {
+    "RelativePath": "plugins\\idiom_chain\\plugin.json",
+    "Length": 332,
+    "SHA256": "43A11CC7979D07A8E0FDD20C62088D61762680F60432162CCCBFDCDD6B76561E"
+  },
+  {
+    "RelativePath": "plugins\\image_gallery\\README.md",
+    "Length": 2940,
+    "SHA256": "363B6719FA5DFA40588938B134DD801E4655BEDE5BA3CA7CB2ED0AACEB66FFC7"
+  },
+  {
+    "RelativePath": "plugins\\image_gallery\\__init__.py",
+    "Length": 4668,
+    "SHA256": "2D0A5A2410E627268A8D81A45F8641D77B007931C5234A47C0EAFD4BA7FE7FCB"
+  },
+  {
+    "RelativePath": "plugins\\image_gallery\\plugin.json",
+    "Length": 366,
+    "SHA256": "4160468E1AA1AE5202847F99EBD6704E92284971F7CFE231BB0495B84A4FB18D"
+  },
+  {
+    "RelativePath": "plugins\\image_gallery\\source.py",
+    "Length": 11516,
+    "SHA256": "8D21B0F4A738B9A7623D0CEE54F0ED9F027753411566869BC9819EDF0F4A4E8D"
+  },
+  {
+    "RelativePath": "plugins\\image_generation\\README.md",
+    "Length": 2223,
+    "SHA256": "E8E37EE32FEBD984033E4C45F25E98A1FCFAFA74E0B82CAB16089F9067BC30D1"
+  },
+  {
+    "RelativePath": "plugins\\image_generation\\__init__.py",
+    "Length": 7688,
+    "SHA256": "2CAE50616E4C43D90AAB9ECA6B9600DA0BFA387E1A1C42B7DDCCEC9022253FEF"
+  },
+  {
+    "RelativePath": "plugins\\image_generation\\client.py",
+    "Length": 7540,
+    "SHA256": "9F3214902DC801D8F0DD5592D0B68A764BF7540BBB6E4619D1D3D61D469D1B5F"
+  },
+  {
+    "RelativePath": "plugins\\image_generation\\plugin.json",
+    "Length": 201,
+    "SHA256": "26D82B61B090820A9914CA58A1AEE8D19D1BEBD5D7CD36E2B7F6518814999C2E"
+  },
+  {
+    "RelativePath": "plugins\\member_identity\\README.md",
+    "Length": 1125,
+    "SHA256": "73545E3104842C20CF9E1C118641E7083150427CDB60708C8BD1D3F2F1AFFF06"
+  },
+  {
+    "RelativePath": "plugins\\member_identity\\__init__.py",
+    "Length": 1001,
+    "SHA256": "6B7C828E1315B901BAF35F584AF1CD91970C6F728B9B48A378387ECEEA139D70"
+  },
+  {
+    "RelativePath": "plugins\\member_identity\\plugin.json",
+    "Length": 313,
+    "SHA256": "40CFE22248A104BA0B7D951544C18FDC45E870FFB07D71A2A460EE5A5E6E7984"
+  },
+  {
+    "RelativePath": "plugins\\mention_chat\\README.md",
+    "Length": 946,
+    "SHA256": "93A082A6F000F46088ED66046AEAF1C9B4496DFD9AC78AB2040969A93D53AC28"
+  },
+  {
+    "RelativePath": "plugins\\mention_chat\\__init__.py",
+    "Length": 2357,
+    "SHA256": "431C7C6E8472B96D538F001FF9B88D965707AE551EDF68BECCC6AB77DC2AB121"
+  },
+  {
+    "RelativePath": "plugins\\mention_chat\\plugin.json",
+    "Length": 337,
+    "SHA256": "AFDE6C50497543573E8F917825BB19E1A6FBD786CC4323B2E2045B22C6BBDE64"
+  },
+  {
+    "RelativePath": "plugins\\personality\\README.md",
+    "Length": 690,
+    "SHA256": "6F83B95A96A232C50EF10E3F5586B96F29C1DAB6D29BD28065E612EA2EF213F4"
+  },
+  {
+    "RelativePath": "plugins\\personality\\__init__.py",
+    "Length": 878,
+    "SHA256": "CB0BD781D67086C064D21B60A8C433AB0BDAA8DAB2A02A112B1313DD30C3A630"
+  },
+  {
+    "RelativePath": "plugins\\personality\\plugin.json",
+    "Length": 267,
+    "SHA256": "1303C110AF4DF9F0B148FB296913C85825D2B26CC69C1260F8DD941E700483D5"
+  },
+  {
+    "RelativePath": "plugins\\picture_idiom\\README.md",
+    "Length": 4034,
+    "SHA256": "E61B2FD25326674DCC43D4A4641795CB8B0E4DF941A960A612EFF028343F817B"
+  },
+  {
+    "RelativePath": "plugins\\picture_idiom\\__init__.py",
+    "Length": 10312,
+    "SHA256": "E07E0CA1F65B0D97605F3DCF021CAAB0479E83FF9C40DA4790E6EF7B7F817433"
+  },
+  {
+    "RelativePath": "plugins\\picture_idiom\\bank.py",
+    "Length": 4010,
+    "SHA256": "64D4CE134955035910750919620DB869762FFDFAAF952498902F7CA5AB780FE9"
+  },
+  {
+    "RelativePath": "plugins\\picture_idiom\\plugin.json",
+    "Length": 479,
+    "SHA256": "52DBD1D1813B02CC743B8B7BD33EC4F37F31CE64E256EF5C1AC6C8419451D1E5"
+  },
+  {
+    "RelativePath": "plugins\\picture_idiom\\render.py",
+    "Length": 9347,
+    "SHA256": "5921CCA25E61E6A27794C37C5FDCED17EDE44EDB5AF6CFFC79C844261EB4507D"
+  },
+  {
+    "RelativePath": "plugins\\picture_idiom\\source.py",
+    "Length": 5397,
+    "SHA256": "64F0E4895F47A9F7C4F5B25D5909F95E991D5F71434245AA7369761A6989D7F8"
+  },
+  {
+    "RelativePath": "plugins\\voice_reply\\README.md",
+    "Length": 2440,
+    "SHA256": "33158F5F473F94B7A1C03886CE64D67C646A499928B546EB66063505A7C0E3F3"
+  },
+  {
+    "RelativePath": "plugins\\voice_reply\\__init__.py",
+    "Length": 5101,
+    "SHA256": "B8A613D22C52ABB296EAF3F819F714BA0CE1399BCFEDD708CB36FB7B6E20BCF6"
+  },
+  {
+    "RelativePath": "plugins\\voice_reply\\plugin.json",
+    "Length": 357,
+    "SHA256": "E6A9BFE40DBFDCC33423725D57DC68A0951859D04328153A456F597A631821EB"
+  },
+  {
+    "RelativePath": "plugins\\wechat_update_guard\\README.md",
+    "Length": 1229,
+    "SHA256": "4DE845545A89075AD02D978FF51DCD1B4C62F1701C1B389027729E14D5FA3AB1"
+  },
+  {
+    "RelativePath": "plugins\\wechat_update_guard\\__init__.py",
+    "Length": 449,
+    "SHA256": "2715EBBFA8BE58839B49D047C790A6C3A1D26AA495290B9AD801306D3BBC91D2"
+  },
+  {
+    "RelativePath": "plugins\\wechat_update_guard\\guard.py",
+    "Length": 4771,
+    "SHA256": "032BC96AC09B7C15DC5779DFE78B364C99D59E8530E4E334210B2FCCB1AE3528"
+  },
+  {
+    "RelativePath": "plugins\\wechat_update_guard\\plugin.json",
+    "Length": 179,
+    "SHA256": "78294FE2615F8C9BB3546D671071A3BD21B62EAD5E33D019909B006D493D0B3B"
+  },
+  {
+    "RelativePath": "requirements-voice.txt",
+    "Length": 128,
+    "SHA256": "BF453D8078DFE9EBF6EB6F70E75780A5A77D114332C2F378D45D61B2B1905B6A"
+  },
+  {
+    "RelativePath": "requirements.txt",
+    "Length": 104,
+    "SHA256": "F14055A6CECC730A485E4BFCD4E861F6F22DAD0D4927AF8F076E8E0DC87DC928"
+  },
+  {
+    "RelativePath": "start_bot.ps1",
+    "Length": 1226,
+    "SHA256": "40C797241A75117CE660870E5812A5E0678EA93522837F21949E323608AF987C"
+  },
+  {
+    "RelativePath": "start_web.bat",
+    "Length": 1227,
+    "SHA256": "5C84A828FADF7FFA0A1F447A69A4FD8042B16A19DAFBF3A95B40D5CF6B21ADD3"
+  },
+  {
+    "RelativePath": "start_web.ps1",
+    "Length": 1019,
+    "SHA256": "0B585094D427374010BF8735531EF0108DCCC9572920DEBCEC4177110C9D7172"
+  },
+  {
+    "RelativePath": "tests\\native_receive_queue.cpp",
+    "Length": 9514,
+    "SHA256": "32F30151C3716B7DEF4C8DFEB0DDE199378D8953BF75BA18F1D2F86197E36910"
+  },
+  {
+    "RelativePath": "tests\\test_42011_capabilities.py",
+    "Length": 1391,
+    "SHA256": "2BE37F3A71B1B2AB81962BC6176A707ED9F3718721D9D56407D39582D629E38A"
+  },
+  {
+    "RelativePath": "tests\\test_42012_capabilities.py",
+    "Length": 1001,
+    "SHA256": "AD4B5480D55B88776A3D19FE238CF7E98632C5546A8652EA0081DD29B0777239"
+  },
+  {
+    "RelativePath": "tests\\test_account.py",
+    "Length": 11217,
+    "SHA256": "4E285E98AA5EBAA920FA7901878E23A7DED4BB84F37EDBD7B38914E2CB84B3DD"
+  },
+  {
+    "RelativePath": "tests\\test_account_selection.py",
+    "Length": 9427,
+    "SHA256": "69210F0E0EEF60DBA3E424EB13911A1CF93A318F5E140A7667484B2ED513FCA8"
+  },
+  {
+    "RelativePath": "tests\\test_anti_recall.py",
+    "Length": 8192,
+    "SHA256": "6AD4D0A7E4C5FA224C1ECFB1323971CEA2FFE8A2BDF321E8D301B9042DA80967"
+  },
+  {
+    "RelativePath": "tests\\test_article_publishers.py",
+    "Length": 5762,
+    "SHA256": "4A71B5D4C488E53A76BC27441E73D7CE51CF439329EAD54531CBDE48C0FCC2CD"
+  },
+  {
+    "RelativePath": "tests\\test_article_sync.py",
+    "Length": 10021,
+    "SHA256": "9C47C985987315F4F5FAE50DA416E849B75E16F265DA2FC5F3149A6FBB8A62ED"
+  },
+  {
+    "RelativePath": "tests\\test_article_transport.py",
+    "Length": 17929,
+    "SHA256": "3CCCFB20F5F32CCD61BF9CB4EC40C2EF2C439A7A638A288FE416B42094E57645"
+  },
+  {
+    "RelativePath": "tests\\test_articles.py",
+    "Length": 28250,
+    "SHA256": "16443B7D92F59D468923D5FA966EB9D44601BDBA763B34E2A7156CAEA925690C"
+  },
+  {
+    "RelativePath": "tests\\test_articles_integration.py",
+    "Length": 19523,
+    "SHA256": "D5356DED94D32478635A221A81A06C8838A7A28B27B94017C66B1622C63FF33A"
+  },
+  {
+    "RelativePath": "tests\\test_articles_ui.cjs",
+    "Length": 55430,
+    "SHA256": "20768EAC30450F17F7BA5FCD0688F8F5DD314C0230341653BF7EEB76EE31A597"
+  },
+  {
+    "RelativePath": "tests\\test_bridge_lifecycle.py",
+    "Length": 15018,
+    "SHA256": "B8F93145B5BC114AB473A52EEE82BB29A7728DD60117200FD8BF134B60D00080"
+  },
+  {
+    "RelativePath": "tests\\test_chat_summary.py",
+    "Length": 22890,
+    "SHA256": "0E78414A3C1EAAAC1500F555BE9D63B6960F2E629B3AEC7DB612728CAB39D92F"
+  },
+  {
+    "RelativePath": "tests\\test_contact_directory.py",
+    "Length": 9248,
+    "SHA256": "38D237D24CAA1501655D2AEFE3F0517A0470E85E16053128A1F15EBBB946394B"
+  },
+  {
+    "RelativePath": "tests\\test_contact_directory_integration.py",
+    "Length": 11418,
+    "SHA256": "452A7D97939C5C47969005C10F38C41044F1FFFDC5EC349B20FAAB28083CCA61"
+  },
+  {
+    "RelativePath": "tests\\test_contact_label_associations.py",
+    "Length": 4405,
+    "SHA256": "8F11B60B1B00406889E0F89DFBF4E52E1A6E94928B7809CAB930B9DAF118A3F6"
+  },
+  {
+    "RelativePath": "tests\\test_contact_profiles.py",
+    "Length": 3461,
+    "SHA256": "4C0A35EFA0C5CC57F2A50B2F79CA8EAECEB5BF90DAC8B37BE0942F1474D3CD8F"
+  },
+  {
+    "RelativePath": "tests\\test_contacts.py",
+    "Length": 8169,
+    "SHA256": "F9A7F7BB8699B3A0226274C2642019121E6E7F338747CC3CDD3AB0882E446A91"
+  },
+  {
+    "RelativePath": "tests\\test_emoticon_native.py",
+    "Length": 11404,
+    "SHA256": "CABA05ED61DCF18489263BE99E1D31B7B8503742D84C27DA0496D67878689A25"
+  },
+  {
+    "RelativePath": "tests\\test_emoticon_sdk.py",
+    "Length": 15242,
+    "SHA256": "CAF98DA8B8DABCF7D32E4815ACCDF1E0916221FFC792A038F46FB58AC14DADFE"
+  },
+  {
+    "RelativePath": "tests\\test_emoticon_service.py",
+    "Length": 7956,
+    "SHA256": "2C0589FF8F057A00F9383AB0F3368E9DD58498A4DC31233C59EECFF897331D82"
+  },
+  {
+    "RelativePath": "tests\\test_emoticons.py",
+    "Length": 27943,
+    "SHA256": "1B2DF5D08611EB5D89796B3414A26D00C7D4AC3C2961136935868E511BA2D756"
+  },
+  {
+    "RelativePath": "tests\\test_file_integration.py",
+    "Length": 8489,
+    "SHA256": "2210FCE3DD8FA671ADC8C98D7686EC4217EA971C7546E0666C39E5AA11C3AEAF"
+  },
+  {
+    "RelativePath": "tests\\test_file_metadata.py",
+    "Length": 11717,
+    "SHA256": "FE56729ADC594F610C26CB1B406C1D7286A72DEF90F0FB6DA4A213C11F6F2915"
+  },
+  {
+    "RelativePath": "tests\\test_file_native.py",
+    "Length": 5877,
+    "SHA256": "5C536D272F09AC3BD270F163CD4B87FA5308A8D1AC3CCB5349A6DCA0E0838472"
+  },
+  {
+    "RelativePath": "tests\\test_file_receiver.py",
+    "Length": 13977,
+    "SHA256": "E8D92BF8C2310AB9A825F47356DD3B8317B8C0AF8495E62A1C76936A8B53F2E5"
+  },
+  {
+    "RelativePath": "tests\\test_files.py",
+    "Length": 6748,
+    "SHA256": "7F6E001BFBA1BD15D351A433D6C4163493C476FD63FED9A66F74ED79C62E03A0"
+  },
+  {
+    "RelativePath": "tests\\test_forwarded.py",
+    "Length": 12839,
+    "SHA256": "A00B5819154303228BEEC852E0411D80C2FE0A9CC9BD31D0049FF8337F3667D2"
+  },
+  {
+    "RelativePath": "tests\\test_framework.py",
+    "Length": 24394,
+    "SHA256": "EAA859FA63E5CD24D0F85C8BCAC6292618B6CC041B6EFC782992AA29A351B7F7"
+  },
+  {
+    "RelativePath": "tests\\test_friend_add.py",
+    "Length": 6573,
+    "SHA256": "09651C579E3F4201AF774E6DF1A57C4F2425EB7254E70505E7CC4D8B2E0945C8"
+  },
+  {
+    "RelativePath": "tests\\test_friend_add_ui.cjs",
+    "Length": 2090,
+    "SHA256": "4BDE357DDC6C2F5A9F7F5BDACB4F80B14B7DF5FEFAEDDFA8E84FF8783AC33127"
+  },
+  {
+    "RelativePath": "tests\\test_friend_requests.py",
+    "Length": 17655,
+    "SHA256": "FE36FB79599EBBEA0AECD267BA1A56CBA815200D169974670A8D8FD21470512D"
+  },
+  {
+    "RelativePath": "tests\\test_group_events.py",
+    "Length": 24963,
+    "SHA256": "C31DEF7F4D40DC079301894796E13EACFDC675398A3B21F9B2D3B6C12C1A47C5"
+  },
+  {
+    "RelativePath": "tests\\test_group_members.py",
+    "Length": 9219,
+    "SHA256": "80770D9B45419B38CAC3ACEF77730B4339D3CCE3B3AC81FDE71ABBA6E6A2D1D5"
+  },
+  {
+    "RelativePath": "tests\\test_group_messaging.py",
+    "Length": 8455,
+    "SHA256": "700C8B9DE073F63D8FD28DECD99D44A7F9E71266284FA4531FA3D4EFA640A8BC"
+  },
+  {
+    "RelativePath": "tests\\test_group_notice.py",
+    "Length": 13713,
+    "SHA256": "86AE7D97F33B8D1B944AFE17BBCC5363BCABA4F3E42408F02BDE38DF3284BFD4"
+  },
+  {
+    "RelativePath": "tests\\test_idiom_chain.py",
+    "Length": 8094,
+    "SHA256": "0F2C93F80361033A932D48F645EB0CE284518E258B7093B4DF01584CD99A70F2"
+  },
+  {
+    "RelativePath": "tests\\test_image_gallery.py",
+    "Length": 15910,
+    "SHA256": "44D3C682B70B5833EDCA69C5E38BBCD5ACC05AB900E88682137B65908CA855C0"
+  },
+  {
+    "RelativePath": "tests\\test_image_generation.py",
+    "Length": 13333,
+    "SHA256": "69A13389A9AD6B004D2637F6696C55E554145692EB67E5BB6A550E74867EDC74"
+  },
+  {
+    "RelativePath": "tests\\test_image_metadata.py",
+    "Length": 16553,
+    "SHA256": "695CE71495AFBBD113B6B2312025A80296954A82174F568C235368EC14550BA2"
+  },
+  {
+    "RelativePath": "tests\\test_image_native.py",
+    "Length": 9649,
+    "SHA256": "DCD942734D6A87FBFF400CB1FE6E2E1F4DFF49877BD6F4E9EEB51B7D2827FB28"
+  },
+  {
+    "RelativePath": "tests\\test_image_receiver.py",
+    "Length": 16364,
+    "SHA256": "58A01C69998EA532E593EEF34F5FEBC492A81C18E6ADBE3E9EA29AB514F34DCF"
+  },
+  {
+    "RelativePath": "tests\\test_image_sdk.py",
+    "Length": 14338,
+    "SHA256": "8B30A9BC218F7576903AE6190CF264E6B725BA69EBC59C7A483141ED4CC5E7B3"
+  },
+  {
+    "RelativePath": "tests\\test_llm.py",
+    "Length": 16808,
+    "SHA256": "A18314E1D765A29736BFA211DC018E76CEFFAAF446782321FD0129C49C51606E"
+  },
+  {
+    "RelativePath": "tests\\test_local_recall.py",
+    "Length": 4626,
+    "SHA256": "8A4319EF998BDB676D2DACD09B3A7B6486B6309A0B9C46D8DABA242D5ADB71E6"
+  },
+  {
+    "RelativePath": "tests\\test_long_text_send.py",
+    "Length": 2153,
+    "SHA256": "A00382E5F02A09199A51BC8C72A9AC15FCFD34D8C28C8652BC38543504E74385"
+  },
+  {
+    "RelativePath": "tests\\test_management_integration.py",
+    "Length": 10762,
+    "SHA256": "CCBEE0FBBA06DA268212D56B4C7060DF34FA72D1D931E468503B6AD7B5077DDF"
+  },
+  {
+    "RelativePath": "tests\\test_management_native.py",
+    "Length": 5237,
+    "SHA256": "512D056687267EAFD30754BEC430682754D2B54D6D5A2330B13FEA192049B90B"
+  },
+  {
+    "RelativePath": "tests\\test_media_anti_recall.py",
+    "Length": 17536,
+    "SHA256": "E650AC997C775094CCA9E7987DD2E2CE7B91AB0EAFC0E9E511D20AE9952063AA"
+  },
+  {
+    "RelativePath": "tests\\test_members.py",
+    "Length": 16699,
+    "SHA256": "0FF3687C01A86578E0FFF09E4413E150CF36484E9EC5A30255A7BF6C6916B63B"
+  },
+  {
+    "RelativePath": "tests\\test_mentions.py",
+    "Length": 3283,
+    "SHA256": "2B79AFB6B9833FF9C5003939D0BE613E4F529B2520729D6F810E6CF3460ED6E7"
+  },
+  {
+    "RelativePath": "tests\\test_message_monitor.py",
+    "Length": 15006,
+    "SHA256": "F7FFB5C717F10C3B0B4A46A119040CB0A96D863769BF2012FC22B093DDF7AB36"
+  },
+  {
+    "RelativePath": "tests\\test_moments.py",
+    "Length": 23926,
+    "SHA256": "F7C320512EF678F90CBBFECCA01160AAD36EDDE94D446405FE3548A5091268C1"
+  },
+  {
+    "RelativePath": "tests\\test_moments_diagnostics.py",
+    "Length": 2902,
+    "SHA256": "12B0860C027893138C64A4D478F652416EE847D6A159FF260D6C55BA3D3B22F6"
+  },
+  {
+    "RelativePath": "tests\\test_moments_integration.py",
+    "Length": 18259,
+    "SHA256": "C9EB84F018CDB57F07165B2A67344463DC25FD388C05A720E43C7160BC655A4E"
+  },
+  {
+    "RelativePath": "tests\\test_moments_interaction_transport.py",
+    "Length": 7416,
+    "SHA256": "8882352EC0E8AC8E9E7BF3DDDCD1AE60C9B1B525E5317F23792C3123506E530C"
+  },
+  {
+    "RelativePath": "tests\\test_moments_interactions.py",
+    "Length": 10188,
+    "SHA256": "A7F11215DE3EC09F418737D8D1E0CBE2D68F8FFF654A4E575EAAC0BDF3975CF2"
+  },
+  {
+    "RelativePath": "tests\\test_moments_read_integration.py",
+    "Length": 5928,
+    "SHA256": "BBE52E3EC50A81ABA245759ACC22D5B63762C929F9E23E60324F02F40DEF4ABA"
+  },
+  {
+    "RelativePath": "tests\\test_moments_reader.py",
+    "Length": 20732,
+    "SHA256": "782384AB128C4B12E27B176585206688D2E972CCA212373267FC056E183EB608"
+  },
+  {
+    "RelativePath": "tests\\test_moments_service.py",
+    "Length": 3285,
+    "SHA256": "8FE1EB02E3E7050A0864026FA0CD102A16A8E3E236A48D83D178ED2030927B95"
+  },
+  {
+    "RelativePath": "tests\\test_moments_transport.py",
+    "Length": 22534,
+    "SHA256": "19A475DBB40857BA83E50122F91D15A1942DE40D6C9746A6903D68A85DC537BA"
+  },
+  {
+    "RelativePath": "tests\\test_native_profiles.py",
+    "Length": 11322,
+    "SHA256": "E35DEBDA6DD511024D36AC6830B2DD569ED3705C46DE7F7819AA0105C979C72E"
+  },
+  {
+    "RelativePath": "tests\\test_native_version_bridge.py",
+    "Length": 15558,
+    "SHA256": "6062AC6A4A0376006055360D0C149BE08A425F23108DA48E3CE4E23B07C93546"
+  },
+  {
+    "RelativePath": "tests\\test_official_accounts.py",
+    "Length": 22102,
+    "SHA256": "0125595531B3785E0287DAC262918EFAFB5D840F2E9B8848A270532BD795FB15"
+  },
+  {
+    "RelativePath": "tests\\test_personality.py",
+    "Length": 19969,
+    "SHA256": "DC6D249CF1550EE3F7A7C809B15D6C16D8EEDC86A308F23AA125B9DA6BAE647A"
+  },
+  {
+    "RelativePath": "tests\\test_picture_idiom.py",
+    "Length": 13396,
+    "SHA256": "D3881963180C36443BD003F6669A1CAAD0F67FFC16BF300A8763102124E79198"
+  },
+  {
+    "RelativePath": "tests\\test_picture_idiom_source.py",
+    "Length": 8069,
+    "SHA256": "D9F47C30B624CA6701B8728BCAFE22C0C6176F2AE1B74957FD5B6E6D992329CD"
+  },
+  {
+    "RelativePath": "tests\\test_plugin_business.py",
+    "Length": 11356,
+    "SHA256": "C0BB0B51FAEF1C0CF16AD68A019940E09535B49F4F54DC9CD4A91C4CFFE3DAD9"
+  },
+  {
+    "RelativePath": "tests\\test_plugin_editor.py",
+    "Length": 12847,
+    "SHA256": "B7E217FF41EA06D03E15C2EF6F745A1D71A659C416E9D1B8E1A34A30C4648778"
+  },
+  {
+    "RelativePath": "tests\\test_publication_checks.py",
+    "Length": 2681,
+    "SHA256": "474206760B83DFA84F3F3517F02EB546FE1B20BAE3DCFC68F42364D6B1737210"
+  },
+  {
+    "RelativePath": "tests\\test_quoted.py",
+    "Length": 13836,
+    "SHA256": "F6D614CEBCD70CB60DF998B7D6D3966E332EFCB34C3526FECCC50176021AE80E"
+  },
+  {
+    "RelativePath": "tests\\test_recall.py",
+    "Length": 9197,
+    "SHA256": "63D98F8364D7829D0CD1192041FAC4B43EDABC30011916D455652778AC43158A"
+  },
+  {
+    "RelativePath": "tests\\test_robot_hub.py",
+    "Length": 10942,
+    "SHA256": "EB57CAFA4A01819C48A3D8A906850F31483C410FCC121FDF1D3F283CFCB2E58C"
+  },
+  {
+    "RelativePath": "tests\\test_scheduled_tasks.py",
+    "Length": 7035,
+    "SHA256": "99C098FEE9C3F8E18002E9C035D4D9E06928AE39B3BDB9E8A71FEA606EE64212"
+  },
+  {
+    "RelativePath": "tests\\test_send_chat_ui.cjs",
+    "Length": 3939,
+    "SHA256": "D1FEE0A04D88C32593AEBC843E89E2A97153642A2BA74E46A2491716E4DDA019"
+  },
+  {
+    "RelativePath": "tests\\test_speech.py",
+    "Length": 12243,
+    "SHA256": "3DC94A1D81AA7E913767556CCA2F249750E4245CDEF58E7F68D6F966978B3E98"
+  },
+  {
+    "RelativePath": "tests\\test_startup.py",
+    "Length": 11202,
+    "SHA256": "D016E46C0EF0AE87D1C666C06D9A5BC7B30AB4DF418AD3F728B99B0C15C19C02"
+  },
+  {
+    "RelativePath": "tests\\test_sticker_recall.py",
+    "Length": 10878,
+    "SHA256": "9BEE6332B70C1B8B700D9051CCA61AC54D01B03F21F4A6AB31DB67DD9D6AE088"
+  },
+  {
+    "RelativePath": "tests\\test_text_pacing.py",
+    "Length": 7111,
+    "SHA256": "E210FAE9F7F1F0A40EB0EDE1A827F84E7E7BA5219918746E91B70BAE50C3E0F0"
+  },
+  {
+    "RelativePath": "tests\\test_text_routing.py",
+    "Length": 7849,
+    "SHA256": "D41674353F60FE3E8F13D4D0F7A727216830AA1F68C0BA80E2C658D01B51E9D9"
+  },
+  {
+    "RelativePath": "tests\\test_tts.py",
+    "Length": 7219,
+    "SHA256": "8696E93E15AF90B2EB1F46ADC5101732BB1AFED32718FD6E99CF396BDBC14B09"
+  },
+  {
+    "RelativePath": "tests\\test_video_metadata.py",
+    "Length": 2035,
+    "SHA256": "7FB7279B926369FDEA195881F4205C19F4CBE81A32AC4FB8A69D8938EBD6BAF2"
+  },
+  {
+    "RelativePath": "tests\\test_video_native_receive.py",
+    "Length": 3921,
+    "SHA256": "BB272B8698A709208B33C1A6287CDBA57C632B87FADC1562C2F89CC6420F00F3"
+  },
+  {
+    "RelativePath": "tests\\test_video_receiver.py",
+    "Length": 5083,
+    "SHA256": "08126B110907EDFC5CF28E27C98C2FDD8C3CF13C733B184D95D6A550B4575E4D"
+  },
+  {
+    "RelativePath": "tests\\test_video_send.py",
+    "Length": 6030,
+    "SHA256": "99D275110408984CB98FC9CEE18E3C415B6CE4632AA398AE75BE5161B8E0D65C"
+  },
+  {
+    "RelativePath": "tests\\test_voice_anti_recall.py",
+    "Length": 7168,
+    "SHA256": "D4F43D131A484ABF28A6815AEEC593C74D267AD0ED8691D0C80758E99E7DDDD6"
+  },
+  {
+    "RelativePath": "tests\\test_voice_native.py",
+    "Length": 11774,
+    "SHA256": "7005A9FA679B2399672E02D14286B744DA0FE1D1C14162999361C5F5DF70CDD8"
+  },
+  {
+    "RelativePath": "tests\\test_voice_receive_service.py",
+    "Length": 5498,
+    "SHA256": "BD0EA5A1B960B4AACFD66BB7E4363E45870CBCDEE172CADDFAD13FC50FC0E983"
+  },
+  {
+    "RelativePath": "tests\\test_voice_receiver.py",
+    "Length": 11563,
+    "SHA256": "4B834CF11F7BE7A7231B71B4487B81C17AD5304C4DEF87997F7F8F546FE595C0"
+  },
+  {
+    "RelativePath": "tests\\test_voice_sdk.py",
+    "Length": 10130,
+    "SHA256": "9FA2D3A4AE192282DC471C99FCFBE9CCCA0700E1B0911F3CEBEC612A64E6880A"
+  },
+  {
+    "RelativePath": "tests\\test_voice_service.py",
+    "Length": 6946,
+    "SHA256": "6C5FC5F8138176D3F0580D35A4A60407B532E3F2779C7EBA0FE8EF2039764C70"
+  },
+  {
+    "RelativePath": "tests\\test_voice_xml_plugins.py",
+    "Length": 4389,
+    "SHA256": "23A43ECE770D9A5DA8CD773D366A54E1ECF60E87C6C58C993A62E06B897DDC98"
+  },
+  {
+    "RelativePath": "tests\\test_voices.py",
+    "Length": 11541,
+    "SHA256": "93D626E771FEC4EE1A32DA12AD25DCC4853720B31B49457D5C94E51DA262EB60"
+  },
+  {
+    "RelativePath": "tests\\test_web_panel.py",
+    "Length": 24992,
+    "SHA256": "AB4B662EACC5AFC3DCD61D21937FDA6B103C8665DD6F263479A4E53AD64D5CC7"
+  },
+  {
+    "RelativePath": "tests\\test_wechat_login.py",
+    "Length": 6658,
+    "SHA256": "7275950F806013D208CD674B628331253267083D003D6283A4991E5137A93ACC"
+  },
+  {
+    "RelativePath": "tests\\test_wechat_login_ui.cjs",
+    "Length": 2572,
+    "SHA256": "99CE2B7BFFD401E5F7D02520D77856F409B90EEDE0D9194296A49CD794903EB6"
+  },
+  {
+    "RelativePath": "tests\\test_wechat_update_guard.py",
+    "Length": 4522,
+    "SHA256": "D9E759561FA502B7093C2CCE59C86915736D0E4582E94AED59007B7409CEBF65"
+  },
+  {
+    "RelativePath": "tools\\check_publication.py",
+    "Length": 5495,
+    "SHA256": "5E9FD59172764778C32257B360CF3570806C37A06E99775EDAEC7F136C0D1F87"
+  },
+  {
+    "RelativePath": "tools\\init_config.py",
+    "Length": 508,
+    "SHA256": "E886D92D8B1D06C3D6B14077836E10EC4C4CBF4EEF1F1391E3E52F802D2C82B5"
+  },
+  {
+    "RelativePath": "tools\\run_tests.py",
+    "Length": 835,
+    "SHA256": "49826F39C9E14BA40CDFBA9F880DEB03D3492FF9A339EF99CA23F6DAEF2EC669"
+  },
+  {
+    "RelativePath": "tools\\wechat_update_guard.py",
+    "Length": 993,
+    "SHA256": "03C7E8C0FFD5C7EBCA308C45911D273253FCBC8C6CA8E911B224992E29986F9F"
+  },
+  {
+    "RelativePath": "tts_config.example.json",
+    "Length": 165,
+    "SHA256": "7958F3E2F732DCD06B9D3BB6A5106656C290D95DFD47E91361C4DC4E839AE480"
+  },
+  {
+    "RelativePath": "web.py",
+    "Length": 3626,
+    "SHA256": "DDBE9409F493E413D7777892C1E7BA13372F68BBD9EF90D9F21FAC408B4FDB83"
+  },
+  {
+    "RelativePath": "webui\\app.js",
+    "Length": 70381,
+    "SHA256": "047C42FFAA9BA3E8ACBD90E042AAEB35AA1DDFBD8DA235AB52CA956DF76DE513"
+  },
+  {
+    "RelativePath": "webui\\articles.js",
+    "Length": 31726,
+    "SHA256": "ED33BD6244B3A41225D119393DC8AFBF4C9A925D2F3B65CB53CA9261FEC6DBD5"
+  },
+  {
+    "RelativePath": "webui\\index.html",
+    "Length": 30615,
+    "SHA256": "AD5E507F8CCC7F5F1DF0B996EAB909E842F6A032D487B5DA212164F939DCE35B"
+  },
+  {
+    "RelativePath": "webui\\moments.js",
+    "Length": 20431,
+    "SHA256": "90E3C5999C7C1DA8829C7230451D5F9171A98623AB5E30FAB9275C5DE946FD79"
+  },
+  {
+    "RelativePath": "webui\\style.css",
+    "Length": 46956,
+    "SHA256": "7376250A18E008E779051E5EF00A63428C537B45AC2799ABF3FE2F4AEC71D1EC"
+  },
+  {
+    "RelativePath": "wxbot_framework\\__init__.py",
+    "Length": 156,
+    "SHA256": "332AC81E4DBE7F032AFA9AD45328611113DA2E8E6D6621CFAA86DE91AB95C87E"
+  },
+  {
+    "RelativePath": "wxbot_framework\\account.py",
+    "Length": 6206,
+    "SHA256": "8DB8D6081AB013738A27F38D438F949C354B5C1A5E5EC1889AF1A9538FD4EA66"
+  },
+  {
+    "RelativePath": "wxbot_framework\\articles.py",
+    "Length": 33119,
+    "SHA256": "0F85E60A096E455DBED192D618264A62EF9C8FA2A2C7AFD0948729A7926CF625"
+  },
+  {
+    "RelativePath": "wxbot_framework\\backend.py",
+    "Length": 8692,
+    "SHA256": "7C2D217A3737E4326735A3EE4253CAC23AE2806A72054C37AC3ECEAE3562ED1F"
+  },
+  {
+    "RelativePath": "wxbot_framework\\bridge_lifecycle.py",
+    "Length": 8168,
+    "SHA256": "B351250388C9EA117232EF517E509E32CEB36AE5886FB7CEBEACE31083F62E07"
+  },
+  {
+    "RelativePath": "wxbot_framework\\config.py",
+    "Length": 7263,
+    "SHA256": "B8BF9E9E425E334E8F776D8932A6884A5B9234AED3B5AE4E5AC1B147AACA0961"
+  },
+  {
+    "RelativePath": "wxbot_framework\\contacts.py",
+    "Length": 21131,
+    "SHA256": "0D9A3667266B633644437D32675A11A1BEEB2BC40439B4A382C14F92898343A3"
+  },
+  {
+    "RelativePath": "wxbot_framework\\dialogue.py",
+    "Length": 2078,
+    "SHA256": "F626E7108BB27058CCD00BBC72BD70F593323E5E7ADD7E62582F960F94327F68"
+  },
+  {
+    "RelativePath": "wxbot_framework\\emoticon_account.py",
+    "Length": 2560,
+    "SHA256": "B2F8F7E5D1821B82517B517AF8D5BA7E8FBC70840EAC30A6F01FC4DE7B8E357E"
+  },
+  {
+    "RelativePath": "wxbot_framework\\emoticons.py",
+    "Length": 27353,
+    "SHA256": "A6C9C8B61069CF6C01647B6B81F19AAEFF8CF5E595AE79A19F90FC4D6E3C9E00"
+  },
+  {
+    "RelativePath": "wxbot_framework\\file_metadata.py",
+    "Length": 11513,
+    "SHA256": "C42054C046A230EECC856AA4DBA36F24317A1A5684A6CDFC0F40EFF4F9F61EB2"
+  },
+  {
+    "RelativePath": "wxbot_framework\\file_receiver.py",
+    "Length": 8593,
+    "SHA256": "2DF0B02D74127E8F0DF581CFF4CB3D1B773D1700FF8F896093C9E1136A00082B"
+  },
+  {
+    "RelativePath": "wxbot_framework\\files.py",
+    "Length": 7642,
+    "SHA256": "330133F717C670BDE246C9B4C1485BAE3BFBA58B02A35564241DE23ACFD3D393"
   },
   {
     "RelativePath": "wxbot_framework\\forwarded.py",
@@ -130,8 +1445,263 @@
     "SHA256": "20D01D7FE203A3730F03AE0594558C1359116FC407C3C0F4AC7EF791C862CB6C"
   },
   {
-    "RelativePath": "docs\\messages\\forwarded.md",
-    "Length": 4357,
-    "SHA256": "27A75741D064F2855B3BF2A1FCFA96B7DF9B9A65461F6DCB4C0ED3C77E59A5FA"
+    "RelativePath": "wxbot_framework\\friend_add.py",
+    "Length": 1034,
+    "SHA256": "B500E2ED7E4F694F8C79A88AD471658FABA3DDDCCB8A0C20A3BBB86E9C6219BA"
+  },
+  {
+    "RelativePath": "wxbot_framework\\friend_requests.py",
+    "Length": 11488,
+    "SHA256": "988A8FFF4276B3BBA9C4466A3F6709846CA9ACFE742C13A63C44E3A1754B5D3B"
+  },
+  {
+    "RelativePath": "wxbot_framework\\group_events.py",
+    "Length": 18456,
+    "SHA256": "A460513854881D7EEA116FE06145F660CC37BF8784D5B06DB5B55CFA8B829447"
+  },
+  {
+    "RelativePath": "wxbot_framework\\group_management.py",
+    "Length": 1181,
+    "SHA256": "71D0589BBB50CFDA8C1F4FAE938CD8ACE935F7F340965541AFDD0B3281BA006B"
+  },
+  {
+    "RelativePath": "wxbot_framework\\group_members.py",
+    "Length": 11558,
+    "SHA256": "DC95278F691387FFE1E8D89C94415D3A33080C9DC54DB56885BD673E404738E6"
+  },
+  {
+    "RelativePath": "wxbot_framework\\image_metadata.py",
+    "Length": 10418,
+    "SHA256": "24E3930F1BF6716EC3B31CBF0E28C77CA01EC3E7A94FF0C34F61DF0EC9E11605"
+  },
+  {
+    "RelativePath": "wxbot_framework\\image_receiver.py",
+    "Length": 9212,
+    "SHA256": "392D887D55F3645C55787651109024FD89C41C60C2B79E8C3B1C2677203794FB"
+  },
+  {
+    "RelativePath": "wxbot_framework\\images.py",
+    "Length": 2058,
+    "SHA256": "4C2FB13339FCA8FAB64432F8501A91B8737C9100B320A310237DFC9E55FCD905"
+  },
+  {
+    "RelativePath": "wxbot_framework\\llm.py",
+    "Length": 9747,
+    "SHA256": "7C7CC53A74584F942E29C2BE9C931ADB48B1D8566E4D45C8B24DDDDEC948A6C3"
+  },
+  {
+    "RelativePath": "wxbot_framework\\local_paths.py",
+    "Length": 577,
+    "SHA256": "BFFB44C2CD613FED93BED9A225710DE457C7C2AC5004B9ED29677BC9AD966E69"
+  },
+  {
+    "RelativePath": "wxbot_framework\\locking.py",
+    "Length": 1179,
+    "SHA256": "3C6FEE3D2F0C6167EBADD24F90A5F67FC22FFDB52F2C8D1FED596E75DC57C5A3"
+  },
+  {
+    "RelativePath": "wxbot_framework\\media_recall.py",
+    "Length": 6383,
+    "SHA256": "AA6A3A3309804152013752B0EFC83CDD8FEA38ADE7A5D31B5A8C340EE3DD9219"
+  },
+  {
+    "RelativePath": "wxbot_framework\\members.py",
+    "Length": 32190,
+    "SHA256": "6F9AA5915EB5CFCE8B78C8F1FE06C8FD001D1F1F14F50B10AEB1200C1B2FE486"
+  },
+  {
+    "RelativePath": "wxbot_framework\\mentions.py",
+    "Length": 960,
+    "SHA256": "D541908089F836B93150DFDED8CB9EE00A6E1C95391ED2C0DA6EFE09C7CDB7B3"
+  },
+  {
+    "RelativePath": "wxbot_framework\\message_monitor.py",
+    "Length": 11659,
+    "SHA256": "8A48A2F1162C0AB7437D918FF6EC44E807ABBC307AEE10C9F0BD1B63F6EDFDE8"
+  },
+  {
+    "RelativePath": "wxbot_framework\\moments.py",
+    "Length": 15908,
+    "SHA256": "E0BC56FB8874054ED321E5469B502B368F484DDD9FB9F45D0A9B6D2F6B0472F7"
+  },
+  {
+    "RelativePath": "wxbot_framework\\moments_interactions.py",
+    "Length": 7937,
+    "SHA256": "924CC5CEB1414BC7E27891E1D0EC7C5C93B89E8E3F6852A56E68AE553BED16A9"
+  },
+  {
+    "RelativePath": "wxbot_framework\\moments_reader.py",
+    "Length": 18804,
+    "SHA256": "D42E538D7E88001CC9D8230724A1670DCAD86BEC7242E9DD1FB3E7EB3681BD6A"
+  },
+  {
+    "RelativePath": "wxbot_framework\\native_profiles.py",
+    "Length": 4908,
+    "SHA256": "2C46E5C6FAC24BBDDEC838967038481CDDCFB781A605DDE22D60DA834C8009DF"
+  },
+  {
+    "RelativePath": "wxbot_framework\\official_account_parser.py",
+    "Length": 8704,
+    "SHA256": "4F84A35160F481AE99251B05D8923D5BC7EF10C55CC82599EAF131206548FB71"
+  },
+  {
+    "RelativePath": "wxbot_framework\\official_account_sync.py",
+    "Length": 14179,
+    "SHA256": "F7280C8178FAED8D86EC9092CD2F8369446DC93949883ED02B64667B88EA9D61"
+  },
+  {
+    "RelativePath": "wxbot_framework\\official_accounts.py",
+    "Length": 31765,
+    "SHA256": "FC038C0DFD7802BFBEF767E18F3A4B5F54E6714BA65D16B12C6A65B01936ABB2"
+  },
+  {
+    "RelativePath": "wxbot_framework\\pacing.py",
+    "Length": 1964,
+    "SHA256": "454F6078D37AEE9972BAD834C137E6103DE3DB13A311BA9908417E275DE9A8D5"
+  },
+  {
+    "RelativePath": "wxbot_framework\\panel_common.py",
+    "Length": 492,
+    "SHA256": "15CEF90B41D9BFCF9A8336948B708E70750696E474ED846A29F32F9E19D8D62F"
+  },
+  {
+    "RelativePath": "wxbot_framework\\panel_http.py",
+    "Length": 12818,
+    "SHA256": "601D0AA8591FBBA4E666FEF2F7CDFD690A8E083CC05CD538F03360FE4A8DED38"
+  },
+  {
+    "RelativePath": "wxbot_framework\\personality.py",
+    "Length": 6908,
+    "SHA256": "D7775513CBEC157E75B29B5CD252FC4E9BC9365DEF1E8A6FEEEBED8B10029A33"
+  },
+  {
+    "RelativePath": "wxbot_framework\\plugin_business.py",
+    "Length": 6419,
+    "SHA256": "DB2DA0757BE1B9FD153BCE4954F926ACE99D59BD1CBCD5E612757670982B8F3C"
+  },
+  {
+    "RelativePath": "wxbot_framework\\plugin_sources.py",
+    "Length": 8501,
+    "SHA256": "5ACF0511A1C41A23EBD60676C6317B5902D4D73D9E797DF5713668742CABB6E4"
+  },
+  {
+    "RelativePath": "wxbot_framework\\plugins.py",
+    "Length": 16964,
+    "SHA256": "8DA4111EBF3032D998C2E7AF580775742B49F17E29A0A84B5A6B9670BC263A8C"
+  },
+  {
+    "RelativePath": "wxbot_framework\\quoted.py",
+    "Length": 6537,
+    "SHA256": "03E56812E1835B698DEBFF04A49210443FEE1B9A3535A75860FFBE085786BE20"
+  },
+  {
+    "RelativePath": "wxbot_framework\\recall.py",
+    "Length": 2011,
+    "SHA256": "19D72C1C9FFAD5A487B6C421D91CAED175865EE638849FAA9EDCD4F9C06B5555"
+  },
+  {
+    "RelativePath": "wxbot_framework\\replies.py",
+    "Length": 2726,
+    "SHA256": "9C4BBF78C4563B0897944016F6550EBD93E7BF128487E8DA5D5E0CE7F30336DE"
+  },
+  {
+    "RelativePath": "wxbot_framework\\robot_hub.py",
+    "Length": 21230,
+    "SHA256": "1C65543DDDEB189942C751E7F7E05427170F62E192B7C7D2E3EC55D38A7E5A03"
+  },
+  {
+    "RelativePath": "wxbot_framework\\runtime.py",
+    "Length": 29709,
+    "SHA256": "CABD086AAD45FC19E247BFB7D04216E5BAFFE2A282AEB5E47BB8EF8735606BA8"
+  },
+  {
+    "RelativePath": "wxbot_framework\\scheduled_actions.py",
+    "Length": 4712,
+    "SHA256": "F0A4B4A7A887646C85DD019A220E19C5955DA095508D92E6DB3C791A4D2ECAB7"
+  },
+  {
+    "RelativePath": "wxbot_framework\\scheduled_tasks.py",
+    "Length": 12553,
+    "SHA256": "ECAB45E4BBB659B330F460A9240822909123287EEFDF9E63E6EF952F385E3701"
+  },
+  {
+    "RelativePath": "wxbot_framework\\sdk.py",
+    "Length": 38042,
+    "SHA256": "092FF4C67FFE1FAA8A30E6322684133BF83C708A87CD59949ED5F808D09ADA37"
+  },
+  {
+    "RelativePath": "wxbot_framework\\shutdown.py",
+    "Length": 2078,
+    "SHA256": "D194BF0CD4435C82336572D2FC479B088D44E3D46798AFC18C18329C518C3149"
+  },
+  {
+    "RelativePath": "wxbot_framework\\snapshot_access.py",
+    "Length": 5345,
+    "SHA256": "98F914B73D344CA774E14DDCA8B03836097A262639E36B614DB3A78818BD8B18"
+  },
+  {
+    "RelativePath": "wxbot_framework\\speech.py",
+    "Length": 9690,
+    "SHA256": "521D8B3C20C905220B63B5AA204532F6DD6AD7898E0BD0B6AB7847985A4F73AA"
+  },
+  {
+    "RelativePath": "wxbot_framework\\startup.py",
+    "Length": 5109,
+    "SHA256": "B40992D11CC8F4F440B96F49BB392A4AA9A03E50400BCEA6A8FBCE0C5108798A"
+  },
+  {
+    "RelativePath": "wxbot_framework\\summary.py",
+    "Length": 6540,
+    "SHA256": "9D198F1F69558BF2E8D0F5731FC59F5CACD8CB01EB36D5943173041162949FC0"
+  },
+  {
+    "RelativePath": "wxbot_framework\\text.py",
+    "Length": 5501,
+    "SHA256": "805E6FEDFB76B58A55E2C47DBD64BC351ECF3A89E05B3473E5001EC805213CF5"
+  },
+  {
+    "RelativePath": "wxbot_framework\\tts.py",
+    "Length": 10473,
+    "SHA256": "D119BF36BF6BE2238CD0D6C8CC7D997FE09B4552147F69A363AFDCC949B690F6"
+  },
+  {
+    "RelativePath": "wxbot_framework\\video_metadata.py",
+    "Length": 4085,
+    "SHA256": "DC76FCD75A6F0D4B9FA358452B5F628744057A31F7691E6B1F165C0B6724DD36"
+  },
+  {
+    "RelativePath": "wxbot_framework\\video_receiver.py",
+    "Length": 3838,
+    "SHA256": "9F198AD36B063E5C23F9300194878302C9D798249D2ABE9CD9F67FD0051EA307"
+  },
+  {
+    "RelativePath": "wxbot_framework\\videos.py",
+    "Length": 3326,
+    "SHA256": "1CFD628EA240A81299100972B04749A0A8DE8FB94BEB3503A63F6296732E47CC"
+  },
+  {
+    "RelativePath": "wxbot_framework\\voice_receiver.py",
+    "Length": 11288,
+    "SHA256": "009F314E38FBE28E6B452BEB07BAA2226102C589DCA924D1ABFA0F04DD3614DE"
+  },
+  {
+    "RelativePath": "wxbot_framework\\voices.py",
+    "Length": 10658,
+    "SHA256": "80A7BBFCA2D222D514D4FEB7CF68CAF7BF9CA5B6F2ACC8DFC2A6C5BF70B379C3"
+  },
+  {
+    "RelativePath": "wxbot_framework\\web_panel.py",
+    "Length": 58465,
+    "SHA256": "4E61AEC3BD8B5C2FF03C7038826FFBEAEE09603F9EBE3C3B808AA8F37ABF87A7"
+  },
+  {
+    "RelativePath": "wxbot_framework\\wechat_login.py",
+    "Length": 16633,
+    "SHA256": "5E3F1A57AB692B2996E483052A2A9F44D880690B47C0022C871DADC3A4C8F362"
+  },
+  {
+    "RelativePath": "wxbot_framework\\win_integrity.py",
+    "Length": 1769,
+    "SHA256": "F3FA53435FCB57D3EE3F471BB983C8BEEEA517379D6E57C989E017A3E665C17A"
   }
 ]

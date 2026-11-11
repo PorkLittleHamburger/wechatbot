@@ -1,10 +1,11 @@
 """仅监听本机的管理台；配置、密钥和原生生命周期仍由当前项目管理。"""
 from __future__ import annotations
 
-from collections import deque
+from collections import deque, OrderedDict
 from concurrent.futures import TimeoutError as ControlTimeout
 from contextlib import contextmanager
 from copy import deepcopy
+import hashlib
 import json
 import logging
 import os
@@ -16,14 +17,20 @@ import time
 
 from .config import ConfigStore, account_is_unbound, initialize_configs, validate_name
 from .locking import InstanceLock
-from .panel_common import PanelError as PanelError, redact as redact
+from .panel_common import PanelError as PanelError, redact as redact, redact_full
 from .panel_http import PanelHandler as PanelHandler, PanelServer as PanelServer
 from .message_monitor import MessageBuffer
+from .moments import MomentsPublisher
+from .moments_interactions import MomentsInteractions
 from .plugin_sources import PluginSources
 from .plugin_business import view as business_view, merge as merge_business
 from .runtime import BotApplication
 from .startup import scan_logged_accounts
 from .text import validate_target, validate_mentions
+from .scheduled_tasks import ScheduledTasks
+from .scheduled_actions import discover_actions
+from .articles import Articles, ArticlesError, normalize_article_url
+from .official_account_sync import OfficialAccountSync
 
 __all__ = ['LogBuffer', 'PanelController', 'PanelError', 'PanelHandler', 'PanelServer',
            'atomic_json', 'read_json', 'redact']
@@ -94,8 +101,18 @@ class PanelController:
         self.state, self.error, self.started = 'stopped', '', None
         self.stop_event, self.stopped_event = threading.Event(), threading.Event()
         self.logs = LogBuffer()
-        self.messages = MessageBuffer(sanitize=redact)
+        self.messages = MessageBuffer(sanitize=redact_full)
         self.send_jobs = {}
+        self.scheduled_tasks = ScheduledTasks(self, atomic_json, read_json)
+        self.articles = Articles(self.workspace)
+        self.article_sync = OfficialAccountSync()
+        self._articles_read_lock = threading.Lock()
+        self._moments_identity = None
+        self._moments_read_lock = threading.Lock()
+        self._moments_seen = OrderedDict()
+        self.moments = MomentsPublisher(self.workspace, self._deliver_moments, self._moments_session)
+        self.moments_interactions = MomentsInteractions(self._deliver_moments_interaction, self._moments_session,
+                                                       self._moments_allowed)
         logging.getLogger().addHandler(self.logs)
 
     def _paths(self, config):
@@ -146,6 +163,7 @@ class PanelController:
             self._save_many({self.store.path: config})
             if changed_account:
                 self.messages.reset()
+                self.article_sync.clear()
 
     def start(self):
         with self.actions, self.lock:
@@ -200,6 +218,10 @@ class PanelController:
                 self.worker = threading.Thread(target=run, name='ManagedBot', daemon=False)
                 self.worker.start()
                 self.state = 'running'
+                try:
+                    self.scheduled_tasks.start()
+                except Exception:
+                    logging.getLogger('WebPanel').exception('定时任务启动失败')
             except Exception:
                 lease.close()
                 raise
@@ -227,7 +249,11 @@ class PanelController:
         self.start()
 
     def close(self):
+        self.scheduled_tasks.close()
+        self.moments.close()
+        self.moments_interactions.close()
         self.stop_event.set()
+        self.article_sync.clear()
         self.stop()
         if self.worker is not None:
             self.worker.join(15)
@@ -293,6 +319,7 @@ class PanelController:
                 result[name]['api_key_configured'] = bool(value.get('api_key'))
             else:
                 result['groups'] = list(value.get('groups', {}))
+                result['group_names'] = value.get('group_names', {})
                 result['history_enabled'] = value.get('history_enabled', True)
                 result['daily_clear'] = value.get('daily_clear', True)
         return result
@@ -337,6 +364,7 @@ class PanelController:
                 if name not in paths or not isinstance(data[name], dict):
                     raise PanelError('模型配置格式不正确')
                 value = read_json(paths[name])
+                previous_url = value.get('base_url')
                 fields = {'base_url', 'model', 'timeout_seconds'} | ({'max_tokens', 'json_mode', 'token_limit_parameter', 'extra_body'} if name == 'llm'
                             else {'default_voice', 'max_chars_per_clip'})
                 for key in fields:
@@ -352,13 +380,16 @@ class PanelController:
                 # 允许先保存未填密钥的模板，其余字段沿用真实客户端验证。
                 validation = dict(value, api_key=value.get('api_key') or 'validation-only')
                 if name == 'llm':
-                    from .llm import LLMClient
+                    from .llm import LLMClient, is_worldguide_url
                     LLMClient(validation)
+                    if (value.get('api_key') and not key.strip() and
+                            is_worldguide_url(previous_url) != is_worldguide_url(value.get('base_url'))):
+                        raise PanelError('切换 WorldGuide 接口时，请填写新接口的 API 密钥或清除已保存的密钥')
                 else:
                     from .tts import FishTTS
                     FishTTS.from_options(validation)
                 changes[paths[name]] = value
-            if any(key in data for key in ('groups', 'history_enabled', 'daily_clear')):
+            if any(key in data for key in ('groups', 'group_names', 'history_enabled', 'daily_clear')):
                 if 'members' not in paths:
                     raise PanelError('请先在主配置设置 members_config_file')
                 members = read_json(paths['members'])
@@ -373,6 +404,24 @@ class PanelController:
                     members['groups'] = {room: members.get('groups', {}).get(room, []) for room in dict.fromkeys(rooms)}
                     if config.get('chat_allowlist'):
                         config['chat_allowlist'] = list(dict.fromkeys(config['chat_allowlist'] + rooms))
+                if 'group_names' in data:
+                    names = data['group_names']
+                    rooms = members.get('groups', {})
+                    if not isinstance(names, dict) or len(names) > 1000:
+                        raise PanelError('群备注格式不正确')
+                    existing = members.get('group_names', {})
+                    if not isinstance(existing, dict):
+                        raise PanelError('已有群备注格式不正确')
+                    updated = dict(existing)
+                    for room, name in names.items():
+                        if room not in rooms or not isinstance(name, str) or len(name) > 64 or any(ord(ch) < 32 for ch in name):
+                            raise PanelError('群备注应属于已配置的群，且不超过 64 个字符')
+                        name = name.strip()
+                        if name:
+                            updated[room] = name
+                        else:
+                            updated.pop(room, None)
+                    members['group_names'] = updated
                 for key in ('history_enabled', 'daily_clear'):
                     if key in data:
                         if type(data[key]) is not bool:
@@ -510,6 +559,201 @@ class PanelController:
             return dict(snapshot, session_id=session)
         return self._call(query)
 
+    def _article_account(self, expected=None, *, required=False):
+        account = self.store.load().get('wechat_account')
+        if account_is_unbound(account):
+            raise PanelError('请先在顶部选择微信账号', 409)
+        if (required and not isinstance(expected, str)) or (expected is not None and expected != account):
+            raise PanelError('文章所属账号已变化，请刷新后重试', 409)
+        return account
+
+    def _article_pid(self, account):
+        try:
+            rows = [row for row in self.accounts() if row.get('wxid') == account]
+        except (RuntimeError, OSError):
+            raise PanelError('暂时无法识别当前微信账号，请稍后重试', 409) from None
+        if len(rows) != 1 or type(rows[0].get('pid')) is not int:
+            raise PanelError('请保持所选微信账号登录，并关闭该账号的重复会话', 409)
+        return rows[0]['pid']
+
+    def articles_connection(self):
+        from .official_account_sync import capabilities, OfficialAccountReadError
+        account = ''
+        try:
+            with self.lock:
+                account = self._article_account()
+            pid = self._article_pid(account)
+            info = capabilities(pid, account)
+            with self.lock:
+                self._article_account(account, required=True)
+            return dict(info, account=account, connected=True)
+        except (PanelError, OfficialAccountReadError) as error:
+            return {'account': account, 'connected': False, 'supported': False, 'reason': str(error)}
+
+    def article_publishers(self, account=None):
+        from .official_accounts import OfficialAccountReadError
+        with self.lock:
+            account = self._article_account(account, required=True)
+        pid = self._article_pid(account)
+        def cancelled():
+            with self.lock:
+                return self.stop_event.is_set() or self.store.load().get('wechat_account') != account
+        try:
+            result = self.article_sync.list_publishers(pid, account, cancelled=cancelled)
+        except OfficialAccountReadError as error:
+            raise PanelError(str(error), error.status) from None
+        if self._article_pid(account) != pid:
+            raise PanelError('微信会话已变化，请重新读取公众号', 409)
+        with self.lock:
+            self._article_account(account, required=True)
+            if cancelled():
+                raise PanelError('公众号读取已取消', 409)
+            return dict(result, account=account)
+
+    def list_articles(self, account=None, publisher=None):
+        with self.lock:
+            account = self._article_account(account, required=True)
+            try:
+                return dict(self.articles.list(account, publisher=publisher), account=account)
+            except ArticlesError as error:
+                raise PanelError(str(error), error.status) from None
+
+    def _read_articles(self, data, *, detail=False):
+        from .official_accounts import OfficialAccountReadError, _lookup
+        with self.lock:
+            account = self._article_account(data.get('account'), required=True)
+        publisher, url = data.get('publisher'), data.get('url') if detail else None
+        if not isinstance(publisher, str) or not 1 <= len(publisher.strip()) <= 128:
+            raise PanelError('请输入公众号昵称、微信号或 gh_ 标识')
+        if detail and (not isinstance(url, str) or not 1 <= len(url) <= 4096):
+            raise PanelError('请选择要读取的文章')
+        if detail:
+            url = normalize_article_url(url)
+            if not url:
+                raise PanelError('请选择有效的公众号文章链接')
+            try:
+                saved = self.articles.get(account, hashlib.sha256(url.encode()).hexdigest())
+            except ArticlesError as error:
+                raise PanelError('请先同步该公众号的文章列表，再选择文章', error.status) from None
+            known = saved['publisher']
+            if _lookup(publisher) not in {_lookup(known.get(key, '')) for key in ('username', 'nickname', 'alias')}:
+                raise PanelError('文章不属于所选公众号，请重新同步列表', 409)
+            publisher = known['username']
+        if not self._articles_read_lock.acquire(blocking=False):
+            raise PanelError('文章正在读取，请稍候', 409)
+        try:
+            pid = self._article_pid(account)
+            def cancelled():
+                if self.stop_event.is_set():
+                    return True
+                with self.lock:
+                    try:
+                        self._article_account(account, required=True)
+                        return False
+                    except PanelError:
+                        return True
+            try:
+                if detail:
+                    result = self.article_sync.read_article(pid, account, publisher.strip(), url, cancelled=cancelled)
+                else:
+                    result = self.article_sync.read_page(pid, account, publisher.strip(),
+                                                        continuation=data.get('continuation'), cancelled=cancelled)
+            except OfficialAccountReadError as error:
+                raise PanelError(str(error), error.status) from None
+            # The account can be rebound while a bounded read is in progress.
+            # Commit only to its original library after both identities agree.
+            if self._article_pid(account) != pid:
+                raise PanelError('微信会话已变化，请重新读取文章', 409)
+            with self.lock:
+                self._article_account(account, required=True)
+                try:
+                    if detail:
+                        if normalize_article_url(result.get('article', {}).get('url')) != url:
+                            raise PanelError('返回的文章已变化，已丢弃旧结果', 409)
+                        return {'account': account, 'article': self.articles.import_article(account, result)}
+                    stored = (self.articles.import_list(account, result, allow_partial=True) if result['articles'] else
+                              {'publisher': result['publisher'], 'articles': []})
+                    fields = ('has_more', 'continuation', 'complete_remote_history', 'limit_reached',
+                              'page_count', 'fetched_count', 'truncated')
+                    progress = {key: result[key] for key in fields}
+                    if stored.pop('capacity_limited', False):
+                        self.article_sync.clear()
+                        progress.update(has_more=False, continuation=None, complete_remote_history=False,
+                                        limit_reached=True, truncated=True,
+                                        fetched_count=result['fetched_count'] - len(result['articles']) + len(stored['articles']))
+                    return dict(stored, **progress, account=account)
+                except ArticlesError as error:
+                    raise PanelError(str(error), error.status) from None
+        except BaseException:
+            self.article_sync.clear()
+            raise
+        finally:
+            self._articles_read_lock.release()
+
+    def read_articles(self, data):
+        return self._read_articles(data)
+
+    def read_article(self, data):
+        return self._read_articles(data, detail=True)
+
+    def article(self, identifier, account=None):
+        with self.lock:
+            account = self._article_account(account, required=True)
+            try:
+                return {'account': account, 'article': self.articles.get(account, identifier)}
+            except ArticlesError as error:
+                raise PanelError(str(error), error.status) from None
+
+    def export_article(self, data):
+        with self.lock:
+            account = self._article_account(data.get('account'), required=True)
+            try:
+                return dict(self.articles.export(account, data.get('id')), account=account)
+            except ArticlesError as error:
+                raise PanelError(str(error), error.status) from None
+
+    def article_media(self, data):
+        with self.lock:
+            account = self._article_account(data.get('account'), required=True)
+        try:
+            result = self.articles.image(account, data.get('id'), data.get('index'))
+        except ArticlesError as error:
+            raise PanelError(str(error), error.status) from None
+        with self.lock:
+            self._article_account(account, required=True)
+        return dict(result, account=account)
+
+    def list_scheduled_tasks(self):
+        self.scheduled_tasks.start()
+        account = self.store.load().get('wechat_account')
+        return {'tasks': [row for row in self.scheduled_tasks.list()['tasks'] if row.get('account') == account]}
+
+    def scheduled_action_types(self):
+        return {'actions': discover_actions(self.root, self.plugin_sources)}
+
+    def execute_scheduled_plugin(self, action_id, params, session, account, valid):
+        with self.lock:
+            app = self.app
+            if (self.state != 'running' or app is None or not app._connection_ready or
+                    app.config.get('wechat_account') != account or app.stop_event.is_set()):
+                raise PanelError('机器人或账号已停止', 409)
+            allowed = list(app.config.get('chat_allowlist', []))
+        def still_current():
+            with self.lock:
+                current = (self.app is app and self.state == 'running' and app._connection_ready and
+                           not app.stop_event.is_set() and getattr(app.backend, 'session_id', None) == session)
+            return bool(current and valid())
+        return app.plugins.run_scheduled(action_id, params, session, allowed, still_current)
+
+    def save_scheduled_task(self, data):
+        return self.scheduled_tasks.save(data)
+
+    def delete_scheduled_task(self, data):
+        return self.scheduled_tasks.delete(data)
+
+    def toggle_scheduled_task(self, data):
+        return self.scheduled_tasks.toggle(data)
+
     def send_status(self, identifier):
         with self.lock:
             job = self.send_jobs.get(identifier)
@@ -526,8 +770,12 @@ class PanelController:
             raise PanelError('发送请求编号无效')
         if not isinstance(session, str) or not session or len(session) > 80:
             raise PanelError('请先选择会话并刷新连接', 409)
-        if not isinstance(content, str) or not content.strip() or '\0' in content or len(content.encode('utf-8')) > 1023:
-            raise PanelError('正文应为 1–1023 个 UTF-8 字节，不能包含 NUL')
+        if not isinstance(content, str) or not content.strip() or '\0' in content:
+            raise PanelError('正文不能为空或包含 NUL')
+        try:
+            content.encode('utf-8')
+        except UnicodeEncodeError:
+            raise PanelError('正文包含无效的 Unicode 字符') from None
         if not isinstance(mentions, list):
             raise PanelError('艾特成员必须为列表')
         mentions = validate_mentions(target, mentions) if mentions else ()
@@ -579,9 +827,273 @@ class PanelController:
         threading.Thread(target=deliver, name='PanelTextSend', daemon=True).start()
         return self.send_status(identifier)
 
+    def send_friend_request(self, data):
+        """Submit one account-bound request; duplicate request IDs never resend."""
+        from .friend_add import validate_friend_add
+        wxid, room, message = validate_friend_add(data.get('wxid'), data.get('room'), data.get('message'), allow_auto=True)
+        identifier, session = data.get('request_id'), data.get('session_id')
+        if not isinstance(identifier, str) or not re.fullmatch(r'[A-Za-z0-9_-]{16,80}', identifier):
+            raise PanelError('发送请求编号无效')
+        if not isinstance(session, str) or not session or len(session) > 80:
+            raise PanelError('请先刷新微信连接', 409)
+        payload = ('friend_add', wxid, room, message, session)
+        with self.lock:
+            previous = self.send_jobs.get(identifier)
+            if previous is not None:
+                if previous['payload'] != payload:
+                    raise PanelError('发送编号已使用，请重新提交', 409)
+                return self.send_status(identifier)
+            if any(job['status'] == 'sending' for job in self.send_jobs.values()):
+                raise PanelError('上一条请求仍在发送，请等待结果', 409)
+            app = self.app
+            if app is None or not app._connection_ready or self.state == 'stopping':
+                raise PanelError('请先启动并连接机器人', 409)
+            if not app.service.session_is_current(session):
+                raise PanelError('微信连接已变化，请刷新连接', 409)
+            if 'friend.request.send' not in getattr(app.backend, 'capabilities', ()):
+                raise PanelError('当前微信版本尚未开放主动好友申请', 409)
+            allowed = app.config.get('chat_allowlist', [])
+            if allowed and room and room not in allowed:
+                raise PanelError('来源群不在收发白名单中')
+            self.send_jobs[identifier] = {'request_id': identifier, 'payload': payload,
+                                          'status': 'sending', 'error': ''}
+            while len(self.send_jobs) > 64:
+                del self.send_jobs[next(iter(self.send_jobs))]
+        def deliver():
+            try:
+                if app.service.send_friend_request(wxid, message, room=room, expected_session=session) is not True:
+                    raise RuntimeError('微信未确认申请发送')
+            except Exception as error:
+                safe_messages = {"未在已发现的群中找到该成员，请手动选择来源群",
+                                 "群成员缓存尚未就绪，请在微信打开群聊后重试",
+                                 "目标不在该群的已验证成员列表中", "来源群不在收发白名单中",
+                                 "主动好友申请仅适配微信 4.2.0.12"}
+                detail = str(error) if str(error) in safe_messages else '申请未确认，请先核对微信，勿重复发送'
+                with self.lock:
+                    self.send_jobs[identifier].update(status='failed', error=detail)
+            else:
+                with self.lock:
+                    self.send_jobs[identifier].update(status='sent')
+        threading.Thread(target=deliver, name='PanelFriendAdd', daemon=True).start()
+        return self.send_status(identifier)
+
     def send_connection(self):
         def query(app):
             if not app._connection_ready or app.backend is None:
                 raise PanelError('微信尚未连接', 409)
             return {'session_id': app.backend.session_id}
         return self._call(query)
+
+    def _moments_session(self):
+        """只查看当前运行连接，不启动机器人，也不复用切号前的连接身份。"""
+        with self.lock:
+            app = self.app
+            if (self.stop_event.is_set() or self.state != 'running' or app is None or
+                    not app._connection_ready or app.backend is None):
+                return None
+            backend = app.backend
+            session = getattr(backend, 'session_id', None)
+            account = app.config.get('wechat_account')
+            if not isinstance(session, str) or not session or account_is_unbound(account):
+                return None
+            actual = getattr(getattr(backend, 'raw', None), 'self_wxid', None)
+            if actual is not None and actual != account:
+                return None
+            identity = (session, account, backend)
+            previous = self._moments_identity
+            if previous is not None and previous[0] == session and (previous[1] != account or previous[2] is not backend):
+                return None
+            if previous is not None and previous != identity:
+                self._moments_seen.clear()
+            self._moments_identity = identity
+            return {'session_id': session, 'account': account}
+
+    def moments_connection(self):
+        current = self._moments_session()
+        if current is None:
+            raise PanelError('请先启动并连接需要发布朋友圈的机器人账号', 409)
+        with self.lock:
+            if self._moments_session() != current:
+                raise PanelError('微信连接或发布账号已变化，请刷新后重新选择', 409)
+            app, backend = self.app, self.app.backend
+            service = getattr(app, 'service', None)
+        capability = getattr(service, 'moments_capabilities', None)
+        supported, reason = False, '当前服务尚未接入朋友圈发布能力'
+        interaction_supported, interaction_reported = False, False
+        if callable(capability):
+            try:
+                result = capability(expected_session=current['session_id'])
+            except Exception:
+                result = None
+                reason = '当前连接暂时无法确认朋友圈发布能力，请刷新后重试'
+            if isinstance(result, dict):
+                supported = result.get('supported') is True
+                interaction_reported = 'interaction_supported' in result
+                interaction_supported = (result.get('interaction_supported') is True and
+                                         callable(getattr(service, 'interact_moments', None)))
+                value = result.get('reason')
+                if isinstance(value, str) and value.strip():
+                    # 原生诊断仅提取说明；路径、凭据和异常原文不透传到页面。
+                    if not re.search(r'[A-Za-z]:[\\/]|(?:^|\s)/(?:Users|home|tmp|var)/', value):
+                        reason = redact(value)[:500]
+                elif not supported:
+                    reason = '当前微信版本的朋友圈原生发布能力尚未验证，暂不能发布'
+        if not callable(getattr(service, 'publish_moments', None)):
+            supported, reason = False, '当前服务尚未接入朋友圈发布接口'
+        if self._moments_session() != current or self.app is not app or app.backend is not backend:
+            raise PanelError('微信连接或发布账号已变化，请刷新后重新选择', 409)
+        response = dict(current, supported=supported, reason='' if supported else reason, images=True,
+                        max_images=9, visibility=['public', 'private'])
+        if interaction_reported:
+            response['interaction_supported'] = interaction_supported
+        return response
+
+    def publish_moments(self, data):
+        # 已存在的同一请求交回任务模块核对内容；断线后查询/重复点按不会另发。
+        if isinstance(data, dict):
+            try:
+                self.moments.status(data.get('request_id'))
+            except PanelError as error:
+                if error.status != 404:
+                    raise
+            else:
+                return self.moments.submit(data)
+        connection = self.moments_connection()
+        if not connection['supported']:
+            raise PanelError(connection['reason'], 409)
+        return self.moments.submit(data)
+
+    def moments_status(self, identifier):
+        return self.moments.status(identifier)
+
+    def _moments_allowed(self, session, sns_id):
+        with self.lock:
+            current = self._moments_session()
+            return current is not None and current['session_id'] == session and sns_id in self._moments_seen
+
+    def interact_moments(self, data):
+        # 已接收的相同编号可查询，不依赖此时是否仍在同一连接。
+        if isinstance(data, dict):
+            try:
+                self.moments_interactions.status(data.get('request_id'))
+            except PanelError as error:
+                if error.status != 404:
+                    raise
+            else:
+                return self.moments_interactions.submit(data)
+        connection = self.moments_connection()
+        if not connection.get('interaction_supported'):
+            raise PanelError('当前连接的朋友圈互动能力尚未启用', 409)
+        return self.moments_interactions.submit(data)
+
+    def moments_interaction_status(self, identifier):
+        return self.moments_interactions.status(identifier)
+
+    def read_moments(self, data):
+        """仅手动读取当前连接的本地缓存，不保存正文，也不触发微信翻页。"""
+        if not isinstance(data, dict) or type(data.get('limit', 20)) is not int or not 1 <= data.get('limit', 20) <= 50:
+            raise PanelError('读取条数必须是 1 到 50 的整数')
+        current = self._moments_session()
+        if current is None or data.get('session_id') != current['session_id']:
+            raise PanelError('微信连接已变化，请重新选择账号后读取', 409)
+        if not self._moments_read_lock.acquire(blocking=False):
+            raise PanelError('正在读取朋友圈，请稍候', 409)
+        try:
+            with self.lock:
+                if self._moments_session() != current:
+                    raise PanelError('微信连接已变化，请重新读取', 409)
+                app, backend = self.app, self.app.backend
+                service = getattr(app, 'service', None)
+            read = getattr(service, 'read_moments', None)
+            if not callable(read):
+                raise PanelError('请更新管理台后重新启动机器人', 409)
+            try:
+                result = read(data.get('limit', 20), expected_session=current['session_id'])
+            except Exception as error:
+                from .moments_reader import MomentsReadError
+                if isinstance(error, MomentsReadError):
+                    raise PanelError(str(error), 409) from None
+                raise PanelError('朋友圈读取失败，请确认电脑微信已打开朋友圈后重试', 409) from None
+            if self._moments_session() != current or self.app is not app or app.backend is not backend:
+                raise PanelError('微信连接已变化，已丢弃旧账号的读取结果', 409)
+            # 不转发进程地址、诊断或原生元数据，仅返回页面需要的已验证字段。
+            fields = ('sns_id', 'author', 'nickname', 'is_self', 'timestamp', 'time',
+                      'private', 'content', 'content_type', 'media_count')
+            interactions = ('raw_like_flag', 'likes', 'comments', 'likes_total', 'comments_total',
+                            'likes_truncated', 'comments_truncated')
+            item_fields = ('username', 'nickname', 'content', 'type', 'timestamp', 'comment_id')
+            def clean_row(row):
+                result_row = {key: row[key] for key in fields}
+                for key in interactions:
+                    if key not in row:
+                        continue
+                    value = row[key]
+                    result_row[key] = ([{field: entry[field] for field in item_fields} for entry in value]
+                                       if key in ('likes', 'comments') else value)
+                return result_row
+            rows = [clean_row(row) for row in result['rows']]
+            with self.lock:
+                if self._moments_session() != current or self.app is not app or app.backend is not backend:
+                    raise PanelError('微信连接已变化，已丢弃旧账号的读取结果', 409)
+                for row in rows:
+                    identifier = row['sns_id']
+                    if isinstance(identifier, str) and re.fullmatch(r'[1-9][0-9]{0,19}', identifier) and int(identifier) <= 0xffffffffffffffff:
+                        self._moments_seen[identifier] = None
+                        self._moments_seen.move_to_end(identifier)
+                while len(self._moments_seen) > 1000:
+                    self._moments_seen.popitem(last=False)
+            return dict(current, source='loaded_pc_moments_cache',
+                        rows=rows,
+                        loaded_count=result['loaded_count'], truncated=result['truncated'])
+        finally:
+            self._moments_read_lock.release()
+
+    def _deliver_moments(self, payload):
+        current = self._moments_session()
+        if current is None or current['session_id'] != payload['session_id']:
+            return {'status': 'failed', 'phase': 'preflight'}
+        with self.lock:
+            if self._moments_session() != current:
+                return {'status': 'failed', 'phase': 'preflight'}
+            app, backend = self.app, self.app.backend
+            service = getattr(app, 'service', None)
+        try:
+            capability = self.moments_connection()
+        except PanelError:
+            return {'status': 'failed', 'phase': 'preflight'}
+        if (not capability['supported'] or capability['account'] != current['account'] or
+                self._moments_session() != current or self.app is not app or app.backend is not backend):
+            return {'status': 'failed', 'phase': 'preflight'}
+        publish = getattr(service, 'publish_moments', None)
+        if not callable(publish):
+            return {'status': 'failed', 'phase': 'preflight'}
+        # 不用 _call() 的 15 秒 Future 超时：临时图必须一直保留到原生函数真正退出。
+        result = publish(payload, expected_session=payload['session_id'])
+        if self._moments_session() != current or self.app is not app or app.backend is not backend:
+            return {'status': 'unknown', 'unload_blocked': isinstance(result, dict) and result.get('unload_blocked') is True,
+                    'retain_images': isinstance(result, dict) and result.get('retain_images') is True}
+        return result
+
+    def _deliver_moments_interaction(self, payload):
+        current = self._moments_session()
+        if current is None or current['session_id'] != payload['session_id']:
+            return {'status': 'failed', 'phase': 'preflight'}
+        with self.lock:
+            if self._moments_session() != current or not self._moments_allowed(payload['session_id'], payload['sns_id']):
+                return {'status': 'failed', 'phase': 'preflight'}
+            app, backend = self.app, self.app.backend
+            service = getattr(app, 'service', None)
+        try:
+            capability = self.moments_connection()
+        except PanelError:
+            return {'status': 'failed', 'phase': 'preflight'}
+        if (not capability.get('interaction_supported') or capability['account'] != current['account'] or
+                self._moments_session() != current or self.app is not app or app.backend is not backend):
+            return {'status': 'failed', 'phase': 'preflight'}
+        interact = getattr(service, 'interact_moments', None)
+        if not callable(interact):
+            return {'status': 'failed', 'phase': 'preflight'}
+        result = interact(payload, expected_session=payload['session_id'])
+        if self._moments_session() != current or self.app is not app or app.backend is not backend:
+            return {'status': 'unknown', 'unload_blocked': isinstance(result, dict) and result.get('unload_blocked') is True}
+        return result

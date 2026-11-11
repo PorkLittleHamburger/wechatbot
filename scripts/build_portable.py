@@ -22,8 +22,9 @@ PYTHON_ARCHIVE = f"python-{PYTHON_VERSION}-embed-amd64.zip"
 
 
 def ignore(directory: str, names: list[str]):
-    blocked = {".git", "__pycache__", ".pytest_cache", ".venv", ".development", ".runtime", "data", "logs", "dist"}
-    return [name for name in names if name in blocked or name.endswith(".egg-info")]
+    blocked = {".git", "__pycache__", ".pytest_cache", ".venv", ".development", ".runtime", ".build", "data", "logs", "dist"}
+    return [name for name in names if name in blocked or name.endswith(".egg-info")
+            or Path(name).suffix.lower() in {".obj", ".lib", ".exp", ".pdb"}]
 
 
 def copy_tree(source: Path, destination: Path):
@@ -87,7 +88,8 @@ def main() -> int:
 
     helper_root = ROOT / "vendor" / "helper"
     helper_hashes = {}
-    for path in (helper_root / "native" / "build_text", helper_root / "native" / "build"):
+    for path in (helper_root / "native" / "build_text", helper_root / "native" / "build",
+                 helper_root / "native" / "build_article"):
         if path.is_dir():
             for file in path.glob("*.dll"):
                 helper_hashes[str(file.relative_to(ROOT)).replace("\\", "/")] = {

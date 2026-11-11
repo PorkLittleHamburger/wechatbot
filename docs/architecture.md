@@ -3,7 +3,7 @@
 ## Layers
 
 ```text
-WeChat 4.1.15.13 / 4.1.15.56 (verified Windows x64 builds)
+WeChat 4.1.15.13 / 4.1.15.56 / 4.2.0.11 / 4.2.0.12 (fingerprint-locked Windows x64 builds)
         |
         v
 Driver implementation + bridge helpers
@@ -114,7 +114,7 @@ The authoritative action list and segment limits are in [OneBot compatibility](o
 
 ## User profiles and client sessions
 
-Inbound observations are stored before OneBot delivery; known nonempty names survive blank observations and restarts. Global nicknames and per-group cards are separate. A verified complete native member list replaces observed membership, while leave notices remove membership without erasing historical identity. Nickname lookup tries the friend cache, then the verified 4.1.15.56 non-friend LRU. Missing or unstable native records remain unavailable.
+Inbound observations are stored before OneBot delivery; known nonempty names survive blank observations and restarts. Global nicknames and per-group cards are separate. A verified complete native member list replaces observed membership, while leave notices remove membership without erasing historical identity. Nickname lookup tries the friend cache, then the separately verified 4.1.15.56 / 4.2.0.11 / 4.2.0.12 non-friend LRU layouts. Missing or unstable native records remain unavailable.
 
 The gateway emits separate `user_id` and `group_id` fields. External clients such as AstrBot may combine these into per-member session identifiers according to their own configuration; this does not change the gateway's group identity.
 

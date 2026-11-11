@@ -60,29 +60,70 @@ class Plugin:
 
 以上是 `plugins` 内的条目，保留其他配置不变。执行 `python main.py --check` 后，在运行中的终端输入 `reload hello`，或重启主程序。
 
+## 注册定时动作
+
+插件可以在 `plugin.json` 中声明 `scheduled_actions`，管理台会自动列出动作并按字段生成表单。例如：
+
+```json
+{
+  "scheduled_actions": [{
+    "id": "greeting",
+    "label": "发送问候",
+    "method": "scheduled_greeting",
+    "fields": [
+      {"name": "chat_id", "label": "会话 ID", "type": "chat", "required": true},
+      {"name": "text", "label": "内容", "type": "textarea", "required": true}
+    ]
+  }]
+}
+```
+
+将该字段加到原有清单中，并在 `Plugin` 中实现方法：
+
+```python
+def scheduled_greeting(self, params, ctx):
+    # params 按声明校验；ctx 使用触发时的微信连接。
+    if ctx.send_text(params['chat_id'], params['text']) is False:
+        raise RuntimeError('发送失败')
+```
+
+字段类型支持 `text`、`textarea`、`chat`（微信或群 ID）、`integer`、`boolean`；`required` 可省略，默认为 `false`。每个插件最多声明 16 个动作，每个动作最多 16 个字段。动作 ID 和字段名使用小写字母、数字及下划线，方法名由清单指定。网页不能指定任意 Python 函数。模板 `plugins/_template` 包含可复制示例。
+
+对应插件必须已加载，触发时使用插件当前实例和当前配置；`ctx` 的微信操作绑定触发时的连接，发送还受会话白名单限制。回调与该插件的消息回调串行，异常计入任务失败状态，不自动重试；不要在回调里创建无法停止的后台工作。插件代码按信任代码运行，定时接口不是安全沙箱；插件若自行创建后台工作或操作外部服务，必须自行处理生命周期、失败与不确定结果。
+
+管理台可在插件停止时配置已声明动作，但必须启动机器人并启用该插件才能执行；插件已删除或移除动作时，旧任务仍可停用或删除。长任务不阻塞调度器，其重叠周期会跳过。已有定时文字任务无需迁移。默认 `chat_summary` 插件提供“总结群聊”动作；自行定制过插件源码的账号，需要在自己使用的版本中声明并实现该动作。
+
 ## 常用发送接口
 
 | 接口 | 用途 |
 | --- | --- |
 | `ctx.reply(message, text)` | 回复文本 |
 | `ctx.reply_at(message, text)` | 真正艾特群消息作者并回复 |
+| `ctx.reply_quote(message, text)` | [在原会话发送微信原生引用回复](../messages/text.md#原生引用回复)，需要 `text.quote.send` |
 | `ctx.send_text(chat_id, text)` | 向明确的会话发送文本 |
 | `ctx.send_at_text(room, text, members, expected_session=message.session_id, display_names=names)` | 向指定群发送真实艾特，支持 1–8 位成员 |
 | `ctx.reply_image(message, path)` | 回复本地图片 |
 | `ctx.send_image(chat_id, path)` | 发送本地图片 |
 | `ctx.reply_file(message, path)` | 回复本地文件附件 |
 | `ctx.send_file(chat_id, path)` | 发送本地文件附件 |
+| `ctx.reply_video(message, path)` | 以微信视频消息回复 MP4 |
+| `ctx.send_video(chat_id, path)` | 以微信视频消息发送 MP4 |
 | `ctx.reply_emoticon(message, path)` | 回复 GIF 表情 |
 | `ctx.send_emoticon(chat_id, path)` | 发送 GIF 表情 |
 | `ctx.reply_voice(message, path)` | 回复语音条 |
 | `ctx.send_voice(chat_id, path)` | 发送语音条 |
 | `ctx.export_emoticons(convert=True)` | 显式导出当前账号本地缓存表情 |
+| `ctx.send_friend_request(wxid, verification_text, room="", expected_session=incoming.session_id)` | 通过共同群主动发送好友申请（Windows 4.2.0.12） |
 | `ctx.group_members(room, expected_session=message.session_id)` | 读取完整群成员快照，缓存不可用时返回 `None` |
 | `ctx.contacts(expected_session=message.session_id)` | 扫描当前账号的好友及资料，需要 `contact.read` 能力 |
 | `ctx.group_member_name(room, wxid, expected_session=message.session_id)` | 查询群昵称，未设置时返回微信名 |
 | `ctx.group_member_role(room, wxid, expected_session=message.session_id)` | 查询群主、群管理员或普通群友身份，未确认时返回 `unknown` |
 
 每类文件有独立限制，见对应的消息章节。`ctx.send_voice` 发送已有音频；可选的 `voice_reply` 插件通过 Fish Audio 合成艾特对话的语音，见[语音回复](../messages/voice.md#fish-audio-文字转语音)。
+
+视频发送目前支持微信 4.2.0.12 的本地 MP4 文件。可在插件的 `requires` 中声明 `video.send`；框架会读取容器时长，并将副本放入微信暂存目录。文件传输助手和群聊已验证，好友私聊尚未单独实测。
+
+语音插件可订阅类型 `34` 并声明 `voice.receive` 和 `voice.xml.receive`，通过 `message.data["voice_xml"]` 读取完整语音 XML（含微信本次提供的 `aeskey`、`voiceurl` 等属性）。`raw_content` 保留相同内容，音频缓存失败时仍可读取有效 XML。见[语音 XML](../messages/voice.md#读取收到的语音-xml)。
 
 ## 处理图片
 
@@ -108,7 +149,7 @@ image.receive / image.send
 file.receive / file.send
 friend.file.receive / friend.file.send
 group.file.receive / group.file.send
-friend.request.receive / friend.request.accept
+friend.request.receive / friend.request.accept / friend.request.send
 group.member.invite / group.create
 group.members.read / group.events
 contact.read
@@ -125,13 +166,19 @@ voice.send / friend.voice.send / group.voice.send
 
 `message.recall` 表示后端可提供微信原始消息编号和撤回通知。框架把撤回事件及媒体监控元数据定向交给内置防撤回插件，不广播为普通文本；参考 `anti_recall` 的精确编号匹配、会话缓存和发送连接检查。它同时补发文字、内置表情和 emoji；后端提供 `emoticon.send` 时，还会异步缓存类型 47 的原件并用 `ctx.reply_emoticon` 补发。原始 XML、CDN 地址及凭据不应进入日志或大模型。补发插件默认开启，网页监控标记独立保留。
 
+## 本机保留撤回消息
+
+微信 4.2.0.12 的指定构建提供 `message.recall.local` 能力。内置 `anti_recall_local` 在 `on_load` 中调用 `owner = ctx.enable_local_recall()`，在 `on_unload` 中调用 `ctx.disable_local_recall(owner)`。凭证用于避免热重载时旧实例关闭新实例的开关；连接恢复后框架会重新应用启用状态。
+
+本机保留不发送新消息，作用于当前账号的全部会话；与会话白名单内的四类撤回补发独立。默认关闭，使用范围与限制见[防撤回](../messages/recall.md)。
+
 ## 联系人
 
 `ctx.contacts(expected_session=message.session_id)` 返回含 `account`、`session_id`、`scanned_at`、`contacts` 和标签目录 `tags` 的快照。每位好友含 `wxid`、`nickname`、`remark`、`alias`、`description`、`sex`、`country`、`province`、`city`、`signature`、`tag_ids`、`tags` 和 `tags_status`。`tags_status == "ready"` 且 `tags` 为空才代表已确认没有标签；`unavailable` 表示字段或标签名称尚未就绪。未读取到的个人资料为空，性别为 `unknown`。`complete` 当前为 `false`，仅表示已加载缓存，不保证完整好友名单。连接不可用或读期间切换账号会失败，不返回旧账号结果。当前仅验证微信 4.1.15.56，使用说明见[扫描联系人](../guide/web-panel.md#扫描联系人)。
 
 ## 群成员与昵称
 
-`ctx.group_members(room, expected_session=message.session_id)` 返回完整成员快照的元组；缓存不可用时返回 `None`，不能把它当成空群。每项含 `wxid`（成员 ID）、`group_nickname`（本群原始昵称）、`wechat_name`（微信名）、`nickname`（群昵称优先、再回退到微信名）。未读取到的名字为空字符串。
+`ctx.group_members(room, expected_session=message.session_id)` 返回完整成员快照的元组；缓存不可用时返回 `None`，不能把它当成空群。每项含 `wxid`（成员 ID）、`group_nickname`（本群原始昵称）、`wechat_name`（微信名）、`nickname`（群昵称优先、再回退到微信名）。微信 4.2.0.11 和 4.2.0.12 的微信名也会查询已加载的非好友成员缓存；未读取到的名字为空字符串。
 
 `ctx.group_member_name(room, wxid, expected_session=message.session_id)` 返回该群的昵称或微信名，找不到时返回 `None`。这些接口读取当前微信缓存；框架 `/绑定` 设置的称呼可用 `ctx.members.display_name(wxid, room)` 查询，两者分别保留，不相互覆盖。
 

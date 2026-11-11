@@ -21,6 +21,9 @@
     "max_seconds": 0.3
   },
   "plugins": {
+    "anti_recall_local": {
+      "enabled": false
+    },
     "anti_recall": {
       "enabled": true
     },
@@ -28,6 +31,9 @@
       "enabled": true
     },
     "anti_recall_file": {
+      "enabled": true
+    },
+    "anti_recall_voice": {
       "enabled": true
     },
     "picture_idiom": {

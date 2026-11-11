@@ -53,7 +53,7 @@ def default_config() -> dict[str, Any]:
             "wechat_pid": None,
             "nickname": "",
             "wechat_data_directory": None,
-            "supported_versions": ["4.1.15.13", "4.1.15.56"],
+            "supported_versions": ["4.1.15.13", "4.1.15.56", "4.2.0.11", "4.2.0.12"],
         },
         "storage": {
             "data_dir": "data",
@@ -139,7 +139,7 @@ class DriverConfig:
     wechat_account: str = ""
     wechat_pid: int | None = None
     nickname: str = ""
-    supported_versions: tuple[str, ...] = ("4.1.15.13", "4.1.15.56")
+    supported_versions: tuple[str, ...] = ("4.1.15.13", "4.1.15.56", "4.2.0.11", "4.2.0.12")
     wechat_data_directory: Path | None = None
 
     @classmethod
@@ -156,7 +156,7 @@ class DriverConfig:
         account = value.get("wechat_account") or ""
         pid = value.get("wechat_pid")
         nickname = value.get("nickname") or ""
-        versions = value.get("supported_versions", ["4.1.15.13", "4.1.15.56"])
+        versions = value.get("supported_versions", ["4.1.15.13", "4.1.15.56", "4.2.0.11", "4.2.0.12"])
         data_directory_raw = value.get("wechat_data_directory")
         if not isinstance(account, str) or not isinstance(nickname, str):
             raise ConfigError("driver.wechat_account 和 nickname 必须是字符串")

@@ -1,26 +1,6 @@
-# These source files are byte-hashed in vendor/helper/VENDORED_SHA256.json.
-vendor/helper/native/bridge_watchdog.py text eol=lf
-vendor/helper/wxbot_framework/bridge_lifecycle.py text eol=lf
-vendor/helper/native/run_selftest.py text eol=lf
-vendor/helper/native/filehelper_service.py text eol=lf
-vendor/helper/wxbot_framework/local_paths.py text eol=lf
-vendor/helper/wxbot_framework/files.py text eol=lf
-vendor/helper/wxbot_framework/voices.py text eol=lf
-vendor/helper/wxbot_framework/snapshot_access.py text eol=lf
-vendor/helper/native/local_file_path.h text eol=lf
-vendor/helper/native/file_send.h text eol=lf
-vendor/helper/native/voice_send.h text eol=lf
-vendor/helper/wxbot_framework/sdk.py text eol=lf
-vendor/helper/wxbot_framework/contacts.py text eol=lf
-vendor/helper/README.md text eol=lf
-vendor/helper/PRODUCT.md text eol=lf
-vendor/helper/DESIGN.md text eol=lf
-vendor/helper/.impeccable/surfaces/webui-index-html.md text eol=lf
-vendor/helper/docs/development/documentation.md text eol=lf
-vendor/helper/docs/guide/quick-start.md text eol=lf
-vendor/helper/docs/messages/recall.md text eol=lf
-vendor/helper/wxbot_framework/replies.py text eol=lf
-vendor/helper/native/text_service.py text eol=lf
-vendor/helper/wxbot_framework/forwarded.py text eol=lf
-vendor/helper/wxbot_framework/forwarded_receiver.py text eol=lf
-vendor/helper/docs/messages/forwarded.md text eol=lf
+# Complete vendor snapshot hashes must survive Windows checkout unchanged.
+vendor/helper/** text=auto eol=lf
+vendor/helper/**/*.dll binary
+vendor/helper/**/*.png binary
+vendor/helper/**/*.jpg binary
+vendor/helper/**/*.ico binary

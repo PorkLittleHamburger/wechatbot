@@ -35,18 +35,22 @@ let robot = sessionStorage.getItem('helper-robot') || 'default', robotRows = [],
 let pluginSignature = '', accountSignature = '', robotOptionsSignature = '';
 let messages=[], messageCursor=0, messageStream='', messagePaused=false, messageError='', messageGeneration=0, messageSignature='';
 let loggedAccounts = [], selectedAccounts = new Set(), accountsError = '', accountsLoading = true, accountsFetching = false, lastAccountFetch = 0, batchStarting = false;
+let loginAttempt = '', loginGeneration = 0, loginTimer = null, loginStarting = false;
 let sendMembers = [], mentionSelection = new Set(), sendSession = '', sendGeneration = 0, sendLoading = false, pendingSend = null, sendPolling = false;
+let sendChatsAttempted = false;
+let taskRows=[], taskActions=[], taskActionSignature='', taskGeneration=0, taskLoading=false, taskLastFetch=0, taskSignature='';
+let groupNameDraft = new Map(), discoveredGroups = [];
 let contactData=null, contactGeneration=0, contactLoading=false, contactError='', contactIdentity='', contactDetail='', contactPage=0, contactSignature='';
 const contactPageSize=50;
 const accountKey = row => row.pid + ':' + row.wxid;
 const activeStates = ['starting','running','stopping'];
 const profileLabel = row => loggedAccounts.find(account=>account.wxid===row?.account)?.name || row?.account || (row?.id==='default'?'默认配置':row?.name) || '当前账号';
-const pages = {overview:'运行概览', plugins:'插件管理', groups:'群聊与会话', contacts:'联系人', models:'模型与语音', logs:'运行日志'};
-const pluginNames = {anti_recall:['文字防撤回'], anti_recall_image:['图片防撤回'], anti_recall_file:['文件防撤回'], image_gallery:['图库图片'], picture_idiom:['看图猜成语'], idiom_chain:['成语接龙'], chat_summary:['聊天总结'], mention_chat:['艾特对话'], voice_reply:['语音回复'], group_notice:['进退群提醒'], member_identity:['群内昵称绑定'], personality:['切换人格'], friend_auto_accept:['自动通过好友'], chat_records:['聊天记录管理'], id_responder:['会话 ID 查询'], echo:['文字回声']};
+const pages = {overview:'运行概览', plugins:'插件管理', groups:'群聊与会话', tasks:'定时任务', contacts:'联系人', moments:'朋友圈', articles:'公众号文章', models:'模型与语音', logs:'运行日志'};
+const pluginNames = {anti_recall_local:['本机防撤回'], anti_recall:['文字防撤回'], anti_recall_image:['图片防撤回'], anti_recall_file:['文件防撤回'], anti_recall_voice:['语音防撤回'], image_gallery:['图库图片'], image_generation:['AI 生图'], wechat_update_guard:['微信更新保护'], picture_idiom:['看图猜成语'], idiom_chain:['成语接龙'], chat_summary:['聊天总结'], mention_chat:['艾特对话'], voice_reply:['语音回复'], group_notice:['进退群提醒'], member_identity:['群内昵称绑定'], personality:['切换人格'], friend_auto_accept:['自动通过好友'], chat_records:['聊天记录管理'], id_responder:['会话 ID 查询'], echo:['文字回声']};
 const escape = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 async function api(path, body, identifier = robot) {
-  const scope = (path === 'robots' || path === 'accounts' || path.startsWith('accounts/')) ? '' : (path.includes('?') ? '&' : '?') + 'robot=' + encodeURIComponent(identifier);
+  const scope = (path === 'robots' || path === 'accounts' || path.startsWith('accounts/') || path.startsWith('wechat-login/')) ? '' : (path.includes('?') ? '&' : '?') + 'robot=' + encodeURIComponent(identifier);
   const response = await fetch('/api/' + path + scope, {method: body === undefined ? 'GET' : 'POST', cache:'no-store',
     headers:{'X-Helper-Token':token, ...(body === undefined ? {} : {'Content-Type':'application/json'})},
     ...(body === undefined ? {} : {body:JSON.stringify(body)})});
@@ -54,6 +58,8 @@ async function api(path, body, identifier = robot) {
   if (!response.ok) { const error=new Error(data.error||'操作失败');error.status=response.status;throw error; }
   return data;
 }
+const moments = window.createMomentsComposer({api, robots:()=>robotRows, label:profileLabel, available:()=>serviceAvailable});
+const articles = window.createArticlesWorkspace({api, available:()=>serviceAvailable});
 function toast(message, error = false) {
   const dialogError = $('dialog[open] .dialog-error');
   if (error && dialogError) { dialogError.textContent = message; dialogError.classList.remove('hidden'); return; }
@@ -79,6 +85,10 @@ function navigate() {
   $('#page-label').textContent = pages[name]; document.title = pages[name] + ' · helper';
   if (document.body.classList.contains('nav-open')) { setNavigation(false); $('#workspace').focus({preventScroll:true}); }
   window.scrollTo(0, 0);
+  moments.render();
+  articles.render();
+  if(name==='groups' && state?.connected && !sendChatsAttempted && !sendLoading)loadSendChats();
+  if(name==='tasks')loadTasks();
 }
 function renderRobotOptions() {
   const names={stopped:'已停止',starting:'启动中',running:'等待连接',stopping:'停止中',error:'异常'};
@@ -99,13 +109,19 @@ function renderRobotOptions() {
 }
 function renderState() {
   const unavailable=!serviceAvailable;
+  const articleRobot=robotRows.find(row=>row.id===robot);
+  const articleAccount=state?.account ?? config?.account ?? articleRobot?.account ?? '';
+  articles.setTarget(robot,articleAccount,profileLabel({...articleRobot,id:robot,account:articleAccount}));
   $('#robot-select').disabled=busy||unavailable;
   $('#discover-chats').disabled=busy||unavailable||!state||!activeStates.includes(state.state);
   renderRobotOptions();renderAccounts();renderMessages();
   const running=!!state&&activeStates.includes(state.state);
-  document.querySelectorAll('form:not(#send-form):not(#plugin-form) .primary').forEach(node=>node.disabled=unavailable||!state||running||busy);
+  document.querySelectorAll('form:not(#send-form):not(#friend-add-form):not(#plugin-form):not(#moments-form):not(#articles-form):not(#task-form) .primary').forEach(node=>node.disabled=unavailable||!state||running||busy);
+  $('#task-save').disabled=unavailable||!state||busy;
   renderSendState();
   renderContacts();
+  moments.render();
+  articles.render();
   document.querySelectorAll('.save-hint').forEach(node=>node.textContent=unavailable?'连接中断':!state?'正在读取':running?'停止后可保存':'启动后生效');
   if(state)$('#nav-plugin-count').textContent=state.plugins.length;
   renderPlugins();
@@ -181,6 +197,54 @@ async function launchAccounts(rows) {
     await loadConfig();
   }finally{batchStarting=false;renderAccounts();}
 }
+async function closeWechatLogin() {
+  const attempt=loginAttempt; loginGeneration++; loginAttempt=''; loginStarting=false;
+  clearTimeout(loginTimer); $('#wechat-login-qr').removeAttribute('src');
+  $('#wechat-login-qr').classList.add('hidden'); $('#wechat-login-panel').classList.add('hidden');
+  $('#login-wechat').disabled=false;
+  if(attempt){try{await api('wechat-login/cancel',{attempt_id:attempt});}catch{}}
+}
+async function pollWechatLogin(attempt,generation) {
+  if(generation!==loginGeneration || attempt!==loginAttempt)return;
+  try {
+    const result=await api('wechat-login/status?attempt_id='+encodeURIComponent(attempt));
+    if(generation!==loginGeneration || attempt!==loginAttempt)return;
+    const image=$('#wechat-login-qr'), status=$('#wechat-login-status');
+    if(result.status==='qr_available'){
+      image.src='data:image/png;base64,'+result.qrcode_base64; image.classList.remove('hidden');
+      status.textContent='请使用手机微信扫码，并在手机确认登录。';
+    }else{
+      image.removeAttribute('src');image.classList.add('hidden');
+      status.textContent=result.status==='logged_in'?'已登录，可在上方选择账号。':
+        result.status==='exited'?'微信进程已退出，请在微信中重新打开登录窗口。':
+        result.status==='starting'?'正在启动微信…':'等待二维码，请保持微信登录窗口打开且未最小化。';
+    }
+    if(result.status==='logged_in'){
+      loginAttempt='';$('#login-wechat').disabled=false;
+      try{await api('wechat-login/cancel',{attempt_id:attempt});await loadRobots();await loadAccounts();}catch{}
+      return;
+    }
+    if(result.status==='exited'){loginAttempt='';$('#login-wechat').disabled=false;try{await api('wechat-login/cancel',{attempt_id:attempt});}catch{}return;}
+    loginTimer=setTimeout(()=>pollWechatLogin(attempt,generation),2000);
+  } catch(error) {
+    if(generation!==loginGeneration)return;
+    $('#wechat-login-qr').removeAttribute('src');$('#wechat-login-qr').classList.add('hidden');
+    $('#wechat-login-status').textContent=error.message;$('#login-wechat').disabled=false;
+    const old=loginAttempt;loginAttempt='';if(old){try{await api('wechat-login/cancel',{attempt_id:old});}catch{}}
+  }
+}
+$('#login-wechat').onclick=async()=>{
+  if(loginStarting || loginAttempt)return;
+  loginStarting=true;const generation=++loginGeneration;$('#login-wechat').disabled=true;
+  $('#wechat-login-panel').classList.remove('hidden');$('#wechat-login-status').textContent='正在启动微信…';
+  try{
+    const result=await api('wechat-login/start',{});
+    if(generation!==loginGeneration){try{await api('wechat-login/cancel',{attempt_id:result.attempt_id});}catch{}return;}
+    loginAttempt=result.attempt_id;await pollWechatLogin(loginAttempt,generation);
+  }catch(error){if(generation===loginGeneration){$('#wechat-login-status').textContent=error.message;$('#login-wechat').disabled=false;}}
+  finally{loginStarting=false;}
+};
+$('#close-wechat-login').onclick=closeWechatLogin;
 function fill(form, values) {
   if (!values) return;
   for (const input of form.elements) {
@@ -189,11 +253,30 @@ function fill(form, values) {
     else input.value = input.name === 'extra_body' ? JSON.stringify(values[input.name] ?? {}, null, 2) : values[input.name] ?? '';
   }
 }
+$('#llm-model-preset').onchange = event => {
+  const preset = event.target;
+  if (!preset.value) return;
+  const form = preset.form;
+  const baseUrl = 'https://api.worldguide.online/v1';
+  if (!/^https:\/\/api\.worldguide\.online(?::443)?(?:\/|$)/i.test(form.elements.base_url.value)) {
+    form.elements.api_key.value = '';
+    $('.key-state', form).textContent = '请填写 WorldGuide 密钥';
+  }
+  const grok = preset.value.startsWith('grok-');
+  fill(form, {
+    base_url:baseUrl, model:preset.value, timeout_seconds:grok ? 45 : 60,
+    max_tokens:grok ? 1024 : 2048, json_mode:true, token_limit_parameter:'max_tokens',
+    extra_body:grok ? {reasoning_effort:'low'} : {}, clear_api_key:false
+  });
+  preset.value = '';
+};
 async function loadConfig() {
   const requested = robot, loaded = await api('config');
   if (requested !== robot) return;
   config = loaded;
   fill($('#groups-form'), {...config, groups:config.groups?.join('\n')||''});
+  groupNameDraft = new Map(Object.entries(config.group_names || {}));
+  renderGroupNames(); renderDiscoveredGroups();
   fill($('#scope-form'), {chat_allowlist:config.chat_allowlist.join('\n')});
   for (const name of ['llm','tts']) {
     const form = $('#'+name+'-form');
@@ -204,6 +287,26 @@ async function loadConfig() {
   fill($('#delay-form'), config.text_send_delay);
 }
 const lines = value => [...new Set(value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean))];
+function renderGroupNames() {
+  const rooms = lines($('#group-ids').value);
+  const supported = !!config && Object.hasOwn(config, 'group_names');
+  $('#group-name-list').innerHTML = rooms.length ? '<h3 class="group-name-heading">群聊备注</h3>' +
+    (supported ? '' : '<p class="group-name-hint">请重启管理台后编辑群备注。</p>') + rooms.map((room, index) =>
+    `<div class="group-name-row"><label for="group-name-${index}">${escape(room)}</label><input id="group-name-${index}" data-group-name="${escape(room)}" value="${escape(groupNameDraft.get(room) || '')}" maxlength="64" placeholder="填写备注" autocomplete="off" ${supported ? '' : 'disabled'}></div>`).join('') : '';
+}
+function renderDiscoveredGroups() {
+  const node = $('#discovered-chats');
+  node.className = discoveredGroups.length ? '' : 'empty';
+  node.innerHTML = discoveredGroups.map(c => {
+    const name = config?.group_names?.[c.chat_id] || c.name || '';
+    return `<div class="chat-row"><div>${escape(name || c.chat_id)}${name ? `<small>${escape(c.chat_id)}</small>` : ''}</div><button class="secondary small" data-room="${escape(c.chat_id)}">填入列表</button></div>`;
+  }).join('') || '暂无已接收消息的群。';
+}
+$('#group-ids').addEventListener('input', renderGroupNames);
+$('#group-name-list').addEventListener('input', event => {
+  const input = event.target.closest('[data-group-name]');
+  if (input) groupNameDraft.set(input.dataset.groupName, input.value);
+});
 async function save(data, message) { await api('config',data); await loadConfig(); toast(message||'配置已保存，下次启动生效'); }
 $('#start-selected').onclick = () => action(()=>launchAccounts(loggedAccounts.filter(row=>selectedAccounts.has(accountKey(row))&&row.selectable&&!activeStates.includes(row.state))));
 $('#refresh-accounts').onclick=()=>loadAccounts();
@@ -338,7 +441,7 @@ $('#reset-plugin-source').onclick=()=>{$('#plugin-reset-confirm').classList.remo
 $('#cancel-plugin-reset').onclick=()=>{$('#plugin-reset-confirm').classList.add('hidden');$('#reset-plugin-source').focus();};
 $('#confirm-plugin-reset').onclick=()=>action(()=>submitPluginSource(true));
 $('#plugin-form').onsubmit=event=>{event.preventDefault();if(!$('#save-plugin-source').disabled)action(()=>submitPluginSource());};
-$('#groups-form').onsubmit=e=>{e.preventDefault();action(()=>save({groups:lines(e.target.elements.groups.value),history_enabled:e.target.elements.history_enabled.checked,daily_clear:e.target.elements.daily_clear.checked}));};
+$('#groups-form').onsubmit=e=>{e.preventDefault();const groups=lines(e.target.elements.groups.value);const data={groups,history_enabled:e.target.elements.history_enabled.checked,daily_clear:e.target.elements.daily_clear.checked};if(config&&Object.hasOwn(config,'group_names'))data.group_names=Object.fromEntries(groups.map(room=>[room,groupNameDraft.get(room)||'']));action(()=>save(data));};
 $('#scope-form').onsubmit=e=>{e.preventDefault();action(()=>save({chat_allowlist:lines(e.target.elements.chat_allowlist.value)}));};
 for (const name of ['llm','tts']) $('#'+name+'-form').onsubmit=e=>{
   e.preventDefault();
@@ -355,10 +458,10 @@ for (const name of ['llm','tts']) $('#'+name+'-form').onsubmit=e=>{
 };
 $('#delay-form').onsubmit=e=>{e.preventDefault();const f=e.target.elements;action(()=>save({text_send_delay:{enabled:f.enabled.checked,characters_per_group:Number(f.characters_per_group.value),min_seconds:Number(f.min_seconds.value),max_seconds:Number(f.max_seconds.value)}}));};
 $('#discover-chats').onclick=()=>action(async()=>{
-  const {chats}=await api('chats');const rooms=chats.filter(c=>c.is_group||c.chat_id?.endsWith('@chatroom'));
-  $('#discovered-chats').className=rooms.length?'':'empty';$('#discovered-chats').innerHTML=rooms.map(c=>`<div class="chat-row"><div>${escape(c.name||c.chat_id)}<small>${escape(c.chat_id)}</small></div><button class="secondary small" data-room="${escape(c.chat_id)}">填入列表</button></div>`).join('')||'暂无已接收消息的群。';
+  const {chats}=await api('chats');discoveredGroups=chats.filter(c=>c.is_group||c.chat_id?.endsWith('@chatroom'));
+  renderDiscoveredGroups();
 });
-$('#discovered-chats').onclick=e=>{const button=e.target.closest('[data-room]');if(!button)return;const field=$('#groups-form').elements.groups;field.value=[...new Set([...lines(field.value),button.dataset.room])].join('\n');toast('已填入，停止机器人后保存群聊配置');};
+$('#discovered-chats').onclick=e=>{const button=e.target.closest('[data-room]');if(!button)return;const field=$('#groups-form').elements.groups;field.value=[...new Set([...lines(field.value),button.dataset.room])].join('\n');renderGroupNames();toast('已填入，停止机器人后保存群聊配置');};
 
 const roleLabels = {owner:'群主', admin:'群管理员', member:'普通群友', unknown:'身份未知'};
 function sendFeedback(text, error=false) {
@@ -372,6 +475,9 @@ function renderSendState() {
   $('#send-content').disabled=!ready||!!pendingSend;
   $('#send-text').disabled=!ready||sendLoading||!!pendingSend||!sendSession||!$('#send-chat').value||!$('#send-content').value.trim();
   $('#send-text').textContent=pendingSend?'发送中…':'发送';
+  $('#friend-add-room').disabled=!ready||sendLoading||!!pendingSend;$('#friend-add-wxid').disabled=!ready||!!pendingSend;$('#friend-add-message').disabled=!ready||!!pendingSend;
+  $('#friend-add-submit').disabled=!ready||sendLoading||!!pendingSend||!sendSession||!$('#friend-add-wxid').value.trim()||!$('#friend-add-message').value.trim();
+  $('#friend-add-submit').textContent=pendingSend?.kind==='friend'?'发送中…':'发送好友申请';
   $('#mention-count').textContent=`已选 ${mentionSelection.size} / 8`;
   $('#send-members').querySelectorAll('input').forEach(node=>node.disabled=!ready||!!pendingSend);
 }
@@ -383,23 +489,32 @@ function renderSendMembers() {
 }
 function resetComposer() {
   sendGeneration++;sendMembers=[];mentionSelection.clear();sendSession='';sendLoading=false;pendingSend=null;
+  sendChatsAttempted=false;
   $('#send-chat').innerHTML='<option value="">选择会话</option>';$('#send-content').value='';$('#member-search').value='';
+  $('#friend-add-room').innerHTML='<option value="">自动匹配共同群聊</option>';$('#friend-add-wxid').value='';$('#friend-add-message').value='';$('#friend-add-status').textContent='支持添加共同群里的成员。';
   $('#send-group').classList.add('hidden');sendFeedback('');renderSendMembers();
 }
 async function loadSendChats() {
   const requested=robot,generation=++sendGeneration;
+  let loaded=false;
+  sendChatsAttempted=true;
   sendLoading=true;sendSession='';sendFeedback('正在读取会话…');renderSendState();
   try {
-    const [{chats},connection]=await Promise.all([api('chats',undefined,requested),api('send-connection',undefined,requested)]);
+    const [{chats},connection,settings]=await Promise.all([api('chats',undefined,requested),api('send-connection',undefined,requested),api('config',undefined,requested)]);
     if(requested!==robot||generation!==sendGeneration)return;
     const previous=$('#send-chat').value, rows=[...chats];
+    const known=new Set(rows.map(row=>row.chat_id));
+    for(const room of settings.groups||[])if(!known.has(room)){rows.push({chat_id:room,is_group:true});known.add(room);}
     if(!rows.some(row=>row.chat_id==='filehelper'))rows.unshift({chat_id:'filehelper',name:'文件传输助手'});
-    $('#send-chat').innerHTML='<option value="">选择会话</option>'+rows.map(row=>`<option value="${escape(row.chat_id)}">${escape(row.name||row.chat_id)}${row.name?' · '+escape(row.chat_id):''}</option>`).join('');
+    $('#send-chat').innerHTML='<option value="">选择会话</option>'+rows.map(row=>{const name=settings.group_names?.[row.chat_id]||row.name||'';return `<option value="${escape(row.chat_id)}">${escape(name||row.chat_id)}${name?' · '+escape(row.chat_id):''}</option>`;}).join('');
     if(rows.some(row=>row.chat_id===previous))$('#send-chat').value=previous;
-    sendSession=connection.session_id;sendFeedback('');
+    const previousRoom=$('#friend-add-room').value,groups=rows.filter(row=>row.is_group||row.chat_id?.endsWith('@chatroom'));
+    $('#friend-add-room').innerHTML='<option value="">自动匹配共同群聊</option>'+groups.map(row=>{const name=settings.group_names?.[row.chat_id]||row.name||'';return `<option value="${escape(row.chat_id)}">${escape(name||row.chat_id)}${name?' · '+escape(row.chat_id):''}</option>`;}).join('');
+    if(groups.some(row=>row.chat_id===previousRoom))$('#friend-add-room').value=previousRoom;
+    sendSession=connection.session_id;sendFeedback('');loaded=true;
   } catch(error) {if(requested===robot&&generation===sendGeneration)sendFeedback(error.message,true);}
   finally {if(requested===robot&&generation===sendGeneration){sendLoading=false;renderSendState();}}
-  if(requested===robot&&generation===sendGeneration)await selectSendChat();
+  if(loaded&&requested===robot&&generation===sendGeneration)await selectSendChat();
 }
 async function selectSendChat() {
   const room=$('#send-chat').value,requested=robot,generation=++sendGeneration;
@@ -408,9 +523,21 @@ async function selectSendChat() {
   if(!room){renderSendState();return;}
   sendSession='';sendLoading=true;sendFeedback('正在读取…');renderSendState();
   try {
-    const data=await api(room.endsWith('@chatroom')?'group-members?room='+encodeURIComponent(room):'send-connection',undefined,requested);
+    const connection=await api('send-connection',undefined,requested);
     if(requested!==robot||generation!==sendGeneration)return;
-    sendSession=data.session_id;sendMembers=data.members||[];sendFeedback('');renderSendMembers();
+    if(room.endsWith('@chatroom')) {
+      try {
+        const data=await api('group-members?room='+encodeURIComponent(room),undefined,requested);
+        if(requested!==robot||generation!==sendGeneration)return;
+        if(data.session_id!==connection.session_id)throw new Error('微信连接已变化，请刷新会话');
+        sendMembers=data.members||[];
+      } catch(error) {
+        if(requested!==robot||generation!==sendGeneration)return;
+        if(error.status!==409||error.message!=='群成员缓存尚未就绪，请在微信打开该群后重试')throw error;
+        sendSession=connection.session_id;sendFeedback('群成员尚未加载，可发送文字；在微信打开群聊后刷新成员。');renderSendMembers();return;
+      }
+    }
+    sendSession=connection.session_id;sendFeedback('');renderSendMembers();
   } catch(error) {if(requested===robot&&generation===sendGeneration)sendFeedback(error.message,true);}
   finally {if(requested===robot&&generation===sendGeneration){sendLoading=false;renderSendState();}}
 }
@@ -431,10 +558,11 @@ async function pollSendStatus() {
     if(pendingSend!==job||job.robot!==robot)return;
     if(result.status==='sending')return;
     pendingSend=null;
-    if(result.status==='sent'){$('#send-content').value='';sendFeedback('已发送');}
+    if(job.kind==='friend'){if(result.status==='sent'){$('#friend-add-wxid').value='';$('#friend-add-status').textContent='申请已发送，等待对方处理。';}else $('#friend-add-status').textContent=result.error||'申请未确认，请先核对微信。';}
+    else if(result.status==='sent'){$('#send-content').value='';sendFeedback('已发送');}
     else sendFeedback(result.error||'发送未完成，请核对微信后再重发',true);
     renderSendState();
-  } catch(error) {if(pendingSend===job)sendFeedback('暂时无法查询发送结果，请先核对微信。不会自动重发。',true);}
+  } catch(error) {if(pendingSend===job){if(job.kind==='friend')$('#friend-add-status').textContent='结果暂不确定，请先核对微信；不会自动重发。';else sendFeedback('暂时无法查询发送结果，请先核对微信。不会自动重发。',true);}}
   finally {sendPolling=false;}
 }
 $('#send-form').onsubmit=async event=>{
@@ -451,6 +579,15 @@ $('#send-form').onsubmit=async event=>{
     else sendFeedback('发送结果暂不确定，请先核对微信。不会自动重发。',true);
     renderSendState();
   }
+};
+for(const id of ['friend-add-room','friend-add-wxid','friend-add-message'])$('#'+id).addEventListener('input',renderSendState);
+$('#friend-add-form').onsubmit=async event=>{
+  event.preventDefault();if($('#friend-add-submit').disabled||pendingSend)return;
+  const requested=robot,job={id:crypto.randomUUID(),robot:requested,kind:'friend'};pendingSend=job;
+  const body={request_id:job.id,session_id:sendSession,room:$('#friend-add-room').value,wxid:$('#friend-add-wxid').value.trim(),message:$('#friend-add-message').value};
+  $('#friend-add-status').textContent='正在发送申请…';renderSendState();
+  try {await api('friend-request-send',body,requested);if(pendingSend===job)await pollSendStatus();}
+  catch(error){if(pendingSend!==job)return;if(error.status){pendingSend=null;$('#friend-add-status').textContent=error.message;}else $('#friend-add-status').textContent='结果暂不确定，请先核对微信；不会自动重发。';renderSendState();}
 };
 setInterval(pollSendStatus,1500);
 function renderMessages() {
@@ -598,7 +735,10 @@ async function poll(){
     const [next,tail]=await Promise.all([api('state'),api('logs?after='+logCursor)]);
     if(requested!==robot||generation!==messageGeneration)return;
     state=next;serviceAvailable=true;
+    if(!next.connected)sendChatsAttempted=false;
     $('#service-banner').classList.add('hidden');renderState();
+    if(next.connected && location.hash==='#groups' && !sendChatsAttempted && !sendLoading)loadSendChats();
+    if(location.hash==='#tasks' && Date.now()-taskLastFetch>5000)loadTasks();
     if(tail.cursor<logCursor)logs=[];logCursor=tail.cursor;
     if(tail.rows.length){logs=[...logs,...tail.rows].slice(-1000);renderLogs();}
     await pollMessages(requested,generation);
@@ -609,23 +749,106 @@ async function poll(){
   }catch(error){serviceDisconnected();}
   finally{pollBusy=false;}
 }
+function taskKind() {
+  const daily=$('#task-form').elements.kind.value==='daily';
+  $('#task-interval-label').classList.toggle('hidden',daily);
+  $('#task-time-label').classList.toggle('hidden',!daily);
+  $('#task-form').elements.interval_minutes.required=!daily;
+  $('#task-form').elements.daily_time.required=daily;
+}
+function resetTaskForm() {
+  const f=$('#task-form');f.reset();f.elements.id.value='';
+  if(taskActions.length)f.elements.action_id.value='builtin.send_text';
+  $('#task-form-heading').textContent='新建任务';$('#task-cancel').classList.add('hidden');taskKind();renderTaskFields();
+}
+function renderTaskFields(values={}) {
+  const id=$('#task-action').value, action=taskActions.find(item=>item.id===id);
+  $('#task-parameters').innerHTML=(action?.fields||[]).map(field=>{
+    const name=escape(field.name), label=escape(field.label), required=field.required?'required':'';
+    if(field.type==='boolean')return `<label class="inline"><input type="checkbox" data-task-field="${name}" ${values[field.name]?'checked':''}>${label}</label>`;
+    if(field.type==='textarea')return `<label>${label}<textarea data-task-field="${name}" rows="3" ${required}>${escape(values[field.name]??'')}</textarea></label>`;
+    const kind=field.type==='integer'?'number':'text';
+    return `<label>${label}<input type="${kind}" ${field.type==='chat'?'list="task-chat-options" spellcheck="false"':''} data-task-field="${name}" value="${escape(values[field.name]??'')}" ${required}></label>`;
+  }).join('');
+}
+function renderTaskActions() {
+  const signature=JSON.stringify(taskActions);if(signature===taskActionSignature)return;
+  taskActionSignature=signature;const select=$('#task-action'),previous=select.value;
+  const values=Object.fromEntries([...$('#task-parameters').querySelectorAll('[data-task-field]')].map(node=>[node.dataset.taskField,node.type==='checkbox'?node.checked:node.value]));
+  select.innerHTML=taskActions.map(item=>`<option value="${escape(item.id)}">${escape(item.label)}${item.plugin?' · '+escape(pluginNames[item.plugin]?.[0]||item.plugin):''}</option>`).join('');
+  if(previous&&$('#task-form').elements.id.value&&!taskActions.some(item=>item.id===previous))select.insertAdjacentHTML('beforeend',`<option value="${escape(previous)}" disabled>原动作已不可用</option>`);
+  select.value=[...select.options].some(item=>item.value===previous)?previous:'builtin.send_text';
+  renderTaskFields(select.value===previous?values:{});
+}
+function taskTime(timestamp) { return timestamp ? new Date(timestamp*1000).toLocaleString('zh-CN',{hour12:false}) : '—'; }
+function renderTasks() {
+  const signature=JSON.stringify([taskRows,taskActions,serviceAvailable]);if(signature===taskSignature)return;taskSignature=signature;
+  $('#task-list').innerHTML=taskRows.map(row=>{const id=row.action_id||'builtin.send_text', action=taskActions.find(item=>item.id===id), target=row.params?.chat_id||row.chat_id||'';return `<tr><td><span class="robot-name">${escape(row.name)}</span><span class="account-id">${escape(action?.label||'动作已不可用')}${target?' · '+escape(target):''}</span></td><td>${row.kind==='daily'?'每天 '+escape(row.daily_time):'每 '+escape(row.interval_seconds/60)+' 分钟'}<span class="account-id">${row.enabled?'下次 '+escape(taskTime(row.next_run)):'已暂停'}</span></td><td>${row.enabled?'已启用':'已停用'}<span class="account-id">${escape(row.last_status||'尚未执行')}${row.last_time?' · '+escape(taskTime(row.last_time)):''}</span></td><td><div class="plugin-actions"><button class="secondary small" type="button" data-task="${escape(row.id)}" data-task-action="edit">编辑</button><button class="text-button small" type="button" data-task="${escape(row.id)}" data-task-action="toggle">${row.enabled?'停用':'启用'}</button><button class="text-button small danger-text" type="button" data-task="${escape(row.id)}" data-task-action="delete">删除</button></div></td></tr>`;}).join('')||'<tr><td colspan="4" class="table-empty">暂无任务。</td></tr>';
+}
+async function loadTasks() {
+  if(taskLoading||!serviceAvailable)return;
+  taskLoading=true;taskLastFetch=Date.now();const requested=robot, generation=taskGeneration;
+  try {
+    const [data,types]=await Promise.all([api('scheduled-tasks',undefined,requested),api('scheduled-actions',undefined,requested)]);
+    if(requested!==robot||generation!==taskGeneration)return;
+    taskRows=data.tasks;taskActions=types.actions;$('#task-status').textContent='';renderTaskActions();renderTasks();
+    const chats=await api('chats',undefined,requested).catch(()=>({chats:[]}));
+    if(requested!==robot||generation!==taskGeneration)return;
+    const options=[{chat_id:'filehelper',name:'文件传输助手'},...(chats.chats||[]),...(config?.groups||[]).map(chat_id=>({chat_id}))];
+    const unique=[...new Map(options.map(row=>[row.chat_id,row])).values()];
+    $('#task-chat-options').innerHTML=unique.map(row=>`<option value="${escape(row.chat_id)}">${escape(config?.group_names?.[row.chat_id]||row.name||row.chat_id)}</option>`).join('');
+  } catch(error) {if(requested===robot&&generation===taskGeneration)$('#task-status').textContent=error.message;}
+  finally {taskLoading=false;}
+}
+$('#task-form').elements.kind.onchange=taskKind;
+$('#task-action').onchange=()=>renderTaskFields();
+$('#task-cancel').onclick=resetTaskForm;
+$('#task-refresh').onclick=loadTasks;
+$('#task-form').onsubmit=event=>{
+  event.preventDefault();const f=event.target.elements;
+  const selected=taskActions.find(item=>item.id===f.action_id.value);if(!selected){toast('请选择有效的任务类型',true);return;}
+  const params={};for(const field of selected.fields){const node=$(`[data-task-field="${field.name}"]`);params[field.name]=field.type==='boolean'?node.checked:field.type==='integer'&&node.value!==''?Number(node.value):node.value;}
+  const payload={id:f.id.value||undefined,name:f.name.value,action_id:f.action_id.value,params,kind:f.kind.value,interval_seconds:Number(f.interval_minutes.value)*60,daily_time:f.daily_time.value,enabled:f.enabled.checked};
+  action(async()=>{await api('scheduled-tasks',payload);resetTaskForm();await loadTasks();toast('任务已保存');});
+};
+$('#task-list').onclick=event=>{
+  const button=event.target.closest('[data-task]');if(!button)return;
+  const row=taskRows.find(item=>item.id===button.dataset.task);if(!row)return;
+  if(button.dataset.taskAction==='edit'){
+    const id=row.action_id||'builtin.send_text';if(!taskActions.some(item=>item.id===id)){toast('这个动作已不可用，可先停用或删除任务',true);return;}
+    const f=$('#task-form').elements;for(const key of ['id','name','kind','daily_time'])f[key].value=row[key]||'';
+    f.action_id.value=id;renderTaskFields(row.params||{chat_id:row.chat_id,content:row.content});
+    f.interval_minutes.value=row.interval_seconds?row.interval_seconds/60:5;f.enabled.checked=row.enabled;
+    $('#task-form-heading').textContent='编辑任务';$('#task-cancel').classList.remove('hidden');taskKind();f.name.focus();return;
+  }
+  if(button.dataset.taskAction==='delete'&&!confirm('删除这个定时任务？'))return;
+  action(async()=>{
+    if(button.dataset.taskAction==='delete')await api('scheduled-tasks/delete',{id:row.id});
+    else await api('scheduled-tasks/toggle',{id:row.id,enabled:!row.enabled});
+    if($('#task-form').elements.id.value===row.id)resetTaskForm();
+    await loadTasks();toast('任务已更新');
+  });
+};
+taskKind();
 document.querySelectorAll('[data-page]').forEach(link=>link.addEventListener('click',()=>{if(link.hash===location.hash)navigate();}));
 window.addEventListener('hashchange',navigate);navigate();
 async function loadRobots(){
   const data=await api('robots');robotRows=data.robots;
-  if(!robotRows.some(row=>row.id===robot))robot='default';
+  if(!robotRows.some(row=>row.id===robot)&&robot!=='default'){robot='default';state=null;config=null;articles.reset();}
   renderState();
 }
 async function switchRobot(identifier){
   if($('#plugin-dialog').open)$('#plugin-dialog').close();
+  articles.reset();
   resetContacts();
   resetComposer();
+  taskRows=[];taskActions=[];taskActionSignature='';taskGeneration++;resetTaskForm();renderTasks();
   messageGeneration++;messages=[];messageCursor=0;messageStream='';messageError='';$('#message-search').value='';messageSignature='';renderMessages();
   robot=identifier;sessionStorage.setItem('helper-robot',robot);
   $('#robot-select').value=robot;
   state=null;config=null;logs=[];logCursor=0;selectedPlugin='';renderLogs();
   renderState();renderAccounts();
-  $('#discovered-chats').className='empty';$('#discovered-chats').textContent='暂无已接收消息的群。';
+  groupNameDraft=new Map(); discoveredGroups=[]; $('#group-ids').value=''; renderGroupNames(); renderDiscoveredGroups();
   await loadConfig();await poll();navigate();
 }
 $('#robot-select').onchange=event=>{

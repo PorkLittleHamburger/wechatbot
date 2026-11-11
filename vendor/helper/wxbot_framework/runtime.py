@@ -58,22 +58,63 @@ class BotApplication:
             self._last_connection_error, self._last_connection_log = text, now
 
     def _connect(self):
+        # 收信线程可能在 start() 返回前收到消息。先暂存，直到按实际微信版本
+        # 更新插件能力；不能让旧版本的插件在新版本能力收缩期间处理消息。
+        gate_lock, pending = threading.Lock(), []
+        ready, discarded = False, False
+        def emit_when_ready(message):
+            with gate_lock:
+                if discarded:
+                    return
+                if not ready:
+                    if len(pending) < 128:
+                        pending.append(message)
+                    else:
+                        logger.warning('连接初始化期间消息过多，已丢弃超出缓冲区的消息')
+                    return
+            self._emit(message)
         try:
             candidate = self.backend_factory()
             self.backend = candidate
+            raw = getattr(candidate, "raw", None)
+            if self.members is not None and raw is not None and hasattr(raw, "friend_add_rooms"):
+                raw.friend_add_rooms = tuple(self.members.groups)
             self.service.bind(candidate)
-            candidate.start(self._emit)
+            candidate.start(emit_when_ready)
+            capabilities = getattr(candidate, 'capabilities', None)
+            if isinstance(capabilities, (set, frozenset)) and frozenset(capabilities) != self.plugins.capabilities:
+                self.plugins.capabilities = frozenset(capabilities)
+                # reload() 在新版本无法准备插件时会保留旧实例；先关闭不兼容实例，
+                # 避免旧连接的能力集合在新连接下继续运行。
+                for name, record in tuple(self.plugins.records.items()):
+                    if record.spec.requires - self.plugins.capabilities:
+                        self.plugins.disable(name, persist=False)
+                self.plugins.reload()
+            self.service.restore_local_recall()
             self._connection_ready = True
             self._last_connection_error = ""
             if callable(getattr(candidate, "group_members", None)):
                 from .group_events import GroupMembershipTracker
-                account = self.config.get("wechat_account")
-                if account:
+                account = (self.config.get("wechat_account") or
+                           getattr(getattr(candidate, "raw", None), "self_wxid", None))
+                if isinstance(account, str) and account:
                     self._group_tracker = GroupMembershipTracker(account, candidate.session_id)
             self._next_group_poll = 0
+            while True:
+                with gate_lock:
+                    if not pending:
+                        ready = True
+                        break
+                    batch = pending[:]
+                    pending.clear()
+                for message in batch:
+                    self._emit(message)
             logger.info("微信已连接，PID=%s；收发范围：%s", candidate.pid,
                         getattr(candidate, "scope", "文本"))
         except Exception as error:
+            with gate_lock:
+                discarded = True
+                pending.clear()
             self._connection_ready = False
             self._log_connection_error(error)
             self._disconnect()
@@ -91,6 +132,17 @@ class BotApplication:
         message = self._with_group_role(message)
         self._observe_message(message)
         allowed = self.config.get('chat_allowlist', [])
+        if (message.type == 34 and message.data.get('voice_xml') and
+                message.data.get('voice_status') in ('ready', 'failed', 'unavailable') and
+                (message.data.get('dispatch_to_plugins', True) or message.data.get('voice_xml_only')) and
+                not message.is_self and not message.data.get('bot_generated')):
+            if not allowed or message.chat_id in allowed:
+                if message.data['voice_status'] == 'ready':
+                    self.plugins.dispatch(message)
+                else:
+                    self._dispatch_recall_plugins(message)
+                    self.plugins.dispatch(message, required='voice.xml.receive')
+            return
         recall = message.type in (10000, 10002) and isinstance(message.data.get('recall'), dict)
         if recall or message.data.get('monitor_only'):
             # 防撤回插件需要原始媒体类型和撤回通知；不把监控事件交给普通玩法。
@@ -114,7 +166,15 @@ class BotApplication:
                     parsed = parse_group_system_message(message.data.get("system_content", ""),
                         msg_type=message.type, room_id=message.chat_id, self_id=tracker.account)
                     identified = [item for item in parsed if item.member_id]
-                    if not identified or not tracker.members(message.chat_id):
+                    if not parsed or not tracker.members(message.chat_id):
+                        return
+                    if not identified:
+                        # A plain system notice may know the newcomer's name
+                        # before the contact cache does. It cannot trigger a
+                        # welcome; retain its name for a unique confirmed delta.
+                        tracker.observe_system(message.chat_id,
+                            message.data.get("system_content", ""), message.type,
+                            sequence=message.sequence, session_id=message.session_id)
                         return
                     # 系统消息也可能是历史同步。只有完整实时名单支持同一变化时才提前通知。
                     rows = self.service.group_members(message.chat_id, expected_session=message.session_id)
@@ -142,7 +202,7 @@ class BotApplication:
         self._emit_chat(message)
 
     def _dispatch_recall_plugins(self, message):
-        for name in ('anti_recall', 'anti_recall_image', 'anti_recall_file'):
+        for name in ('anti_recall', 'anti_recall_image', 'anti_recall_file', 'anti_recall_voice'):
             self.plugins.dispatch(message, only=name)
 
     def _emit_chat(self, message):
@@ -152,8 +212,13 @@ class BotApplication:
         elif message.type == 3:
             logger.info("图片消息 | 会话ID=%s | 状态=%s | 文件=%s", message.chat_id,
                         message.data.get("image_status", "pending"), message.image_path or "")
+        elif message.type == 43:
+            logger.info('视频消息 | 发送者微信ID=%s | 状态=%s',
+                        message.sender_id or message.chat_id, message.data.get('video_status', 'unavailable'))
         elif message.type == 49:
-            if message.data.get('app_type') == 19:
+            if message.data.get('app_type') == 57:
+                logger.info("引用消息 | 发送者微信ID=%s", message.sender_id or message.chat_id)
+            elif message.data.get('app_type') == 19:
                 logger.info('合并转发 | 发送者微信ID=%s | 记录数=%s | 状态=%s',
                             message.sender_id or message.chat_id,
                             len(message.data.get('forwarded_records', ())),
@@ -233,7 +298,7 @@ class BotApplication:
             try:
                 rows = self.service.group_members(room, expected_session=session_id)
                 snapshot = None if rows is None else {
-                    row["wxid"]: row.get("nickname") or row.get("wechat_name") or "群友" for row in rows}
+                    row["wxid"]: row.get("nickname") or row.get("wechat_name") or "" for row in rows}
                 events = tracker.update(room, snapshot, session_id=session_id)
                 if rows is not None:
                     self._remember_group_members(room, rows)
@@ -282,7 +347,8 @@ class BotApplication:
             self.stop_event.set()
         elif action == "help" and len(words) == 1:
             logger.info("命令：status / chats / members [群ID] / history 称呼 [条数] / send-image 会话ID \"图片路径\" / send-file 会话ID \"文件路径\" / send-voice 会话ID \"语音路径\" / export-emoticons [raw] / send-emoticon 会话ID \"GIF路径\" / plugins / enable 名称 / disable 名称 / reload [名称] / quit")
-            logger.info("好友与群管理：friend-requests / accept-friend 申请ID / invite-members 群ID 好友ID [好友ID...] / create-group 好友ID 好友ID [好友ID...]")
+            logger.info("视频发送：send-video 会话ID \"视频路径\"")
+            logger.info("好友与群管理：add-friend 微信ID 验证消息 [群ID] / friend-requests / accept-friend 申请ID / invite-members 群ID 好友ID [好友ID...] / create-group 好友ID 好友ID [好友ID...]")
             logger.info("群成员：group-members 群ID / group-nickname 群ID 微信ID；欢迎提醒：enable group_notice / disable group_notice")
         elif action == "status" and len(words) == 1:
             logger.info("状态：%s", json.dumps({"connected": self._connection_ready,
@@ -292,6 +358,11 @@ class BotApplication:
         elif action == "chats" and len(words) == 1:
             rows = self.backend.chats() if self.backend and hasattr(self.backend, "chats") else []
             logger.info("本次连接已接收的会话：%s", json.dumps(rows, ensure_ascii=False))
+        elif action == "add-friend" and len(words) in (3, 4):
+            room = words[3] if len(words) == 4 else ""
+            if not self.service.send_friend_request(words[1], words[2], room=room):
+                raise RuntimeError("微信未确认好友申请，请先核对后再决定是否重试")
+            logger.info("好友申请已发送，等待对方处理")
         elif action == "friend-requests" and len(words) == 1:
             logger.info("本次连接的好友申请：%s", json.dumps(self.service.friend_requests(), ensure_ascii=False))
         elif action == "accept-friend" and len(words) == 2:
@@ -323,6 +394,10 @@ class BotApplication:
             if not self.service.send_voice(words[1], words[2]):
                 raise RuntimeError("微信未接受语音发送请求，请查看原生结果")
             logger.info("语音发送请求已提交：会话ID=%s", words[1])
+        elif action == "send-video" and len(words) == 3:
+            if not self.service.send_video(words[1], words[2]):
+                raise RuntimeError("微信未接受视频发送请求，请查看原生结果")
+            logger.info("视频发送请求已提交：会话ID=%s", words[1])
         elif action == "send-file" and len(words) == 3:
             if not self.service.send_file(words[1], words[2]):
                 raise RuntimeError("微信未接受文件发送请求，请查看原生结果")

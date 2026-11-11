@@ -19,8 +19,28 @@ TEXT_CAPABILITIES = CAPABILITIES | frozenset({"friend.text.receive", "friend.tex
                                            "friend.request.receive", "friend.request.accept",
                                            "contact.read",
                                            "group.member.invite", "group.create", "group.members.read", "group.events",
-                                           "voice.send", "friend.voice.send", "group.voice.send",
+                                           "voice.receive", "voice.xml.receive", "voice.send", "friend.voice.send", "group.voice.send",
                                            "emoticon.send", "emoticon.extract"})
+
+TEXT_42011_CAPABILITIES = CAPABILITIES | frozenset({
+    "friend.text.receive", "friend.text.send", "friend.request.receive", "friend.request.accept",
+    "group.text.receive", "group.text.send",
+    "group.text.mention", "group.members.read", "group.events", "message.recall",
+    "image.receive", "image.send", "file.receive", "file.send",
+    "friend.file.receive", "friend.file.send", "group.file.receive", "group.file.send",
+    "voice.receive", "voice.xml.receive", "voice.send", "friend.voice.send", "group.voice.send"})
+
+
+# 新版只公布已验证的功能；其他能力必须单独适配并完成实测。
+TEXT_42012_CAPABILITIES = CAPABILITIES | frozenset({
+    "friend.text.receive", "friend.text.send", "friend.request.receive", "friend.request.accept",
+    "group.text.receive", "group.text.send",
+    "group.text.mention", "message.recall", "group.members.read", "group.events", "image.receive", "image.send",
+    "file.receive", "file.send", "friend.file.receive", "friend.file.send",
+    "group.file.receive", "group.file.send", "voice.receive", "voice.xml.receive", "voice.send",
+    "friend.voice.send", "group.voice.send", "video.send", "group.video.send", "video.receive", "friend.video.receive", "group.video.receive", "friend.request.send",
+    "text.quote.send", "message.recall.local",
+})
 
 
 class NativeFileHelperBackend:
@@ -58,7 +78,19 @@ class NativeFileHelperBackend:
 
 
 class NativeTextBackend(NativeFileHelperBackend):
-    scope = "文本、图片与文件收发；语音、表情发送；好友申请与控制台群管理"
+    @property
+    def scope(self):
+        if self.raw.wechat_version == '4.2.0.12':
+            return '文本、语音、图片及文件收发，群艾特、文字撤回和群成员缓存'
+        if self.raw.wechat_version == '4.2.0.11':
+            return '文本、语音、图片及文件收发，群艾特、文字撤回和群成员缓存'
+        return '文本、图片与文件收发；语音、表情发送；好友申请与控制台群管理'
+
+    @property
+    def capabilities(self):
+        if self.raw.wechat_version == '4.2.0.12':
+            return TEXT_42012_CAPABILITIES
+        return TEXT_42011_CAPABILITIES if self.raw.wechat_version == '4.2.0.11' else TEXT_CAPABILITIES
 
     def __init__(self, root, config, *, data_root=None):
         data_root = Path(data_root or root)
@@ -71,6 +103,7 @@ class NativeTextBackend(NativeFileHelperBackend):
         self.raw = NativeTextService(pid=config.get("wechat_pid"), account=config.get("wechat_account"),
                                      media_directory=data_root / config.get("image_directory", ".runtime/images"),
                                      image_allowlist=config.get("chat_allowlist", []),
+                                     friend_add_rooms=config.get("groups", []),
                                      wechat_data_directory=(data_root / config["wechat_data_directory"]
                                                             if config.get("wechat_data_directory") else None),
                                      emoticon_directory=data_root / config.get("emoticon_directory", ".runtime/emoticons"),
@@ -93,6 +126,12 @@ class NativeTextBackend(NativeFileHelperBackend):
     def chats(self):
         return list(self.raw.chats.values())
 
+    def set_local_recall(self, enabled):
+        return self.raw.set_local_recall(enabled)
+
+    def send_quote_text(self, chat_id, original_id, content):
+        return self.raw.send_quote_text(chat_id, original_id, content)
+
     def send_at_text(self, room_wxid, content, at_list):
         return self.raw.send_at_text(room_wxid, content, at_list)
 
@@ -105,11 +144,17 @@ class NativeTextBackend(NativeFileHelperBackend):
     def send_file(self, chat_id, path):
         return self.raw.send_file(chat_id, path)
 
+    def send_video(self, chat_id, path):
+        return self.raw.send_video(chat_id, path)
+
     def friend_requests(self):
         return self.raw.friend_requests()
 
     def accept_friend(self, request_id):
         return self.raw.accept_friend(request_id)
+
+    def send_friend_request(self, wxid, room, message):
+        return self.raw.send_friend_request(wxid, room, message)
 
     def invite_group_members(self, room, members):
         return self.raw.invite_group_members(room, members)
@@ -123,6 +168,18 @@ class NativeTextBackend(NativeFileHelperBackend):
     def contacts(self):
         snapshot = self.raw.contacts()
         return dict(snapshot, session_id=self.session_id)
+
+    def moments_capabilities(self):
+        return self.raw.moments_capabilities()
+
+    def publish_moments(self, payload):
+        return self.raw.publish_moments(payload)
+
+    def interact_moments(self, payload):
+        return self.raw.interact_moments(payload)
+
+    def read_moments(self, limit=20, *, cancelled=lambda: False):
+        return self.raw.read_moments(limit, cancelled=cancelled)
 
     def send_emoticon(self, chat_id, path):
         return self.raw.send_emoticon(chat_id, path)

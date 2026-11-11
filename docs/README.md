@@ -9,6 +9,7 @@
 | [当前目录入口说明](../README.md) | 源码目录中为项目 README；便携包中为运行说明 |
 | [源码项目 README](https://github.com/PorkLittleHamburger/wechatbot/blob/main/README.md) | 源码环境安装、测试、构建及下载入口 |
 | [便携包说明](../PORTABLE_README.md) | 解压运行、升级、自启和数据迁移；构建时成为包内 README |
+| [微信版本与能力](wechat-versions.md) | 精确指纹、4.2 适配范围、升级和验证边界 |
 | [网络配置](network-config.md) | 账号端点、鉴权、心跳及连接方向 |
 | [桥接自动恢复](bridge-resume.md) | 登录前后恢复、手动停止及 Launcher 能力握手 |
 | [OneBot 兼容说明](onebot-compatibility.md) | 已实现动作、消息段和外部客户端注意事项 |

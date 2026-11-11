@@ -500,7 +500,7 @@ async def test_empty_media_is_rejected_by_generic_preflight_before_any_send(bot,
 
 
 @pytest.mark.parametrize("kind,diagnostic", [("image", "图片"), ("record", "语音"),
-                                           ("face", "GIF"), ("file", "20 MiB")])
+                                               ("face", "GIF"), ("file", "大小")])
 async def test_helper_pure_media_preflight_rejects_later_invalid_node_atomically(
         bot, tmp_path, monkeypatch, helper_path, kind, diagnostic):
     from dataclasses import replace

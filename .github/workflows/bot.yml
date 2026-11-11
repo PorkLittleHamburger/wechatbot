@@ -30,6 +30,11 @@ jobs:
           .venv/Scripts/python.exe -m pytest -q
       - name: Verify native media paths
         shell: pwsh
+        run: |
+          $env:PYTHONPATH = Join-Path $PWD 'vendor/helper'
+          .venv/Scripts/python.exe -m pytest -q vendor/helper/tests/test_native_profiles.py vendor/helper/tests/test_native_version_bridge.py vendor/helper/tests/test_account.py vendor/helper/tests/test_contacts.py vendor/helper/tests/test_group_members.py vendor/helper/tests/test_group_messaging.py vendor/helper/tests/test_image_native.py vendor/helper/tests/test_file_native.py vendor/helper/tests/test_files.py vendor/helper/tests/test_file_receiver.py vendor/helper/tests/test_file_integration.py vendor/helper/tests/test_voice_native.py vendor/helper/tests/test_quoted.py vendor/helper/tests/test_voice_receive_service.py vendor/helper/tests/test_long_text_send.py vendor/helper/tests/test_forwarded.py
+      - name: Verify native path parsing
+        shell: pwsh
         run: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/test_native_paths.ps1
       - name: Build portable package
         shell: pwsh

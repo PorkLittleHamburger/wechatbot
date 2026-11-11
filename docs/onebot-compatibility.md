@@ -57,6 +57,10 @@ Profile APIs provide standard fields with unknown defaults (`sex=unknown`, age/t
 
 `groupMentionOnly` filters only outer group message reporting. Private messages remain enabled; untriggered group messages are stored for quote resolution. Forwarded inner messages are never replayed as live events. Local WebUI/bridge/account management need not implement OneBot APIs.
 
+## Native build differences
+
+v0.9.4 adds fingerprint-locked WeChat 4.2.0.11 and 4.2.0.12. Full friend-directory reads and emoticon sending are unavailable on these builds; capability queries reflect the active helper backend. Observed-profile queries still work. The upstream quote/video/local anti-recall primitives have no additional OneBot mapping here. Inbound rich quotes and ordinary-message forward conversion retain their existing contracts. See [version scope](wechat-versions.md); 4.2.0.52 is not supported.
+
 ## Verification and limits
 
 The [audit record](onebot-v11-audit.md) retains the original findings and resolution mapping. Regression tests include consumers that read only standard fields, CQ round trips, four transports, role isolation, signatures, quick operations, recall IDs, account isolation and media restarts. Passing them does not certify every external framework or substitute for native receive-side verification. Test sources are in the source checkout, not the portable package.

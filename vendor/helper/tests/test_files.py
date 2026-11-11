@@ -15,7 +15,9 @@ SCRATCH = Path(__file__).resolve().parent.parent / ".runtime/tests"
 class FileTests(unittest.TestCase):
     def setUp(self):
         SCRATCH.mkdir(parents=True, exist_ok=True)
-        self.temporary = tempfile.TemporaryDirectory(prefix="send-file-", dir=SCRATCH)
+        # Leave room below Windows MAX_PATH for the 180-character basename
+        # plus the nested snapshot directory used by the preservation test.
+        self.temporary = tempfile.TemporaryDirectory(prefix="f-", dir=SCRATCH)
         self.root = Path(self.temporary.name).resolve()
         self.addCleanup(self._cleanup)
         self.source = self.root / "中文 测试.txt"
@@ -40,18 +42,17 @@ class FileTests(unittest.TestCase):
             with self.subTest(value_type=type(value).__name__), self.assertRaises(ValueError):
                 inspect_file(value)
 
-    def test_zero_rejected_and_twenty_mib_boundary_allowed(self):
+    def test_zero_rejected_and_file_above_old_limit_allowed(self):
         empty = self.root / "empty.txt"
         empty.touch()
         with self.assertRaisesRegex(ValueError, "非空"):
             inspect_file(empty)
         with self.source.open("wb") as output:
-            output.truncate(MAX_FILE_BYTES)
-        self.assertEqual(inspect_file(self.source).size, MAX_FILE_BYTES)
-        with self.source.open("ab") as output:
-            output.write(b"x")
-        with self.assertRaises(ValueError):
-            inspect_file(self.source)
+            output.truncate(21 * 1024 * 1024)
+        self.assertEqual(inspect_file(self.source).size, 21 * 1024 * 1024)
+        with prepare_file(self.source, self.root / "snapshots") as snapshot:
+            self.assertEqual(snapshot.size, 21 * 1024 * 1024)
+            self.assertEqual(snapshot.path.stat().st_size, snapshot.size)
 
     def test_snapshot_retains_name_and_bytes_and_leaves_source_unchanged(self):
         original = self.source.read_bytes()
@@ -87,7 +88,7 @@ class FileTests(unittest.TestCase):
         source = self.root / ("a" * 180 + ".txt")
         source.write_bytes(b"contents")
         self.assertEqual(inspect_file(source).name, source.name)
-        with prepare_file(source, self.root / "snapshots") as result:
+        with prepare_file(source, self.root / "s") as result:
             self.assertEqual(result.path.name, source.name)
             self.assertEqual(result.name, source.name)
             self.assertEqual(result.path.read_bytes(), b"contents")

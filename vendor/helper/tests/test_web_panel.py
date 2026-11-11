@@ -217,6 +217,28 @@ class ControllerTests(PanelFixture):
         self.assertEqual(read_json(path)['groups']['123@chatroom'], data['groups']['123@chatroom'])
         self.assertEqual(self.controller.store.load()['chat_allowlist'], ['filehelper','123@chatroom','456@chatroom'])
 
+    def test_group_names_round_trip_without_losing_other_settings(self):
+        path = self.root/'members_config.json'
+        data = read_json(path)
+        data['groups'] = {'123@chatroom': [{'key':'test_person','name':'测试玩家'}], '456@chatroom': []}
+        data['group_names'] = {'123@chatroom': '旧名称', '456@chatroom': '另一个群'}
+        path.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+        self.controller.save_configuration({'groups':['123@chatroom'], 'group_names':{'123@chatroom':'  测试群  '}})
+        saved = read_json(path)
+        self.assertEqual(saved['groups']['123@chatroom'], data['groups']['123@chatroom'])
+        self.assertEqual(saved['group_names'], {'123@chatroom':'测试群', '456@chatroom':'另一个群'})
+        self.assertEqual(self.controller.configuration()['group_names'], saved['group_names'])
+        self.controller.save_configuration({'group_names':{'123@chatroom':''}})
+        self.assertNotIn('123@chatroom', read_json(path)['group_names'])
+
+    def test_invalid_group_names_do_not_modify_configuration(self):
+        path = self.root/'members_config.json'
+        original = path.read_bytes()
+        for names in ([], {'not-in-config@chatroom':'备注'}, {'123@chatroom':'x'*65}, {'123@chatroom':'含\n换行'}):
+            with self.subTest(names=names), self.assertRaises(PanelError):
+                self.controller.save_configuration({'groups':['123@chatroom'], 'group_names':names})
+            self.assertEqual(path.read_bytes(), original)
+
     def test_compatible_llm_options_round_trip_without_changing_saved_key(self):
         path = self.root/'llm_config.json'
         original = read_json(path)
@@ -234,6 +256,28 @@ class ControllerTests(PanelFixture):
         self.assertNotIn('private-model-key', json.dumps(self.controller.configuration()))
         self.controller.save_configuration({'llm':{'extra_body':{}}})
         self.assertEqual(read_json(path)['extra_body'], {})
+
+    def test_worldguide_preset_does_not_reuse_another_providers_key(self):
+        path = self.root / 'llm_config.json'
+        self.controller.save_configuration({'llm': {'api_key': 'previous-provider-key'}})
+        preset = {'base_url': 'https://api.worldguide.online/v1', 'model': 'grok-4.7',
+                  'timeout_seconds': 45, 'max_tokens': 1024, 'json_mode': True,
+                  'token_limit_parameter': 'max_tokens', 'extra_body': {'reasoning_effort': 'low'}}
+        before = path.read_bytes()
+        with self.assertRaisesRegex(PanelError, '填写新接口的 API 密钥'):
+            self.controller.save_configuration({'llm': preset})
+        self.assertEqual(path.read_bytes(), before)
+
+        self.controller.save_configuration({'llm': {**preset, 'api_key': 'worldguide-test-key'}})
+        self.controller.save_configuration({'llm': {'model': 'grok-4.6', 'api_key': ''}})
+        self.assertEqual(read_json(path)['api_key'], 'worldguide-test-key')
+        config = self.controller.configuration()['llm']
+        self.assertEqual(config['model'], 'grok-4.6')
+        self.assertNotIn('api_key', config)
+        with self.assertRaisesRegex(PanelError, '填写新接口的 API 密钥'):
+            self.controller.save_configuration({'llm': {'base_url': 'https://api.deepseek.com'}})
+        self.controller.save_configuration({'llm': {'base_url': 'https://api.deepseek.com', 'clear_api_key': True}})
+        self.assertFalse(self.controller.configuration()['llm']['api_key_configured'])
 
     def test_legacy_llm_config_has_compatible_defaults_and_invalid_edits_are_atomic(self):
         path = self.root/'llm_config.json'
@@ -330,6 +374,35 @@ class HTTPTests(PanelFixture):
         for path in ('/app.js','/style.css'):
             self.assertEqual(self.request(path,token=False)[0],200)
 
+    def test_scheduled_tasks_http_create_list_and_delete(self):
+        self.controller.store.bind_account(self.accounts[0]['wxid'])
+        payload = {'name':'测试任务', 'chat_id':'filehelper', 'content':'测试',
+                   'kind':'interval', 'interval_seconds':300}
+        self.assertEqual(self.request('/api/scheduled-tasks', payload, token=False)[0], 403)
+        status, _, body = self.request('/api/scheduled-tasks', payload)
+        self.assertEqual(status, 200)
+        task = json.loads(body)['task']
+        self.assertEqual(json.loads(self.request('/api/scheduled-tasks')[2])['tasks'][0]['id'], task['id'])
+        self.assertEqual(self.request('/api/scheduled-tasks/delete', {'id':task['id']})[0], 200)
+        self.assertEqual(json.loads(self.request('/api/scheduled-tasks')[2])['tasks'], [])
+
+    def test_http_discovers_and_persists_declared_plugin_action(self):
+        self.controller.store.bind_account(self.accounts[0]['wxid'])
+        manifest = {'scheduled_actions':[{'id':'demo', 'label':'执行示例', 'method':'do_demo',
+                    'fields':[{'name':'count', 'label':'次数', 'type':'integer', 'required':True}]}]}
+        (self.root/'plugins/echo/plugin.json').write_text(json.dumps(manifest), encoding='utf-8')
+        actions = json.loads(self.request('/api/scheduled-actions')[2])['actions']
+        self.assertIn('plugin.echo.demo', [item['id'] for item in actions])
+        payload = {'name':'测试', 'kind':'daily', 'daily_time':'10:30', 'action_id':'plugin.echo.demo',
+                   'params':{'count':2}}
+        status, _, body = self.request('/api/scheduled-tasks', payload)
+        self.assertEqual(status, 200)
+        task = json.loads(body)['task']
+        self.assertEqual(task['params'], {'count':2})
+        (self.root/'plugins/echo/plugin.json').write_text('{}', encoding='utf-8')
+        self.assertEqual(self.request('/api/scheduled-tasks/toggle', {'id':task['id'], 'enabled':False})[0], 200)
+        self.assertFalse(json.loads(self.request('/api/scheduled-tasks')[2])['tasks'][0]['enabled'])
+
     def test_api_rejects_missing_token_cross_origin_and_rebound_host(self):
         self.assertEqual(self.request('/api/config',token=False)[0],403)
         self.assertEqual(self.request('/api/config',origin='https://attacker.invalid')[0],403)
@@ -367,7 +440,7 @@ class HTTPTests(PanelFixture):
             if result['status']!='sending':break
             time.sleep(.005)
         self.assertEqual(result['status'],'sent')
-        self.assertEqual(calls,[('123@chatroom','@测试群友\u2005\n你好',('wxid_test_member',))])
+        self.assertEqual(calls,[('123@chatroom','@测试群友\u2005 你好',('wxid_test_member',))])
 
     def test_invalid_json_oversized_body_and_unknown_routes(self):
         self.assertEqual(self.request('/api/config',raw=b'{broken')[0],400)
@@ -375,6 +448,30 @@ class HTTPTests(PanelFixture):
         self.assertEqual(self.request('/api/config',raw=b'{}',content_type='text/plain')[0],400)
         self.assertEqual(self.request('/../bot_config.json')[0],404)
         self.assertEqual(self.request('/api/unknown',{})[0],404)
+
+    def test_long_text_request_is_split_and_sent_in_order(self):
+        from wxbot_framework.sdk import ServiceFacade
+        self.controller.start()
+        calls = []
+        backend = SimpleNamespace(session_id='long-http-session', pid=1234, stop=lambda: {},
+                                  send_text=lambda target, text: calls.append(text) or True)
+        service = ServiceFacade(text_delay={'enabled':False})
+        service.bind(backend)
+        self.addCleanup(service.close)
+        self.controller.app.backend = backend
+        self.controller.app.service = service
+        text = '长消息🌸' * 6000
+        body = {'request_id':'long-http-request-0001', 'session_id':backend.session_id,
+                'chat_id':'filehelper', 'content':text, 'at_list':[]}
+        self.assertGreater(len(json.dumps(body).encode()), 65536)
+        self.assertEqual(self.request('/api/send-text', body)[0], 200)
+        for _ in range(200):
+            result=json.loads(self.request('/api/send-status?id='+body['request_id'])[2])
+            if result['status']!='sending': break
+            time.sleep(.005)
+        self.assertEqual(result['status'], 'sent')
+        self.assertEqual(''.join(calls), text)
+        self.assertTrue(all(len(part.encode('utf-8')) <= 1023 for part in calls))
 
 
 class LogTests(unittest.TestCase):
