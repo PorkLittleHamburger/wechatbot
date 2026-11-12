@@ -34,3 +34,7 @@
 UMO 属于外部客户端的会话语义。AstrBot 的群内隔离对话可把会话 ID 组合为 `用户UID_群ID`，关闭时才通常按群共享。检查消息实际路由到的配置文件及其 `platform_settings.unique_session`，不要仅查看默认配置；比较真正的 OneBot `group_id`。调整隔离还会改变上下文划分，修改后应用配置并用新消息复核。
 
 更完整的协议限制见 [OneBot 兼容说明](onebot-compatibility.md)，真实收发步骤见 [原生桥接验证](live-preflight.md)。
+
+## Launcher 创建 WebView2 窗口失败
+
+若“打开 WebUI”报告 `failed to create webview`、`0x80010108`（对象与客户端断开），错误发生于 Launcher 内嵌 WebView2 窗口层。先通过普通浏览器访问该实例实际配置的 `http://127.0.0.1:<port>/`，并检查 `/healthz`。HTTP 正常时，重打 Bot 包或重新注入微信并不能证明窗口故障已修复，应检查 Launcher 窗口生命周期及 WebView2 运行环境。记录 Launcher 版本、错误和触发步骤，交由 Launcher 项目处理；不要删除账号、SQLite 或媒体数据。

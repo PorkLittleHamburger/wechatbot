@@ -8,8 +8,8 @@ if (-not (Test-Path -LiteralPath $python)) { throw 'Create .venv and install the
 $build = & $python (Join-Path $root 'scripts\build_portable.py')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $build = ($build | Select-Object -Last 1).Trim()
-$zip = "$build.zip"
-if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip }
-Compress-Archive -Path $build -DestinationPath $zip -CompressionLevel Optimal
+$zip = & $python (Join-Path $root 'scripts\package_portable.py') $build (Join-Path $root 'dist')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 "PORTABLE_DIR=$build"
 "PORTABLE_ZIP=$zip"
+"PORTABLE_SHA256=$zip.sha256"

@@ -42,6 +42,8 @@ v0.9.2 支持将 `send_group_forward_msg` / `send_private_forward_msg` 的节点
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。
 
+构建直接输出 `wechat-onebot-<版本>-windows-x64.zip` 和同名 `.sha256`，ZIP 使用同名的单层根目录及正斜杠路径。Launcher 沿用原有便携包导入流程，按所用 Launcher 注入自己的 worker 并生成运行文件清单；Bot 包不预置其他版本的 Launcher worker。
+
 使用外部 Launcher 时，先停止目标实例，导入新的 Bot 包并切换实例运行版本，再启动验证。发布 Release 不会自动替换本机实例；保留配置、账号数据和媒体目录。Launcher 的安装、更新和界面以其自身文档为准。
 
 v0.9.3 新增明确的桥接恢复状态与手动停止持久化。自动恢复时，目标账号已登录则启动，未登录则等待；Launcher 还需通过兼容 worker 显式请求恢复，管理进程启动成功不等于桥接恢复。详见 [桥接自动恢复](docs/bridge-resume.md)。
