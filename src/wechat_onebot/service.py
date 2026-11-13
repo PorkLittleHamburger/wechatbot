@@ -714,6 +714,20 @@ class OneBotService:
                     options["max_bytes"] = remaining
                 try:
                     path = await self.media.resolve_input(str(file_value), **options)
+                    if segment_type == "record":
+                        # WeChat voice bubbles only accept Tencent SILK v3. Any
+                        # other client format is decoded and re-encoded here so
+                        # both drivers receive native-ready audio.
+                        from .audio import VoiceError, ensure_silk
+
+                        try:
+                            path = await asyncio.to_thread(
+                                ensure_silk, path,
+                                cache_dir=self.media.media_dir / "cache" / "voice",
+                                max_bytes=self.media.max_bytes,
+                            )
+                        except VoiceError as error:
+                            raise OneBotActionError(1400, f"语音转换失败: {error}") from error
                     if media_budget is not None:
                         media_budget["count"] += 1
                         media_budget["bytes"] += path.stat().st_size

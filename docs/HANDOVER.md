@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.10.3（Launcher 配套 v0.8.12）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.10.3（Launcher 配套 v0.8.12），本轮源码为 v0.11.0（实际发布状态以远端标签和 Release 为准）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -219,3 +219,15 @@ v0.10.1 实机反馈两个问题：启动桥接仍可能报“helper 启动失�
 2026-11-13 用户明确确认发布顺序：**Launcher v0.8.12 先发**（`bot-launcher` 仓：窄视图读取实例配置、helper 实例兼容 `driver.type ∈ {helper, sdk}`、恢复时归一为 mode；不改 UI/Rust/数据迁移），**WeChatBot v0.10.3 随后**。Launcher 修复在 Bot 启动前解除「实例驱动与清单不一致」与备份恢复失败；Bot 0.10.3 防止未来再次改写 `driver.type`。两个 Release 均不替换运行实例。
 
 发布结果（2026-11-13）：Launcher **v0.8.12** 先发布（annotated tag `8f52d27` → `eb73581`，[CI #43379930218](https://github.com/PorkLittleHamburger/wechatbot-launcher/actions/runs/43379930218) 成功；安装器 286,406,076 B SHA-256 `7d257f91c25b06ba472025a333ded6d529f59b9fb4e5277e169b764cd5ba31e7`，运行包 59,275,291 B SHA-256 `c0d200d74382a1e60e7f1118181179e99428f015db989a08adb6c25ff8e44012`；Latest；隔离包内验证 helper 实例接受 sdk 配置、含 sdk 的备份恢复归一为 helper、公网回下载与 0.8.11 更新模块实测通过）。随后 **WeChatBot v0.10.3** 发布：annotated tag `v0.10.3` → `ffaab3f`，[Bot checks #43380091740](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43380091740) 成功；附件 `wechat-onebot-0.10.3-windows-x64.zip` 60,050,817 B，SHA-256 `15794169197a9fc056f802bc369fc29e8c41461bb206490a59d450a27cd01c75`，与同名 `.sha256` 一同设为 Latest；公网重新下载摘要一致，Launcher `VersionStore.import_archive` 导入 1,568 个文件、状态 compatible。当前实例 `mode=helper` + `config.driver.type=sdk` 可直接启动，无需手改配置。
+
+## v0.11.0 语音格式兼容（2026-11-13，发布待确认）
+
+用户先询问原生语音发送能力，随后要求完整兼容。原实现只接受 SILK v3 与 WAV（WAV 还需 `silk-python`，且发布包未内置），MP3/AMR/AAC 等被明确拒绝。微信语音条固定为腾讯 SILK v3，其他编码不能直接透传。
+
+实现：新增 `src/wechat_onebot/audio.py`，在 `service._prepare_segments` 的 `record` 分支统一归一化——SILK（腾讯头/标准头）校验后透传并归一为腾讯封装；其他格式用内置 `imageio-ffmpeg` 解码为 24 kHz 单声道 PCM16，再用 `silk-python==0.2.9` 编码为腾讯 SILK v3。按输入内容哈希缓存，重复发送不重复转码。限制：60 秒 / 20 MiB、单声道、采样率 24 kHz；解码/编码/超限失败均返回 1400 并给出中文原因，不退化为文件消息。`silk-python` 已加入 `requirements-runtime.lock` 与 `pyproject.toml`，便携包构建会自动安装；ffmpeg 原本已随 `imageio-ffmpeg` 分发。两个驱动都只接收最终 SILK，因此框架与 Launcher 无需改动。
+
+支持格式：SILK v3、WAV、MP3、AAC/M4A、OGG/Opus、AMR-NB/WB、FLAC（以内置 ffmpeg 解码能力为准）。
+
+验证：新增 `tests/test_voice_compat.py`（8 项：SILK 透传/标准头归一、WAV/MP3 转 SILK、损坏/超限/超时长/缺解码器拒绝）与 `tests/test_service.py` 的端到端 `record` 用例；移除已失效的“helper WAV 编码器缺失”用例。全量 **515 项通过、1 项 Windows 符号链接权限测试跳过**；机器上 MP3/WAV 均成功转出腾讯 SILK。未向真实微信发送语音，仍需实机收件验收（听感、时长、群/私聊一致性）。
+
+安全与边界：ffmpeg 只读取已由 `media.resolve_input` 落到本地的文件，`-nostdin`、单线程、45 秒超时、输出字节与时长上限；不解析网络协议。转码有 CPU 延迟（通常几百毫秒），首发明显、缓存后无感；SILK 重编码不可避免会改变音质。发布 Release 需用户明确确认。

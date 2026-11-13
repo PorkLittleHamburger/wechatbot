@@ -29,6 +29,21 @@ def forward(forward_id):
     return {"type": "forward", "data": {"id": forward_id}}
 
 
+def write_wav(path: Path, seconds: float = 0.2, rate: int = 8000) -> Path:
+    import math
+    import struct
+    import wave
+
+    with wave.open(str(path), "wb") as output:
+        output.setnchannels(1)
+        output.setsampwidth(2)
+        output.setframerate(rate)
+        output.writeframes(b"".join(
+            struct.pack("<h", int(1500 * math.sin(2 * math.pi * 440 * index / rate)))
+            for index in range(int(rate * seconds))))
+    return path
+
+
 @pytest.fixture
 async def bot(tmp_path):
     service, driver, mapper, events = await make_service(tmp_path)
@@ -210,16 +225,24 @@ async def test_unsupported_later_node_rejects_entire_forward(bot, kind):
 
 @pytest.mark.parametrize("private", [False, True])
 async def test_image_voice_file_use_ordinary_media_sends(bot, tmp_path, private):
-    files = []
-    for kind, filename in [("image", "picture.png"), ("record", "voice.amr"), ("file", "document.bin")]:
-        path = tmp_path / filename
-        path.write_bytes(b"synthetic-offline-media")
-        files.append({"type": kind, "data": {"file": str(path)}})
+    from wechat_onebot import audio
+
+    image = tmp_path / "picture.png"
+    image.write_bytes(b"synthetic-offline-media")
+    voice_source = write_wav(tmp_path / "voice.wav")
+    document = tmp_path / "document.bin"
+    document.write_bytes(b"synthetic-offline-media")
+    files = [{"type": "image", "data": {"file": str(image)}},
+             {"type": "record", "data": {"file": str(voice_source)}},
+             {"type": "file", "data": {"file": str(document)}}]
     messages = [node([text("before"), *files, text("after")])]
     ordinary(await send(bot, messages, private=private), nodes=1, sends=5, chains=1)
     assert [row.kind for row in bot[1].sent] == ["text", "image", "voice", "file", "text"]
-    for row, segment in zip(bot[1].sent[1:4], files):
-        assert Path(row.payload["path"]).read_bytes() == Path(segment["data"]["file"]).read_bytes()
+    assert Path(bot[1].sent[1].payload["path"]).read_bytes() == image.read_bytes()
+    delivered_voice = Path(bot[1].sent[2].payload["path"])
+    assert delivered_voice.read_bytes().startswith(audio.TENCENT_SILK_HEADER)
+    assert delivered_voice != voice_source
+    assert Path(bot[1].sent[3].payload["path"]).read_bytes() == document.read_bytes()
 
 
 async def test_all_media_prepared_before_first_send(bot, tmp_path, monkeypatch):
@@ -244,8 +267,11 @@ async def test_all_media_prepared_before_first_send(bot, tmp_path, monkeypatch):
 @pytest.mark.parametrize("kind,capability", [("text", "text.send"), ("image", "image.send"),
                                            ("record", "voice.send"), ("file", "file.send")])
 async def test_missing_driver_capability_is_atomic(bot, tmp_path, monkeypatch, kind, capability):
-    path = tmp_path / "media.bin"
-    path.write_bytes(b"fixture")
+    if kind == "record":
+        path = write_wav(tmp_path / "voice.wav")
+    else:
+        path = tmp_path / "media.bin"
+        path.write_bytes(b"fixture")
     monkeypatch.setattr(bot[1], "capabilities", bot[1].capabilities - {capability})
     content = [text("second")] if kind == "text" else [{"type": kind, "data": {"file": str(path)}}]
     failed(await send(bot, [node("first"), node(content)]), 1404, "不支持")
@@ -495,7 +521,7 @@ async def test_empty_media_is_rejected_by_generic_preflight_before_any_send(bot,
     path = tmp_path / "empty.bin"
     path.touch()
     response = await send(bot, [node("valid first"), node([{"type": kind, "data": {"file": str(path)}}])])
-    failed(response, 1400, "非空")
+    failed(response, 1400, "为空" if kind == "record" else "非空")
     assert bot[1].sent == []
 
 
@@ -529,34 +555,6 @@ async def test_helper_pure_media_preflight_rejects_later_invalid_node_atomically
                                     node([{"type": kind, "data": {"file": str(path)}}])])
     failed(response, 1400, diagnostic)
     assert mock.sent == []
-
-
-async def test_helper_wav_encoder_unavailable_is_detected_before_any_send(
-        bot, tmp_path, monkeypatch, helper_path):
-    import wave
-    from wechat_onebot.driver.helper import HelperDriver
-    from wxbot_framework import voices
-
-    path = tmp_path / "valid.wav"
-    with wave.open(str(path), "wb") as stream:
-        stream.setnchannels(1)
-        stream.setsampwidth(2)
-        stream.setframerate(8000)
-        stream.writeframes(b"\0\0" * 160)
-
-    def unavailable_encoder():
-        raise RuntimeError("synthetic unavailable WAV encoder")
-
-    monkeypatch.setattr(voices, "_load_encoder", unavailable_encoder)
-    helper = HelperDriver(bot[0].config)
-    helper._online = True
-    helper._service = object()
-    with monkeypatch.context() as patch:
-        patch.setattr(bot[0], "driver", helper)
-        response = await send(bot, [node("valid first"),
-                                    node([{"type": "record", "data": {"file": str(path)}}])])
-    failed(response, 1500, "synthetic unavailable WAV encoder")
-    assert bot[1].sent == []
 
 
 async def test_media_count_limit_rejects_before_any_resolve(bot, monkeypatch):

@@ -51,6 +51,8 @@ v0.10.2 修复两处升级后的残留问题：配置驱动在发现阶段看到
 
 v0.10.3 调整与 Launcher 的驱动契约：实例 `mode` 由 Launcher 拥有，Bot 的自动回退只在本次运行时生效，**不再改写 `driver.type`**，只持久化账号、PID 与昵称。这样 `config.driver.type` 始终与实例 mode 一致，避免“实例驱动与清单不一致”，备份也不会因 sdk 类型而无法恢复；微信 4.2.0.52 在 `helper` 配置下仍会自动使用 sdk 驱动运行。使用 Launcher 时请同时升级到 **v0.8.12**；旧版 0.8.11 会拒绝 helper 实例中的 sdk 配置。
 
+v0.11.0 完整语音格式兼容：OneBot `record` 现支持 SILK、WAV、MP3、AAC/M4A、OGG/Opus、AMR-NB/WB 与 FLAC。网关用内置 ffmpeg 解码为 24 kHz 单声道 PCM，再用 `silk-python` 编码为腾讯 SILK v3 原生语音条；已是 SILK 的输入原样透传、不重编码。上限为 60 秒 / 20 MiB，无法解码或超限时明确失败，不会退化为文件消息。
+
 ## 下载与升级
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。

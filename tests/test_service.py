@@ -37,6 +37,44 @@ async def make_service(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_send_record_converts_audio_to_native_silk(tmp_path: Path):
+    import math
+    import struct
+    import wave
+
+    from wechat_onebot import audio
+
+    source = tmp_path / "voice.wav"
+    rate = 24000
+    with wave.open(str(source), "wb") as output:
+        output.setnchannels(1)
+        output.setsampwidth(2)
+        output.setframerate(rate)
+        output.writeframes(b"".join(
+            struct.pack("<h", int(2000 * math.sin(2 * math.pi * 440 * index / rate)))
+            for index in range(rate // 5)))
+
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        friends = (await service.dispatch("get_friend_list"))["data"]
+        alice = next(row for row in friends if row["nickname"] == "Alice")
+        response = await service.dispatch("send_private_msg", {
+            "user_id": alice["user_id"],
+            "message": [{"type": "record", "data": {"file": str(source)}}],
+        })
+        assert response["status"] == "ok"
+        record = driver.sent[-1]
+        assert record.kind == "voice"
+        delivered = Path(record.payload["path"])
+        assert delivered.is_file()
+        assert delivered.read_bytes().startswith(audio.TENCENT_SILK_HEADER)
+        assert (tmp_path / "media" / "cache" / "voice") in delivered.parents
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
 async def test_dispatch_rejects_empty_non_object_params(tmp_path: Path):
     service, _, mapper, _ = await make_service(tmp_path)
     try:
