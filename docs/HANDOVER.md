@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.10.2，本轮源码为 v0.10.3（实际发布状态以远端标签和 Release 为准）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.10.3（Launcher 配套 v0.8.12）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -217,3 +217,5 @@ v0.10.1 实机反馈两个问题：启动桥接仍可能报“helper 启动失�
 验证：507 项回归通过、1 项 Windows 符号链接权限测试跳过；临时配置验证 `helper` 配置下自动使用 sdk、`driver.type` 保持 `helper`、PID 与昵称正确写回。未修改用户实例配置或运行进程。
 
 2026-11-13 用户明确确认发布顺序：**Launcher v0.8.12 先发**（`bot-launcher` 仓：窄视图读取实例配置、helper 实例兼容 `driver.type ∈ {helper, sdk}`、恢复时归一为 mode；不改 UI/Rust/数据迁移），**WeChatBot v0.10.3 随后**。Launcher 修复在 Bot 启动前解除「实例驱动与清单不一致」与备份恢复失败；Bot 0.10.3 防止未来再次改写 `driver.type`。两个 Release 均不替换运行实例。
+
+发布结果（2026-11-13）：Launcher **v0.8.12** 先发布（annotated tag `8f52d27` → `eb73581`，[CI #43379930218](https://github.com/PorkLittleHamburger/wechatbot-launcher/actions/runs/43379930218) 成功；安装器 286,406,076 B SHA-256 `7d257f91c25b06ba472025a333ded6d529f59b9fb4e5277e169b764cd5ba31e7`，运行包 59,275,291 B SHA-256 `c0d200d74382a1e60e7f1118181179e99428f015db989a08adb6c25ff8e44012`；Latest；隔离包内验证 helper 实例接受 sdk 配置、含 sdk 的备份恢复归一为 helper、公网回下载与 0.8.11 更新模块实测通过）。随后 **WeChatBot v0.10.3** 发布：annotated tag `v0.10.3` → `ffaab3f`，[Bot checks #43380091740](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43380091740) 成功；附件 `wechat-onebot-0.10.3-windows-x64.zip` 60,050,817 B，SHA-256 `15794169197a9fc056f802bc369fc29e8c41461bb206490a59d450a27cd01c75`，与同名 `.sha256` 一同设为 Latest；公网重新下载摘要一致，Launcher `VersionStore.import_archive` 导入 1,568 个文件、状态 compatible。当前实例 `mode=helper` + `config.driver.type=sdk` 可直接启动，无需手改配置。
