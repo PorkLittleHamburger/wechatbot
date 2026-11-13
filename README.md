@@ -61,6 +61,8 @@ v0.11.3 WebSocket 大帧上限：反向 WS 客户端与正向 WS 服务端新增
 
 v0.11.4 长语音保真发送：`record` / `music` 的音频统一解码为 24 kHz 单声道（高码率/高采样率自动降码率），超过 60 秒时按 60 秒分段，连续发送多条微信原生语音条；不再把长音频改发文件，也不截断。总时长上限 30 分钟，无法解码或超过媒体大小仍明确失败。
 
+v0.11.5 桥接重启等待：未停止桥接就关闭实例后，旧 Bot 进程退出与 SDK watchdog 卸载原生 bridge 之间有短暂竞态，立即启动新桥接会报 `SESSION_BUSY`。sdk 驱动现在会等待并重试最多 20 秒，通常可直接恢复；若超时仍失败，再按提示结束旧实例/桥接或重启微信。
+
 ## 下载与升级
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。

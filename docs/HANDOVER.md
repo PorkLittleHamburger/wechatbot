@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.4（Launcher 配套 v0.8.12、框架 dev14）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.4（Launcher 配套 v0.8.12、框架 dev14）；源码 v0.11.5 已加入桥接重启等待但尚未发布；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -297,3 +297,13 @@ AstrBot 点歌仍报 `Local voice send failed: WebSocket API call timeout`；bot
 边界：一条请求发送多段语音，AstrBot 若在发送过程中超时，bot 仍会继续把剩余分段发完；客户端可能看到“超时”但微信收到多段语音，重试可能重复。分段上限 30 分钟是保护值。
 
 发布结果（2026-11-13）：用户确认发布 **WeChatBot v0.11.4**（v0.11.3 的 WS 大帧改动并入本版，未单独发布）。annotated tag `v0.11.4` → `5ad3f6c`；[Bot checks #43416923179](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43416923179) 成功；附件 `wechat-onebot-0.11.4-windows-x64.zip` 60,406,474 B，SHA-256 `4c1fac928fe4d4c6b0447b003703b2396b50dd53476960eecb5884c833b1a7c5`，与同名 `.sha256` 一同设为 Latest；公网重新下载摘要一致；Launcher `VersionStore.import_archive` 导入 1,586 个文件、状态 compatible；包内实测 61 秒 WAV 分为 60s+1s 两条 SILK 语音。框架与 Launcher 无需改动。
+
+## v0.11.5 桥接重启等待（2026-11-13，未发布）
+
+用户报告：未停止桥接就关闭实例，再次启动后启动桥接报 `SESSION_BUSY: 微信进程已被其他桥接占用`。原因是 Launcher 关闭实例时结束了 Bot 进程，但 SDK 的原生 bridge 仍加载在微信进程中；SDK watchdog 要等旧 owner 进程退出后才异步卸载，新进程的 `Session.connect` 与这个窗口竞争，直接收到 `SESSION_BUSY`。原实现没有重试。
+
+修复：`SdkDriver._open` 遇到 `SESSION_BUSY` 时最多等待 **20 秒**（每秒重试一次），每次失败都关闭新建的 subscription/session；日志提示旧桥接正在释放。若 20 秒后仍失败，错误提示明确要求结束旧实例/旧桥接或重启微信。只对 `SESSION_BUSY` 重试，其他连接错误立即失败。
+
+验证：新增 `test_start_retries_while_old_bridge_is_releasing`（前两次 connect 抛 SESSION_BUSY，第三次成功，断言前两个 session 已关闭）；全量 **529 passed / 1 skipped**。未在真实 Launcher/微信上复现重启窗口。
+
+边界：如果旧 Bot 进程或旧桥接仍然存活（不是短暂卸载窗口），重试不会成功，20 秒后报错；正确做法仍是 Launcher 在关闭实例前停止桥接，或手动结束旧进程/重启微信。重试窗口固定 20 秒，暂无配置项。

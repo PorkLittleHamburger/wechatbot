@@ -64,6 +64,10 @@ def _code(error: BaseException) -> str:
     return value or type(error).__name__
 
 
+_SESSION_BUSY_RETRY_SECONDS = 20.0
+_SESSION_BUSY_RETRY_INTERVAL = 1.0
+
+
 def _text(value: Any, limit: int) -> str:
     return str(value)[:limit] if value is not None else ""
 
@@ -164,7 +168,7 @@ class SdkDriver(Driver):
             if isinstance(error, DriverError):
                 raise
             hint = {
-                "SESSION_BUSY": "微信进程已被其他桥接占用，请先停止旧桥接或重启微信后再试",
+                "SESSION_BUSY": "微信进程已被其他桥接占用；已等待 20 秒仍未释放。请停止旧实例/旧桥接或重启微信后再试",
                 "ACCESS_DENIED": "Bot 权限低于微信进程，请用与微信相同或更高的权限启动",
                 "UNSUPPORTED_BUILD": "当前微信构建未适配；4.2.0.52 需要 sdk 驱动并核对核心指纹",
                 "ABI_MISMATCH": "wechatbot_api 包与 bridge DLL 版本不匹配，请使用固定版本 wheel",
@@ -210,25 +214,45 @@ class SdkDriver(Driver):
             ) from error
         client = wechatbot_api.Client(data_root=data_root)
         target = self._select_target(client.discover())
-        session = client.session(pid=target.pid, account_id=target.account.wxid)
-        subscription = session.subscribe()
-        try:
-            session.connect(
-                timeout=30,
-                allow_unverified=self.config.driver.sdk_allow_unverified,
-                receive=True,
-            )
-        except Exception:
+        deadline = time.monotonic() + _SESSION_BUSY_RETRY_SECONDS
+        attempt = 0
+        while True:
+            session = client.session(pid=target.pid, account_id=target.account.wxid)
+            subscription = session.subscribe()
             try:
-                session.close(timeout=1)
-            except Exception:
-                logger.debug("关闭失败的 SDK 会话时出错", exc_info=True)
-            raise
-        with self._lock:
-            self._client = client
-            self._session = session
-            self._subscription = subscription
-            self._target = target
+                session.connect(
+                    timeout=30,
+                    allow_unverified=self.config.driver.sdk_allow_unverified,
+                    receive=True,
+                )
+            except Exception as error:
+                try:
+                    subscription.close(wait=False)
+                except Exception:
+                    logger.debug("关闭失败的 SDK 订阅时出错", exc_info=True)
+                try:
+                    session.close(timeout=1)
+                except Exception:
+                    logger.debug("关闭失败的 SDK 会话时出错", exc_info=True)
+                if (_code(error) == "SESSION_BUSY"
+                        and time.monotonic() < deadline):
+                    attempt += 1
+                    if attempt == 1:
+                        logger.warning(
+                            "微信进程仍被旧桥接占用，等待其释放后重试（最多 %.0f 秒）",
+                            _SESSION_BUSY_RETRY_SECONDS,
+                        )
+                    time.sleep(_SESSION_BUSY_RETRY_INTERVAL)
+                    continue
+                if attempt:
+                    logger.warning("旧桥接在 %.0f 秒内未释放，放弃重试", _SESSION_BUSY_RETRY_SECONDS)
+                raise
+            with self._lock:
+                self._client = client
+                self._session = session
+                self._subscription = subscription
+                self._target = target
+            return
 
     async def stop(self) -> None:
         self._online = False

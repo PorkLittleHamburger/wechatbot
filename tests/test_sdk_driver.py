@@ -495,6 +495,48 @@ async def test_stop_closes_session_and_cleans_media(monkeypatch, tmp_path: Path)
 
 
 @pytest.mark.asyncio
+async def test_start_retries_while_old_bridge_is_releasing(monkeypatch, tmp_path: Path):
+    from wechat_onebot.driver import sdk as sdk_module
+
+    class BusyError(Exception):
+        code = SimpleNamespace(value="SESSION_BUSY")
+
+    class FlakyClient(FakeClient):
+        def __init__(self, root: Path):
+            super().__init__(root)
+            self.sessions: list[FakeSession] = []
+            self.failures = 2
+
+        def session(self, pid, account_id=None):
+            session = FakeSession(self.data_root)
+            if len(self.sessions) < self.failures:
+                def busy_connect(*args, **kwargs):
+                    session.connected += 1
+                    raise BusyError("old bridge still owns the process")
+                session.connect = busy_connect
+            self.sessions.append(session)
+            return session
+
+    client = FlakyClient(tmp_path / "sdk")
+    install_fake_sdk(monkeypatch, client)
+    monkeypatch.setattr(sdk_module, "_SESSION_BUSY_RETRY_INTERVAL", 0.01)
+    monkeypatch.setattr(sdk_module, "_SESSION_BUSY_RETRY_SECONDS", 1.0)
+    driver = SdkDriver(make_config(tmp_path))
+
+    async def emit(message):
+        return None
+
+    await driver.start(emit)
+    try:
+        assert len(client.sessions) == 3
+        assert all(session.connected >= 1 for session in client.sessions)
+        assert client.sessions[0].closed == 1 and client.sessions[1].closed == 1
+        assert client.sessions[2].closed == 0
+    finally:
+        await driver.stop()
+
+
+@pytest.mark.asyncio
 async def test_start_reports_target_selection_problems(monkeypatch, tmp_path: Path):
     client = FakeClient(tmp_path / "sdk")
     client.rows = [discovery_result(pid=1, wxid="wxid_robot"),
