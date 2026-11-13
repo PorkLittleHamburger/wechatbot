@@ -59,6 +59,8 @@ v0.11.2 音乐与长音频发送：微信语音条上限 60 秒，超过上限�
 
 v0.11.3 WebSocket 大帧上限：反向 WS 客户端与正向 WS 服务端新增 `maxMessageBytes`（默认 128 MiB，可调 1–512 MiB）。AstrBot 会把长音频转成 `base64://` WAV 放进单条 API 请求（常见 20–40 MB），此前超过 16 MiB 会被网关以 `1009` 关闭并导致 AstrBot `WebSocket API call timeout`；升级后无需手改配置即可接收，仍超限时可按端点调高。
 
+v0.11.4 长语音保真发送：`record` / `music` 的音频统一解码为 24 kHz 单声道（高码率/高采样率自动降码率），超过 60 秒时按 60 秒分段，连续发送多条微信原生语音条；不再把长音频改发文件，也不截断。总时长上限 30 分钟，无法解码或超过媒体大小仍明确失败。
+
 ## 下载与升级
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。

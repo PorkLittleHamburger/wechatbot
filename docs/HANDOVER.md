@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.2（Launcher 配套 v0.8.12、框架 dev14），源码 v0.11.3 已提高 WS 帧上限但尚未发布；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.2（Launcher 配套 v0.8.12、框架 dev14）；源码 v0.11.4 已包含 WS 大帧与长语音分段但尚未发布；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -280,3 +280,18 @@ AstrBot 点歌仍报 `Local voice send failed: WebSocket API call timeout`；bot
 验证：新增配置默认/往返/边界测试、反向连接 `max_size` 断言、正向 `ws_max_size` 断言；全量 **527 passed / 1 skipped**。未用真实 AstrBot 复测；即使帧被接受，AstrBot 的 API 超时仍可能受原生上传耗时影响，必要时再压缩长音频或改插件发送模式。
 
 边界：128 MiB 是单帧内存上限，不是可靠性保证；不可信端点不应调高。微信实际文件上传耗时不受此字段控制。
+
+## v0.11.4 长语音分段与降码率（2026-11-13，未发布）
+
+用户明确要求“怎么来的就怎么出去”：长语音仍要以微信原生语音条发送，码率高就降码率、时间长就分段，不改发文件、不截断。此前 v0.11.2 的逻辑是 `VoiceTooLong → 文件消息`，且 `ensure_silk` 在 20 MiB 输入上限处会提前失败，AstrBot 的 28 MB base64 WAV 根本到不了 60 秒判断。
+
+实现：
+1. `audio.py` 新增 `ensure_silk_chunks()`：非 SILK 输入用 ffmpeg 解码为 24 kHz 单声道 PCM（统一降采样/降码率），按 60 秒切 PCM 后用 `pysilk` 编码；SILK 输入按 3000 包（60 秒）切包，不再重编码。单条输出始终 ≤60 秒、腾讯 SILK v3。
+2. 分段结果按输入内容哈希缓存在 `media/cache/voice/<hash>.NNN.silk`，重复发送不重复转码。
+3. `service._prepare_segments` 的 `record` 分支改为把每个分段 append 成独立 `PreparedSegment("record")`，由 `_send_prepared_message` 依次调用 `driver.send_voice`；一条 OneBot `record` 对应多条微信语音条，API 仍返回一个逻辑 `message_id`，发送快照包含多个 record 段。
+4. `music` 的 `custom.audio` 复用同一 `record` 管线，因此长歌曲同样分段语音；只有 URL 的卡片仍发文本链接，平台 ID 卡片仍 1404。
+5. 总时长上限 30 分钟；输入文件大小受 `storage.max_media_bytes`（默认 50 MiB）约束；无法解码、超过总时长或媒体上限仍明确 1400。
+
+验证：新增/更新 `tests/test_music_send.py` 5 项（61 秒本地 WAV、125 秒 base64 WAV、61 秒 44.1 kHz 立体声高码率 WAV、music 短/长音频、url-only 与无地址失败），逐段断言腾讯 SILK 头、单段 ≤60 秒、总时长正确；全量 **528 passed / 1 skipped**。未在真实 AstrBot + 微信上验收多段语音的到达顺序与播放体验。
+
+边界：一条请求发送多段语音，AstrBot 若在发送过程中超时，bot 仍会继续把剩余分段发完；客户端可能看到“超时”但微信收到多段语音，重试可能重复。分段上限 30 分钟是保护值。

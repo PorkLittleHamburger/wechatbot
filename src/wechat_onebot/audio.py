@@ -23,6 +23,7 @@ MAX_VOICE_SECONDS = 60
 MAX_VOICE_BYTES = 20 * 1024 * 1024
 SILK_SAMPLE_RATE = 24000
 SILK_BITRATE = 24000
+MAX_TOTAL_VOICE_SECONDS = 30 * 60
 _PCM_BYTES_PER_SECOND = SILK_SAMPLE_RATE * 2
 _FRAME_BYTES = SILK_SAMPLE_RATE // 50 * 2  # 20 ms of mono PCM16
 _DECODE_TIMEOUT = 45
@@ -41,6 +42,8 @@ def ensure_silk(source: str | Path, *, cache_dir: Path,
     """Return a cached Tencent SILK v3 file for ``source``.
 
     Runs blocking work (file I/O, ffmpeg, pysilk); callers use a worker thread.
+    This single-message variant rejects audio over 60 seconds; outbound record
+    handling uses :func:`ensure_silk_chunks` instead.
     """
     path = Path(source)
     try:
@@ -72,6 +75,69 @@ def ensure_silk(source: str | Path, *, cache_dir: Path,
     return target
 
 
+def ensure_silk_chunks(source: str | Path, *, cache_dir: Path,
+                       max_bytes: int = MAX_VOICE_BYTES) -> tuple[Path, ...]:
+    """Split one record into cached Tencent SILK chunks of at most 60 seconds.
+
+    Non-SILK input is decoded once to 24 kHz mono PCM16, which also strips a high
+    source bitrate; long PCM or SILK is then split at packet boundaries. Each
+    returned file is a valid native WeChat voice message.
+    """
+    path = Path(source)
+    try:
+        size = path.stat().st_size
+    except OSError as error:
+        raise VoiceError("语音文件不可用") from error
+    if size <= 0:
+        raise VoiceError("语音文件为空")
+    if size > max_bytes:
+        raise VoiceError(f"语音文件超过 {max_bytes // (1024 * 1024)} MiB 上限")
+    try:
+        data = path.read_bytes()
+    except OSError as error:
+        raise VoiceError("语音文件不可读") from error
+    digest = hashlib.sha256(data).hexdigest()
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    if data.startswith((TENCENT_SILK_HEADER, STANDARD_SILK_HEADER)):
+        chunks = _split_silk(data)
+    else:
+        chunks = _split_pcm(_decode_pcm(path, max_seconds=MAX_TOTAL_VOICE_SECONDS))
+    targets = tuple(cache_dir / f"{digest[:40]}.{index:03d}.silk"
+                    for index in range(len(chunks)))
+    if all(_read_valid_silk(target) is not None for target in targets):
+        return targets
+    for target, chunk in zip(targets, chunks):
+        if len(chunk) > MAX_VOICE_BYTES:
+            raise VoiceError("分段语音超过单条大小上限")
+        _atomic_write(target, chunk)
+    return targets
+
+
+def _split_silk(data: bytes) -> list[bytes]:
+    silk, duration = _parse_silk(data, max_seconds=MAX_TOTAL_VOICE_SECONDS)
+    if duration > MAX_TOTAL_VOICE_SECONDS * 1000:
+        raise VoiceError(f"语音超过 {MAX_TOTAL_VOICE_SECONDS} 秒上限")
+    body = silk[len(TENCENT_SILK_HEADER):]
+    packets: list[bytes] = []
+    offset = 0
+    while offset < len(body):
+        length = int.from_bytes(body[offset:offset + 2], "little", signed=False)
+        end = offset + 2 + length
+        packets.append(body[offset:end])
+        offset = end
+    per_chunk = MAX_VOICE_SECONDS * 50
+    return [TENCENT_SILK_HEADER + b"".join(packets[index:index + per_chunk])
+            for index in range(0, len(packets), per_chunk)]
+
+
+def _split_pcm(pcm: bytes) -> list[bytes]:
+    if not pcm:
+        raise VoiceError("音频没有可用的声音数据")
+    chunk_bytes = _PCM_BYTES_PER_SECOND * MAX_VOICE_SECONDS
+    return [_encode_silk(pcm[index:index + chunk_bytes])
+            for index in range(0, len(pcm), chunk_bytes)]
+
+
 def _read_valid_silk(path: Path) -> bytes | None:
     try:
         if not path.is_file() or not 0 < path.stat().st_size <= MAX_VOICE_BYTES:
@@ -101,7 +167,7 @@ def _normalize_silk(data: bytes) -> bytes:
     return silk
 
 
-def _parse_silk(data: bytes) -> tuple[bytes, int]:
+def _parse_silk(data: bytes, *, max_seconds: int = MAX_VOICE_SECONDS) -> tuple[bytes, int]:
     """Validate a SILK v3 file and return (Tencent-encoded bytes, duration ms)."""
     if data.startswith(TENCENT_SILK_HEADER):
         body = data[len(TENCENT_SILK_HEADER):]
@@ -128,8 +194,8 @@ def _parse_silk(data: bytes) -> tuple[bytes, int]:
         offset += length
         packets += 1
     duration = packets * SILK_PACKET_MS
-    if duration > MAX_VOICE_SECONDS * 1000:
-        raise VoiceTooLong(f"语音超过 {MAX_VOICE_SECONDS} 秒上限")
+    if duration > max_seconds * 1000:
+        raise VoiceTooLong(f"语音超过 {max_seconds} 秒上限")
     return TENCENT_SILK_HEADER + body, duration
 
 
@@ -144,17 +210,17 @@ def _ffmpeg_executable() -> str:
         raise VoiceError("无法定位音频解码组件") from error
 
 
-def _decode_pcm(path: Path) -> bytes:
+def _decode_pcm(path: Path, *, max_seconds: int = MAX_VOICE_SECONDS) -> bytes:
     """Decode any ffmpeg-supported audio to 24 kHz mono PCM16, bounded."""
     executable = _ffmpeg_executable()
     command = [
         executable, "-nostdin", "-hide_banner", "-loglevel", "error",
-        "-threads", "1", "-t", str(MAX_VOICE_SECONDS + 1),
+        "-threads", "1", "-t", str(max_seconds + 1),
         "-i", str(path), "-vn", "-sn", "-dn",
         "-ac", "1", "-ar", str(SILK_SAMPLE_RATE),
         "-f", "s16le", "-acodec", "pcm_s16le", "pipe:1",
     ]
-    limit = _PCM_BYTES_PER_SECOND * (MAX_VOICE_SECONDS + 1)
+    limit = _PCM_BYTES_PER_SECOND * (max_seconds + 1)
     try:
         process = subprocess.Popen(command, stdin=subprocess.DEVNULL,
                                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
@@ -172,7 +238,7 @@ def _decode_pcm(path: Path) -> bytes:
             total += len(chunk)
             if total > limit:
                 process.kill()
-                raise VoiceTooLong(f"语音超过 {MAX_VOICE_SECONDS} 秒上限")
+                raise VoiceTooLong(f"语音超过 {max_seconds} 秒上限")
         try:
             code = process.wait(timeout=_DECODE_TIMEOUT)
         except subprocess.TimeoutExpired as error:
@@ -191,8 +257,8 @@ def _decode_pcm(path: Path) -> bytes:
     if len(pcm) % 2:
         pcm = pcm[:-1]
     duration = len(pcm) / _PCM_BYTES_PER_SECOND
-    if duration > MAX_VOICE_SECONDS:
-        raise VoiceTooLong(f"语音超过 {MAX_VOICE_SECONDS} 秒上限")
+    if duration > max_seconds:
+        raise VoiceTooLong(f"语音超过 {max_seconds} 秒上限")
     return pcm
 
 

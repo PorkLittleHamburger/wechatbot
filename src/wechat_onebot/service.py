@@ -13,7 +13,7 @@ from typing import Any
 
 from .config import AppConfig
 from .driver.base import Driver, DriverError, DriverUnsupported
-from .audio import MAX_VOICE_SECONDS, VoiceError, VoiceTooLong, ensure_silk, export_format
+from .audio import VoiceError, ensure_silk_chunks, export_format
 from .ids import IdMapper
 from .media import MediaError, MediaStore
 from .onebot import MessageStore, message_event_name, message_sequence
@@ -776,23 +776,27 @@ class OneBotService:
                 try:
                     path = await self.media.resolve_input(str(file_value), **options)
                     if segment_type == "record":
-                        # WeChat voice bubbles only accept Tencent SILK v3. Any
-                        # other client format is decoded and re-encoded here so
-                        # both drivers receive native-ready audio.
+                        # WeChat voice bubbles accept only Tencent SILK v3 and at
+                        # most 60 seconds each. Decode/split here so long or
+                        # high-bitrate audio is delivered as native voice
+                        # bubbles instead of a file.
                         try:
-                            path = await asyncio.to_thread(
-                                ensure_silk, path,
+                            chunks = await asyncio.to_thread(
+                                ensure_silk_chunks, path,
                                 cache_dir=self.media.media_dir / "cache" / "voice",
                                 max_bytes=self.media.max_bytes,
                             )
-                        except VoiceTooLong:
-                            # WeChat voice bubbles stop at 60 seconds. Keep the
-                            # audio rather than failing the whole message: send
-                            # the original file as an ordinary file message.
-                            logger.warning("语音超过 %s 秒，已降级为文件消息", MAX_VOICE_SECONDS)
-                            segment_type = "file"
                         except VoiceError as error:
                             raise OneBotActionError(1400, f"语音转换失败: {error}") from error
+                        for chunk in chunks:
+                            if media_budget is not None:
+                                media_budget["count"] += 1
+                                media_budget["bytes"] += chunk.stat().st_size
+                                if media_budget["bytes"] > forwarding.MAX_MEDIA_BYTES:
+                                    raise OneBotActionError(1400, "转发发送超出媒体字节额度")
+                                await self.driver.validate_media("record", str(chunk))
+                            prepared.append(PreparedSegment("record", {"path": str(chunk)}))
+                        continue
                     if media_budget is not None:
                         media_budget["count"] += 1
                         media_budget["bytes"] += path.stat().st_size
