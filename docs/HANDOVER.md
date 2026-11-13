@@ -201,3 +201,5 @@ v0.10.1 实机反馈两个问题：启动桥接仍可能报“helper 启动失�
 验证：新增 5 项回归；全量 **507 项通过、1 项 Windows 符号链接权限测试跳过**。临时配置复现用户场景（helper + 过期 PID + 空昵称 + 4.2.0.52）：自动切换 `helper -> sdk`，`get_login_info` 返回昵称“墨染青花”，好友 87、群 6，配置写回 `type=sdk`、当前 PID 与昵称；停止后微信进程存活。未发送消息，未修改用户实例配置。
 
 2026-11-13 用户明确授权发布 **WeChatBot v0.10.2**，并要求撤下 v0.10.0 与 v0.10.1 两个不可用的 Release：删除两个 Release 及其附件，保留 Git 标签供历史引用；v0.10.2 为唯一受支持的下载版本。发布不替换运行实例。
+
+发布结果（2026-11-13）：标注标签 `v0.10.2` 指向 `0851dfa`；[Bot checks #43376900152](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43376900152) 成功；附件 `wechat-onebot-0.10.2-windows-x64.zip`（60,049,409 字节，SHA-256 `2d7cbd7109b940502e629b62e8fe8fb2d014640d503c3b2254e80f46e9014feb`）与同名 `.sha256`；正式发布并设为 Latest，标题为 `WeChatBot v0.10.2`，公开重新下载的摘要一致。Launcher `VersionStore.import_archive` 在临时根目录导入成功：识别 0.10.2、校验 1,567 个文件、worker/SDK/DLL 齐全、状态 compatible。v0.10.0 与 v0.10.1 的 Release 及附件已删除（`releases/tags/*` 返回 404），对应标签仍保留。未在 Launcher 内启动该版本，未替换运行实例。
