@@ -32,6 +32,10 @@ class VoiceError(ValueError):
     """Voice input cannot be converted into a native WeChat voice message."""
 
 
+class VoiceTooLong(VoiceError):
+    """Voice exceeds WeChat's single-message duration limit."""
+
+
 def ensure_silk(source: str | Path, *, cache_dir: Path,
                 max_bytes: int = MAX_VOICE_BYTES) -> Path:
     """Return a cached Tencent SILK v3 file for ``source``.
@@ -125,7 +129,7 @@ def _parse_silk(data: bytes) -> tuple[bytes, int]:
         packets += 1
     duration = packets * SILK_PACKET_MS
     if duration > MAX_VOICE_SECONDS * 1000:
-        raise VoiceError(f"语音超过 {MAX_VOICE_SECONDS} 秒上限")
+        raise VoiceTooLong(f"语音超过 {MAX_VOICE_SECONDS} 秒上限")
     return TENCENT_SILK_HEADER + body, duration
 
 
@@ -168,7 +172,7 @@ def _decode_pcm(path: Path) -> bytes:
             total += len(chunk)
             if total > limit:
                 process.kill()
-                raise VoiceError(f"语音超过 {MAX_VOICE_SECONDS} 秒上限")
+                raise VoiceTooLong(f"语音超过 {MAX_VOICE_SECONDS} 秒上限")
         try:
             code = process.wait(timeout=_DECODE_TIMEOUT)
         except subprocess.TimeoutExpired as error:
@@ -188,7 +192,7 @@ def _decode_pcm(path: Path) -> bytes:
         pcm = pcm[:-1]
     duration = len(pcm) / _PCM_BYTES_PER_SECOND
     if duration > MAX_VOICE_SECONDS:
-        raise VoiceError(f"语音超过 {MAX_VOICE_SECONDS} 秒上限")
+        raise VoiceTooLong(f"语音超过 {MAX_VOICE_SECONDS} 秒上限")
     return pcm
 
 
@@ -286,6 +290,6 @@ def _decode_pcm_any(path: Path, data: bytes) -> bytes:
             raise VoiceError("SILK 语音没有可用的声音数据")
         duration = len(pcm) / _PCM_BYTES_PER_SECOND
         if duration > MAX_VOICE_SECONDS:
-            raise VoiceError(f"语音超过 {MAX_VOICE_SECONDS} 秒上限")
+            raise VoiceTooLong(f"语音超过 {MAX_VOICE_SECONDS} 秒上限")
         return pcm
     return _decode_pcm(path)

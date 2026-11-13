@@ -13,7 +13,7 @@ from typing import Any
 
 from .config import AppConfig
 from .driver.base import Driver, DriverError, DriverUnsupported
-from .audio import VoiceError, ensure_silk, export_format
+from .audio import MAX_VOICE_SECONDS, VoiceError, VoiceTooLong, ensure_silk, export_format
 from .ids import IdMapper
 from .media import MediaError, MediaStore
 from .onebot import MessageStore, message_event_name, message_sequence
@@ -728,9 +728,12 @@ class OneBotService:
                 raise OneBotActionError(1400, "消息段必须包含 type 和 data")
             if segment_type == "reply":
                 raise OneBotActionError(1404, "当前原生桥接不支持引用回复；消息未发送")
-            if segment_type in ("node", "forward", "json", "xml", "video", "contact", "music"):
+            if segment_type in ("node", "forward", "json", "xml", "video", "contact"):
                 raise OneBotActionError(1404, f"当前原生桥接不支持发送 {segment_type} 段")
-            if segment_type == "text":
+            if segment_type == "music":
+                prepared.extend(await self._prepare_music(
+                    data, is_group=is_group, media_budget=media_budget))
+            elif segment_type == "text":
                 text = data.get("text")
                 if not isinstance(text, str):
                     raise OneBotActionError(1400, "text 段的 text 必须是字符串")
@@ -782,6 +785,12 @@ class OneBotService:
                                 cache_dir=self.media.media_dir / "cache" / "voice",
                                 max_bytes=self.media.max_bytes,
                             )
+                        except VoiceTooLong:
+                            # WeChat voice bubbles stop at 60 seconds. Keep the
+                            # audio rather than failing the whole message: send
+                            # the original file as an ordinary file message.
+                            logger.warning("语音超过 %s 秒，已降级为文件消息", MAX_VOICE_SECONDS)
+                            segment_type = "file"
                         except VoiceError as error:
                             raise OneBotActionError(1400, f"语音转换失败: {error}") from error
                     if media_budget is not None:
@@ -796,6 +805,20 @@ class OneBotService:
             else:
                 raise OneBotActionError(1404, f"不支持的 OneBot 消息段: {segment_type}")
         return prepared
+
+    async def _prepare_music(self, data: dict[str, Any], *, is_group: bool,
+                             media_budget: dict[str, int] | None) -> list[PreparedSegment]:
+        """Degrade a standard music segment to media WeChat can actually send."""
+        audio = data.get("audio")
+        if audio:
+            return await self._prepare_segments(
+                [{"type": "record", "data": {"file": str(audio)}}],
+                is_group=is_group, media_budget=media_budget)
+        url = str(data.get("url") or "").strip()
+        if url:
+            title = str(data.get("title") or data.get("content") or "音乐").strip()
+            return [PreparedSegment("text", {"text": f"{title}\n{url}"})]
+        raise OneBotActionError(1404, "music 段缺少可播放的 audio 或 url")
 
     async def _get_login_info(self, params: dict[str, Any]) -> dict[str, Any]:
         info = await self.driver.get_login_info()

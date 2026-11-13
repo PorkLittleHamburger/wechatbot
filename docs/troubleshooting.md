@@ -25,6 +25,7 @@
 - `SHUTDOWN_PENDING` / `MEDIA_CLEANUP_PENDING`：原生任务或私有文件清理尚未完成。保留会话并等待，不要强制卸载或结束微信进程。
 - 发送返回“结果未知”：原生可能已发送。不要自动重发；用返回的 `operation` 或状态页确认，禁止把 `accepted` 当成功。
 - 入站媒体显示 `[图片]`/`[语音]` 等占位：检查 `driver.sdk_media_timeout`、框架能力是否支持该场景；群富图片在框架内仍为开发 opt-in，语音/视频接收需要框架的 extras。`helper` 下载完成的语音/视频应显示为标准 `record`/`video`；若仍是占位，查看 helper 日志中的 `voice_status`/`video_status` 是否为 `ready` 且路径可读。占位是明确失败，不是已接收。
+- AstrBot 点歌/音乐插件发送长音频失败：微信语音条上限 60 秒。v0.11.2 起超长 `record` 自动改为普通文件消息（`music` 段也会按 `audio` 降级为语音或文件），日志记录 `语音超过 60 秒，已降级为文件消息`。如果仍失败，检查源文件是否可下载、是否超过媒体大小上限，以及 AstrBot 是否发送了只有平台 ID 的 `music` 卡片。
 - `get_image`/`get_record` 返回 1404：`file` 必须是当前账号已注册的媒体 ID 或收到的文件名，不能是任意本地路径或 URL。`get_record` 必须提供 `out_format`，支持 mp3/amr/wma/m4a/spx/ogg/wav/flac；转换失败会返回 1400 和原因，不会伪造文件。
 
 `get_status` 的 `details.watchdog` 与 `details.wechat_version/sha256` 可确认守护状态和实际构建；框架守护 journal 在账号目录的 `sdk/.guards/` 下，只应读取，不要手工改写或删除正在使用的条目。

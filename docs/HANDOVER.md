@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.1（Launcher 配套 v0.8.12、框架 dev14）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.1（Launcher 配套 v0.8.12、框架 dev14），源码 v0.11.2 已修复 AstrBot 长音频发送但尚未发布；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -250,3 +250,17 @@ v0.10.1 实机反馈两个问题：启动桥接仍可能报“helper 启动失�
 验证：全量 **523 passed / 1 skipped**；新增事件顺序、快速操作独立、helper 语音/视频与撤回转换、`get_image`/`get_record`（含 SILK→ogg、WAV→mp3/amr）、native ID 引用测试。仍为能力子集：群撤回、群成员进退、群管理、出站 `reply`、`@全体`、原生合并转发卡片保持显式失败/抑制；helper 原生发送只返回成功布尔值，没有 native ID 时仍走引用快照降级。未在真实微信上逐项验收，发布需用户确认。
 
 发布结果（2026-11-13）：用户要求先做 CR 再发布。CR 移除了 helper 端猜测性的 native-ID 兜底、重复的私聊撤回兜底，统一了 audio 导入与收到媒体校验；随后发布 **WeChatBot v0.11.1**。annotated tag `v0.11.1` → `bad397b`；[Bot checks #43397712069](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43397712069) 成功；附件 `wechat-onebot-0.11.1-windows-x64.zip` 60,400,590 B，SHA-256 `25b515c452c46d6f0e206b174dde96a08fbd43040006c4965ba94b150916b83d`，与同名 `.sha256` 一同设为 Latest；公网重新下载摘要一致；Launcher `VersionStore.import_archive` 导入 1,586 个文件、状态 compatible；包内 Python 实测 SILK→MP3 与 WAV→AMR。框架与 Launcher 无需改动。
+
+## v0.11.2 长音频与 music 段发送（2026-11-13，未发布）
+
+用户报告 AstrBot `astrbot_plugin_music` 发歌时出现三个错误：本地语音 `record` 被 60 秒上限拒绝（1400）、`music` 段不支持（1404）、录音链接同样超 60 秒被拒绝。微信原生语音条上限确实为 60 秒，不能发超长语音。
+
+修复：
+1. `audio` 新增 `VoiceTooLong`，区分“超过 60 秒”和真正的解码/编码失败。
+2. `service._prepare_segments` 捕获 `VoiceTooLong` 后把 `record` 降级为普通 `file` 消息（保留原音频文件），不再让整条消息失败；日志记录 `语音超过 60 秒，已降级为文件消息`。
+3. 新增标准 `music` 段发送（`_prepare_music`）：`custom` 且有 `audio` 时复用 `record` 管线（≤60 秒语音、更长文件）；只有 `url` 时发送“标题 + 链接”文本；只有平台 ID、无可播放地址时明确 1404；封面图忽略。
+4. 移除 `music` 的“不支持”判定；转发中遇到只有平台 ID 的 `music` 仍在准备阶段失败。
+
+验证：新增 `tests/test_music_send.py` 4 项（本地超长 WAV、AstrBot 风格 base64 超长 WAV、custom music 短/长音频、url-only 与无地址失败）；全量 **526 passed / 1 skipped**。未在真实 AstrBot + 微信上跑通点歌全流程，仍需实机验收文件消息接收与播放。
+
+边界：超长音频降级为文件是明确的功能降级（不伪造 60 秒语音条、不截断），文件大小仍受媒体上限与驱动文件校验约束；AstrBot 若只发平台 ID 的 `music` 卡片且无可播放 `url/audio`，网关仍会失败。

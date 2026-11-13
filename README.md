@@ -55,6 +55,8 @@ v0.11.0 完整语音格式兼容：OneBot `record` 现支持 SILK、WAV、MP3、
 
 v0.11.1 消息流一致性修复：每账号事件按到达顺序串行处理；HTTP 快速操作的 `reply` 与不支持字段独立执行；helper 下载完成的入站语音/视频上报标准 `record`/`video`；私聊撤回复用原消息 ID；新增 `get_image`/`get_record`（语音可转 mp3/amr/wma/m4a/spx/ogg/wav/flac）；sdk 驱动发送消息登记 native ID，后续引用可解析到真实发送消息。
 
+v0.11.2 音乐与长音频发送：微信语音条上限 60 秒，超过上限的 `record` 不再报错，而是改为发送普通文件消息；同时支持标准 `music` 段——`custom` 且带 `audio` 时按语音/文件降级，只有 `url` 时发送标题和链接文本，平台 ID 卡片仍明确失败。AstrBot 点歌插件的本地语音、音乐卡片和链接语音降级路径因此可用。
+
 ## 下载与升级
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。

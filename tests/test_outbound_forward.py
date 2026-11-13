@@ -216,7 +216,7 @@ async def test_malformed_nodes_are_parameter_failures(bot, bad, diagnostic):
     assert bot[1].sent == []
 
 
-@pytest.mark.parametrize("kind", ["reply", "video", "xml", "json", "music", "contact", "unknown"])
+@pytest.mark.parametrize("kind", ["reply", "video", "xml", "json", "contact", "unknown"])
 async def test_unsupported_later_node_rejects_entire_forward(bot, kind):
     failed(await send(bot, [node("valid first"), node([{"type": kind, "data": {"id": "123"}}])]),
            1404, "不支持")
