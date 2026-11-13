@@ -107,23 +107,6 @@ async def test_recall_reuses_original_message_id_and_drops_unknown(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_private_recall_without_sender_uses_the_peer(tmp_path):
-    service, driver, mapper, events = await make_service(tmp_path)
-    try:
-        await driver.inject_message(chat_id="wxid_alice", message_id="9001", text="original")
-        original_id = events[-1]["message_id"]
-        await service._on_driver_event(NoticeEvent(
-            "friend_recall", "wxid_alice", "", raw={"recall": {"message_id": "9001"}}))
-        notice = events[-1]
-        assert notice["notice_type"] == "friend_recall"
-        assert notice["message_id"] == original_id
-        assert notice["user_id"] == mapper.get_or_create("user", "wxid_alice")
-    finally:
-        await service.stop()
-        mapper.close()
-
-
-@pytest.mark.asyncio
 async def test_sent_message_native_id_resolves_a_later_quote(tmp_path, monkeypatch):
     service, driver, mapper, events = await make_service(tmp_path)
     pending = ["900123"]

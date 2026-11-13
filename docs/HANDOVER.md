@@ -245,6 +245,6 @@ v0.10.1 实机反馈两个问题：启动桥接仍可能报“helper 启动失�
 3. **helper 入站语音/视频**：helper 下载完成（`voice_status=ready`/`video_status=ready` 且路径存在）时映射标准 `record`/`video` 段，不再固定为 `[语音]`/`[视频]` 文本；pending/failed 仍显式占位。
 4. **私聊撤回**：`friend_recall` 在私聊对端或原消息可用时复用原 `message_id`；helper 的 recall 载荷没有 sender 时用私聊对端补上。群撤回因无可靠 `operator_id` 继续抑制并记录。
 5. **媒体读取**：新增标准 `get_image`/`get_record`（`onebot/actions.py`、`media.received_path`、`audio.export_format`）。`get_record` 可把收到的 SILK/WAV 等转为 mp3/amr/wma/m4a/spx/ogg/wav/flac，按内容哈希缓存；`file` 只接受当前账号已注册的媒体 ID/文件名，不接受任意路径或 URL。
-6. **自发消息引用**：驱动 `take_native_message_ids()` 返回 native ID（sdk 使用 `SendResult.native_message_id`；helper 尝试从结果字典读取），发送快照登记后，后续引用该消息解析到真实发送 ID，而不新建 time=0 引用快照。
+6. **自发消息引用**：驱动 `take_native_message_ids()` 返回 native ID（sdk 使用 `SendResult.native_message_id`；helper 原生发送只返回成功布尔值，因此保持引用快照降级），发送快照登记后，后续引用该消息解析到真实发送 ID，而不新建 time=0 引用快照。
 
-验证：全量 **524 passed / 1 skipped**；新增事件顺序、快速操作独立、helper 语音/视频与撤回转换、`get_image`/`get_record`（含 SILK→ogg、WAV→mp3/amr）、native ID 引用测试。仍为能力子集：群撤回、群成员进退、群管理、出站 `reply`、`@全体`、原生合并转发卡片保持显式失败/抑制；helper 的 native ID 取决于上游是否返回，缺失时仍走引用快照降级。未在真实微信上逐项验收，发布需用户确认。
+验证：全量 **523 passed / 1 skipped**；新增事件顺序、快速操作独立、helper 语音/视频与撤回转换、`get_image`/`get_record`（含 SILK→ogg、WAV→mp3/amr）、native ID 引用测试。仍为能力子集：群撤回、群成员进退、群管理、出站 `reply`、`@全体`、原生合并转发卡片保持显式失败/抑制；helper 原生发送只返回成功布尔值，没有 native ID 时仍走引用快照降级。未在真实微信上逐项验收，发布需用户确认。

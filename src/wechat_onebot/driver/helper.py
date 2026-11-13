@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import ctypes
-from collections import deque
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -119,7 +118,6 @@ class HelperDriver(Driver):
         self._wechat_data_directory: Path | None = app_config.driver.wechat_data_directory
         self._lifecycle_executor: ThreadPoolExecutor | None = None
         self._process_lock: Any = None
-        self._native_ids: deque[str] = deque(maxlen=64)
         self._lifecycle_lock = asyncio.Lock()
 
     def rebind(self, app_config: AppConfig) -> None:
@@ -514,7 +512,6 @@ class HelperDriver(Driver):
         self._require_service()
         try:
             result = await asyncio.to_thread(self._service.send_text, chat_id, text)
-            self._capture_native(result)
             return result is not False
         except Exception as error:
             raise DriverError(f"文本发送失败: {error}") from error
@@ -527,7 +524,6 @@ class HelperDriver(Driver):
                 self._service.send_at_text, chat_id, text, list(user_ids),
                 display_names=list(display_names) if display_names else None,
             )
-            self._capture_native(result)
             return result is not False
         except Exception as error:
             raise DriverError(f"群 @ 发送失败: {error}") from error
@@ -537,7 +533,6 @@ class HelperDriver(Driver):
         self._require_service()
         try:
             result = await asyncio.to_thread(self._service.send_image, chat_id, path)
-            self._capture_native(result)
             return result is not False
         except Exception as error:
             raise DriverError(f"图片发送失败: {error}") from error
@@ -571,7 +566,6 @@ class HelperDriver(Driver):
         self._require_service()
         try:
             result = await asyncio.to_thread(self._service.send_file, chat_id, path)
-            self._capture_native(result)
             return result is not False
         except Exception as error:
             raise DriverError(f"文件发送失败: {error}") from error
@@ -581,24 +575,9 @@ class HelperDriver(Driver):
         self._require_service()
         try:
             result = await asyncio.to_thread(self._service.send_voice, chat_id, path)
-            self._capture_native(result)
             return result is not False
         except Exception as error:
             raise DriverError(f"语音发送失败: {error}") from error
-
-    def _capture_native(self, result: Any) -> None:
-        if not isinstance(result, dict):
-            return
-        for key in ("native_message_id", "message_id", "newmsgid", "server_id", "msg_id"):
-            value = result.get(key)
-            if value is not None and str(value).isdigit():
-                self._native_ids.append(str(value))
-                return
-
-    def take_native_message_ids(self) -> tuple[str, ...]:
-        ids = tuple(self._native_ids)
-        self._native_ids.clear()
-        return ids
 
     async def send_emoticon(self, chat_id: str, path: str) -> bool:
         import asyncio

@@ -8,10 +8,12 @@ import uuid
 from collections import deque
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Any
 
 from .config import AppConfig
 from .driver.base import Driver, DriverError, DriverUnsupported
+from .audio import VoiceError, ensure_silk, export_format
 from .ids import IdMapper
 from .media import MediaError, MediaStore
 from .onebot import MessageStore, message_event_name, message_sequence
@@ -221,9 +223,6 @@ class OneBotService:
         elif isinstance(event, NoticeEvent):
             if event.notice_type == "group_decrease":
                 self.message_store.forget_membership(self.account, event.external_user_id, event.external_chat_id)
-            if event.notice_type == "friend_recall" and not event.external_user_id:
-                # Private chat peers are the only possible original author.
-                event = replace(event, external_user_id=event.external_chat_id)
             recalled_id = None
             if event.notice_type in ("group_recall", "friend_recall"):
                 recall = event.raw.get("recall", {})
@@ -681,8 +680,7 @@ class OneBotService:
             logger.exception("普通消息发送期间发生内部错误")
             raise OneBotActionError(1500, "消息发送期间发生内部错误",
                                     {"sent_segments": sent}) from error
-        native_take = getattr(self.driver, "take_native_message_ids", None)
-        native_ids = tuple(native_take()) if callable(native_take) else ()
+        native_ids = self.driver.take_native_message_ids()
         try:
             message_id = self.message_store.allocate_sent_id(
                 account=self.account,
@@ -778,8 +776,6 @@ class OneBotService:
                         # WeChat voice bubbles only accept Tencent SILK v3. Any
                         # other client format is decoded and re-encoded here so
                         # both drivers receive native-ready audio.
-                        from .audio import VoiceError, ensure_silk
-
                         try:
                             path = await asyncio.to_thread(
                                 ensure_silk, path,
@@ -999,28 +995,24 @@ class OneBotService:
     async def _can_send_record(self, params: dict[str, Any]) -> dict[str, Any]:
         return {"yes": self.driver.online and "voice.send" in self.driver.capabilities}
 
-    async def _get_image(self, params: dict[str, Any]) -> dict[str, Any]:
+    def _received_media_path(self, params: dict[str, Any], label: str) -> Path:
         value = params.get("file")
         if not isinstance(value, str) or not value.strip():
             raise OneBotActionError(1400, "file 必须是非空字符串")
         path = self.media.received_path(value)
         if path is None:
-            raise OneBotActionError(1404, "图片不在当前账号的媒体存储中")
-        return {"file": str(path)}
+            raise OneBotActionError(1404, f"{label}不在当前账号的媒体存储中")
+        return path
+
+    async def _get_image(self, params: dict[str, Any]) -> dict[str, Any]:
+        return {"file": str(self._received_media_path(params, "图片"))}
 
     async def _get_record(self, params: dict[str, Any]) -> dict[str, Any]:
-        value = params.get("file")
+        path = self._received_media_path(params, "语音")
         out_format = params.get("out_format")
-        if not isinstance(value, str) or not value.strip():
-            raise OneBotActionError(1400, "file 必须是非空字符串")
-        path = self.media.received_path(value)
-        if path is None:
-            raise OneBotActionError(1404, "语音不在当前账号的媒体存储中")
-        from .audio import VoiceError, export_format
-
         try:
             converted = await asyncio.to_thread(
-                export_format, path, str(out_format or ""),
+                export_format, path, out_format,
                 cache_dir=self.media.media_dir / "cache" / "voice-export")
         except VoiceError as error:
             raise OneBotActionError(1400, f"语音转换失败: {error}") from error

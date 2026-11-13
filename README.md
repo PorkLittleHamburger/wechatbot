@@ -53,7 +53,7 @@ v0.10.3 调整与 Launcher 的驱动契约：实例 `mode` 由 Launcher 拥有�
 
 v0.11.0 完整语音格式兼容：OneBot `record` 现支持 SILK、WAV、MP3、AAC/M4A、OGG/Opus、AMR-NB/WB 与 FLAC。网关用内置 ffmpeg 解码为 24 kHz 单声道 PCM，再用 `silk-python` 编码为腾讯 SILK v3 原生语音条；已是 SILK 的输入原样透传、不重编码。上限为 60 秒 / 20 MiB，无法解码或超限时明确失败，不会退化为文件消息。
 
-v0.11.1 消息流一致性修复：每账号事件按到达顺序串行处理；HTTP 快速操作的 `reply` 与不支持字段独立执行；helper 下载完成的入站语音/视频上报标准 `record`/`video`；私聊撤回复用原消息 ID；新增 `get_image`/`get_record`（语音可转 mp3/amr/wma/m4a/spx/ogg/wav/flac）；发送消息登记 native ID，后续引用可解析到真实发送消息。
+v0.11.1 消息流一致性修复：每账号事件按到达顺序串行处理；HTTP 快速操作的 `reply` 与不支持字段独立执行；helper 下载完成的入站语音/视频上报标准 `record`/`video`；私聊撤回复用原消息 ID；新增 `get_image`/`get_record`（语音可转 mp3/amr/wma/m4a/spx/ogg/wav/flac）；sdk 驱动发送消息登记 native ID，后续引用可解析到真实发送消息。
 
 ## 下载与升级
 
