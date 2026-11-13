@@ -146,12 +146,12 @@ def command_doctor(args: argparse.Namespace) -> int:
     checks = [
         sys.platform == "win32",
         sys.maxsize > 2**32,
-        is_admin,
         not report["token_is_placeholder"],
         not report["webui_token_is_placeholder"],
     ]
     if config.driver.type == "helper":
         checks.extend((
+            is_admin,
             report["helper_license"],
             report["native_bridge"],
             report["native_bridge_hash_ok"],
