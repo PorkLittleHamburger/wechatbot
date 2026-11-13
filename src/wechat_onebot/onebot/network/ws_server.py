@@ -92,11 +92,15 @@ class WsServerAdapter:
     def started(self) -> bool:
         return self._started
 
+    def _server_config(self) -> uvicorn.Config:
+        return uvicorn.Config(self.app, host=self.endpoint.host, port=self.endpoint.port,
+                              log_level="warning", access_log=False, lifespan="off",
+                              ws_max_size=self.endpoint.max_message_bytes)
+
     async def start(self) -> None:
         if self._started:
             return
-        config = uvicorn.Config(self.app, host=self.endpoint.host, port=self.endpoint.port,
-                                log_level="warning", access_log=False, lifespan="off")
+        config = self._server_config()
         self._server = uvicorn.Server(config)
         if hasattr(self._server, "install_signal_handlers"):
             self._server.install_signal_handlers = lambda: None

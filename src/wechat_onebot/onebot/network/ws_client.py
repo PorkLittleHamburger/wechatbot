@@ -42,7 +42,8 @@ class WsClientAdapter:
         }
         if self.endpoint.access_token:
             headers["Authorization"] = f"Bearer {self.endpoint.access_token}"
-        kwargs = dict(ping_interval=20, ping_timeout=20, max_size=16 * 1024 * 1024)
+        kwargs = dict(ping_interval=20, ping_timeout=20,
+                      max_size=self.endpoint.max_message_bytes)
         try:
             return await websockets.connect(self.endpoint.url, additional_headers=headers, **kwargs)
         except TypeError:

@@ -10,6 +10,16 @@ from urllib.parse import urlparse
 
 from ...config import AppConfig, ConfigError
 
+DEFAULT_MAX_MESSAGE_BYTES = 128 * 1024 * 1024
+MIN_MAX_MESSAGE_BYTES = 1024 * 1024
+MAX_MAX_MESSAGE_BYTES = 512 * 1024 * 1024
+
+
+def _validate_max_message_bytes(value: Any) -> int:
+    if type(value) is not int or not MIN_MAX_MESSAGE_BYTES <= value <= MAX_MAX_MESSAGE_BYTES:
+        raise ConfigError("maxMessageBytes 必须是 1–512 MiB 之间的整数")
+    return value
+
 
 def _atomic_write(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -107,6 +117,7 @@ class WsServerEndpoint:
     path: str
     access_token: str
     enabled: bool = True
+    max_message_bytes: int = DEFAULT_MAX_MESSAGE_BYTES
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "WsServerEndpoint":
@@ -120,7 +131,9 @@ class WsServerEndpoint:
             raise ConfigError("wsServers.accessToken 必须是字符串")
         if type(enabled) is not bool:
             raise ConfigError("wsServers.enabled 必须是布尔值")
-        return cls(name.strip(), host, port, _normalize_path(value.get("path", "/ws")), token, enabled)
+        max_message = _validate_max_message_bytes(value.get("maxMessageBytes", DEFAULT_MAX_MESSAGE_BYTES))
+        return cls(name.strip(), host, port, _normalize_path(value.get("path", "/ws")), token,
+                   enabled, max_message)
 
 
 @dataclass(frozen=True)
@@ -131,6 +144,7 @@ class WsClientEndpoint:
     reconnect_seconds: float = 5.0
     enabled: bool = True
     role: str = "Universal"
+    max_message_bytes: int = DEFAULT_MAX_MESSAGE_BYTES
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "WsClientEndpoint":
@@ -153,7 +167,8 @@ class WsClientEndpoint:
             raise ConfigError("wsClients.reconnectSeconds 必须在 0.5–300 之间")
         if type(enabled) is not bool:
             raise ConfigError("wsClients.enabled 必须是布尔值")
-        return cls(name.strip(), url, token, float(reconnect), enabled, role)
+        max_message = _validate_max_message_bytes(value.get("maxMessageBytes", DEFAULT_MAX_MESSAGE_BYTES))
+        return cls(name.strip(), url, token, float(reconnect), enabled, role, max_message)
 
 
 @dataclass(frozen=True)
@@ -217,11 +232,12 @@ class AccountNetworkConfig:
             "wsServers": [{
                 "name": row.name, "host": row.host, "port": row.port, "path": row.path,
                 "accessToken": row.access_token, "enabled": row.enabled,
+                "maxMessageBytes": row.max_message_bytes,
             } for row in self.ws_servers],
             "wsClients": [{
                 "name": row.name, "url": row.url, "accessToken": row.access_token,
                 "reconnectSeconds": row.reconnect_seconds, "enabled": row.enabled,
-                "role": row.role,
+                "role": row.role, "maxMessageBytes": row.max_message_bytes,
             } for row in self.ws_clients],
         }
 

@@ -179,10 +179,19 @@ def test_ws_event_ignores_actions(path):
     assert hub.count == 0
 
 
+def test_ws_server_uses_configured_max_message_bytes():
+    service = Service()
+    endpoint = WsServerEndpoint("ws", "127.0.0.1", 6701, "/ws", "",
+                                max_message_bytes=64 * 1024 * 1024)
+    adapter = WsServerAdapter(service, EventHub(), endpoint)
+    assert adapter._server_config().ws_max_size == 64 * 1024 * 1024
+
+
 @pytest.mark.parametrize("role", ["Universal", "API", "Event"])
 async def test_reverse_ws_roles_headers_and_events(role, monkeypatch):
     service, hub = Service(), EventHub()
     sent, headers, counts = [], [], []
+    limits = []
     connected = asyncio.Event()
     release = asyncio.Event()
 
@@ -201,13 +210,16 @@ async def test_reverse_ws_roles_headers_and_events(role, monkeypatch):
 
     async def connect(url, **kwargs):
         headers.append(kwargs["additional_headers"])
+        limits.append(kwargs.get("max_size"))
         return Socket()
 
     monkeypatch.setattr("wechat_onebot.onebot.network.ws_client.websockets.connect", connect)
-    adapter = WsClientAdapter(service, hub, WsClientEndpoint("ws", "ws://test", "token", role=role))
+    endpoint = WsClientEndpoint("ws", "ws://test", "token", role=role, max_message_bytes=64 * 1024 * 1024)
+    adapter = WsClientAdapter(service, hub, endpoint)
     adapter.start()
     try:
         await asyncio.wait_for(connected.wait(), 2)
+        assert limits == [64 * 1024 * 1024]
         assert headers[0]["X-Client-Role"] == role
         assert headers[0]["X-Self-ID"] == "1234"
         assert counts == [0 if role == "API" else 1]
@@ -264,16 +276,26 @@ async def test_manager_lifecycle_order_and_rate_limit(monkeypatch):
 def test_transport_config_roundtrip_and_validation():
     config = AccountNetworkConfig.from_dict({
         "httpClients": [{"name": "report", "url": "http://test", "secret": "hmac"}],
-        "wsClients": [{"name": "api", "url": "ws://test", "role": "API"}],
+        "wsServers": [{"name": "ws", "host": "127.0.0.1", "port": 6701,
+                       "maxMessageBytes": 64 * 1024 * 1024}],
+        "wsClients": [{"name": "api", "url": "ws://test", "role": "API",
+                       "maxMessageBytes": 256 * 1024 * 1024}],
         "rateLimitIntervalMs": 125,
     })
     assert AccountNetworkConfig.from_dict(config.to_dict()) == config
     assert config.http_clients[0].secret == "hmac"
     assert config.ws_clients[0].role == "API"
+    assert config.ws_servers[0].max_message_bytes == 64 * 1024 * 1024
+    assert config.ws_clients[0].max_message_bytes == 256 * 1024 * 1024
+    assert AccountNetworkConfig.from_dict({}).ws_clients == ()
+    assert WsClientEndpoint.from_dict({"name": "default", "url": "ws://test"}).max_message_bytes == 128 * 1024 * 1024
     assert AccountNetworkConfig.from_dict({}).rate_limit_interval_ms == 500
     for value in [True, -1, "500"]:
         with pytest.raises(ConfigError):
             AccountNetworkConfig.from_dict({"rateLimitIntervalMs": value})
+    for value in [0, 1024 * 1024 - 1, 512 * 1024 * 1024 + 1, "1048576"]:
+        with pytest.raises(ConfigError):
+            WsClientEndpoint.from_dict({"name": "bad", "url": "ws://test", "maxMessageBytes": value})
     with pytest.raises(ConfigError):
         HttpClientEndpoint.from_dict({"name": "test", "url": "http://test", "secret": 1})
     with pytest.raises(ConfigError):

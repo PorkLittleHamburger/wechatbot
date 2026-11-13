@@ -1267,9 +1267,10 @@ function endpointCard(kind, index, row, saveButton) {
   const fields =
     (isServer
       ? field("host", "监听地址", row.host, "text") + field("port", "端口", row.port, "number") +
-        field("path", "路径", row.path, "text") + field("accessToken", "Access Token", row.accessToken, "password", true)
+        field("path", "路径", row.path, "text") + field("accessToken", "Access Token", row.accessToken, "password", true) +
+        field("maxMessageBytes", "最大 WS 消息（字节）", row.maxMessageBytes, "number")
       : field("url", "目标地址", row.url, "text", true) + field("accessToken", "Access Token", row.accessToken, "password") +
-        (kind === "httpClients" ? field("timeoutSeconds", "超时（秒，0 为不限）", row.timeoutSeconds, "number") + field("secret", "上报签名密钥（可选）", row.secret, "password") : field("reconnectSeconds", "重连间隔（秒）", row.reconnectSeconds, "number") + field("role", "角色：Universal / API / Event", row.role ?? "Universal", "text")));
+        (kind === "httpClients" ? field("timeoutSeconds", "超时（秒，0 为不限）", row.timeoutSeconds, "number") + field("secret", "上报签名密钥（可选）", row.secret, "password") : field("reconnectSeconds", "重连间隔（秒）", row.reconnectSeconds, "number") + field("role", "角色：Universal / API / Event", row.role ?? "Universal", "text") + field("maxMessageBytes", "最大 WS 消息（字节）", row.maxMessageBytes, "number")));
   return "<div class=\"card endpoint" + (row.enabled === false ? " off" : "") + "\" data-kind=\"" + kind + "\" data-index=\"" + index + "\">" +
     "<div class=\"ep-h\"><span class=\"dot " + (running && row.enabled !== false ? "ok" : "idle") + "\"></span>" +
       "<input class=\"ghost-input\" data-f=\"name\" value=\"" + esc(row.name) + "\" placeholder=\"名称\">" +
@@ -1312,11 +1313,11 @@ function collectNetwork() {
     const number = (name) => { const raw = val(name); return raw === "" ? "" : Number(raw); };
     const on = card.querySelector(".switch").classList.contains("on");
     if (kind === "httpServers" || kind === "wsServers") {
-      out[kind].push({ name: val("name"), host: val("host"), port: number("port"), path: val("path"), accessToken: val("accessToken"), enabled: on });
+      out[kind].push({ name: val("name"), host: val("host"), port: number("port"), path: val("path"), accessToken: val("accessToken"), enabled: on, ...(kind === "wsServers" ? { maxMessageBytes: number("maxMessageBytes") } : {}) });
     } else if (kind === "httpClients") {
       out[kind].push({ name: val("name"), url: val("url"), accessToken: val("accessToken"), timeoutSeconds: number("timeoutSeconds"), secret: val("secret"), enabled: on });
     } else {
-      out[kind].push({ name: val("name"), url: val("url"), accessToken: val("accessToken"), reconnectSeconds: number("reconnectSeconds"), role: val("role"), enabled: on });
+      out[kind].push({ name: val("name"), url: val("url"), accessToken: val("accessToken"), reconnectSeconds: number("reconnectSeconds"), role: val("role"), enabled: on, maxMessageBytes: number("maxMessageBytes") });
     }
   });
   return out;
@@ -1344,9 +1345,9 @@ async function saveNetwork() {
 
 function defaultEndpoint(kind, count) {
   if (kind === "httpServers") return { name: "http-" + (count + 1), host: "127.0.0.1", port: 6702, path: "/", accessToken: "", enabled: true };
-  if (kind === "wsServers") return { name: "ws-" + (count + 1), host: "127.0.0.1", port: 6703, path: "/ws", accessToken: "", enabled: true };
+  if (kind === "wsServers") return { name: "ws-" + (count + 1), host: "127.0.0.1", port: 6703, path: "/ws", accessToken: "", enabled: true, maxMessageBytes: 134217728 };
   if (kind === "httpClients") return { name: "http-client-" + (count + 1), url: "http://127.0.0.1:8080/", accessToken: "", timeoutSeconds: 5, enabled: true };
-  return { name: "ws-client-" + (count + 1), url: "ws://127.0.0.1:8080/onebot/v11/ws", accessToken: "", reconnectSeconds: 1, enabled: true };
+  return { name: "ws-client-" + (count + 1), url: "ws://127.0.0.1:8080/onebot/v11/ws", accessToken: "", reconnectSeconds: 1, enabled: true, maxMessageBytes: 134217728 };
 }
 
 function syncConnectStates() {

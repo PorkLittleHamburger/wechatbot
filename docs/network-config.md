@@ -56,7 +56,8 @@ resolution; outbound action calls are not restricted. This field is included in 
       "port": 6701,
       "path": "/ws",
       "accessToken": "onebot-token",
-      "enabled": true
+      "enabled": true,
+      "maxMessageBytes": 134217728
     }
   ],
   "wsClients": [
@@ -66,7 +67,8 @@ resolution; outbound action calls are not restricted. This field is included in 
       "accessToken": "reverse-token",
       "reconnectSeconds": 5,
       "role": "Universal",
-      "enabled": false
+      "enabled": false,
+      "maxMessageBytes": 134217728
     }
   ]
 }
@@ -79,6 +81,7 @@ resolution; outbound action calls are not restricted. This field is included in 
 - Access tokens are independent per endpoint. An omitted token defaults to an empty string; an empty server token disables action authentication. Configure non-empty credentials before exposing an endpoint.
 - HTTP client events include `X-Self-ID`, plus `Authorization: Bearer <accessToken>` when non-empty. Optional `secret` adds HMAC-SHA1 `X-Signature`. Response JSON can request standard quick replies; unsupported native operations are logged. Reports are not a durable retry queue. HTTP POST and quick operations finish before WS broadcast.
 - Reverse WS clients send `Authorization: Bearer <accessToken>` when non-empty during the handshake, plus `X-Self-ID` and the configured `X-Client-Role` (`Universal`, `API`, or `Event`). HTTP and forward WS action endpoints accept a Bearer token or the `access_token` query parameter.
+- `maxMessageBytes` limits one WS frame/message in both directions: forward WS servers use it as uvicorn `ws_max_size`, reverse WS clients pass it to `websockets.connect`. The default is **128 MiB**, configurable 1–512 MiB. It exists for clients that inline long audio as `base64://` (AstrBot's `Record` adapter can produce 30 MB+ frames); frames over the limit close with `1009 (message too big)` and the client's API call times out. Raise it only for trusted local/private endpoints because each frame can consume comparable memory. The WebUI exposes the field for both WS endpoint types.
 - Network changes saved in WebUI apply immediately. Unchanged endpoints retain their connections; the WeChat bridge does not need to be started or restarted.
 - Enabled saved endpoints resume with the management service. Stopping the WeChat bridge leaves the endpoints running and reports the account as offline.
 - Invalid JSON, a non-object root, and invalid validated fields are rejected rather than replaced with defaults. Unknown fields are ignored, and non-object entries in endpoint arrays are skipped; check spelling and saved output instead of relying on strict schema rejection.
@@ -105,6 +108,7 @@ resolution; outbound action calls are not restricted. This field is included in 
 | `accessToken` | Empty string | String |
 | HTTP client `timeoutSeconds` | 10 seconds | 0 for no timeout, otherwise 0.5–120 seconds |
 | WS client `reconnectSeconds` | 5 seconds | 0.5–300 seconds; retries back off after connection failures |
+| WS server/client `maxMessageBytes` | 134217728 (128 MiB) | Integer 1–512 MiB; per-message frame limit for large base64 media |
 | Client `url` | Required | HTTP(S) for HTTP clients, WS(S) for WS clients |
 
 The example file contains placeholder tokens. Automatic main-config creation

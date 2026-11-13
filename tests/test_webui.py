@@ -147,7 +147,7 @@ def test_network_save_applies_without_restarting_account(tmp_path: Path):
             assert response.json()["status"] == "ok"
 
         payload["wsServers"] = [{"name": "events", "host": "127.0.0.1", "port": ws_port,
-                                 "path": "/ws", "accessToken": "onebot-token", "enabled": True}]
+                                 "path": "/ws", "accessToken": "onebot-token", "enabled": True, "maxMessageBytes": 134217728}]
         assert client.put(base, json=payload).json()["applied"] is True
         assert runtime.network.http_servers[0] is first_adapter
         assert runtime.driver is driver and driver.online
@@ -202,7 +202,7 @@ def test_network_endpoint_runs_before_and_after_wechat_runtime(tmp_path: Path):
         payload["httpServers"] = [{"name": "offline-api", "host": "127.0.0.1", "port": port,
                                    "path": "/", "accessToken": "onebot-token", "enabled": True}]
         payload["wsServers"] = [{"name": "offline-ws", "host": "127.0.0.1", "port": ws_port,
-                                 "path": "/ws", "accessToken": "onebot-token", "enabled": True}]
+                                 "path": "/ws", "accessToken": "onebot-token", "enabled": True, "maxMessageBytes": 134217728}]
         saved = client.put("/api/accounts/wxid_robot/network", json=payload).json()
         assert saved["saved"] is True and saved["applied"] is True
         runtime = manager.get("wxid_robot")
