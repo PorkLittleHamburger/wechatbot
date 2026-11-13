@@ -36,7 +36,7 @@ Unregistered actions fail explicitly (`1404` via WS; HTTP 404). These include na
 ## Messages and media
 
 - Sending accepts CQ strings, arrays, or one segment object. CQ text and parameters are escaped separately; `auto_escape=true` sends a string literally. Incoming `raw_message` preserves the full CQ representation, including mentions, media and quotes.
-- Standard `text`, `image`, `record` sending and group `at` are supported. Mention-only chains use native mentions; `qq="all"` remains unsupported. Unknown targets fail; visible `@name` text never substitutes for a native mention.
+- Standard `text`, `image`, `record` sending and group `at` are supported. Pre-encoded SILK v3 records send out of the box; WAV records require the optional `silk-python==0.2.9` encoder and fail explicitly without it. Mention-only chains use native mentions; `qq="all"` remains unsupported. Unknown targets fail; visible `@name` text never substitutes for a native mention.
 - Native quoted sending is unavailable: any outbound `reply` rejects the complete chain with `1404`, before sending. Clients requesting ordinary replies must explicitly omit the segment. Inbound `reply` plus `get_msg` remains supported.
 - Inbound forwarded records use `forward` and standard `get_forward_msg.message` nodes with `data.user_id`, `nickname`, and `content`. Optional `messages`, `records`, and availability metadata are supplementary. Unknown original user IDs are `"0"`; original time text is not fabricated into timestamps. See [rich messages](rich-messages.md).
 - Link titles, URLs and descriptions use standard text. Received generic files use a text download link; WeChat file stickers use `image`. No incoming `file` segment or private `text.data.link` is required.
