@@ -204,7 +204,7 @@ v0.10.1 实机反馈两个问题：启动桥接仍可能报“helper 启动失�
 
 发布结果（2026-11-13）：标注标签 `v0.10.2` 指向 `0851dfa`；[Bot checks #43376900152](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43376900152) 成功；附件 `wechat-onebot-0.10.2-windows-x64.zip`（60,049,409 字节，SHA-256 `2d7cbd7109b940502e629b62e8fe8fb2d014640d503c3b2254e80f46e9014feb`）与同名 `.sha256`；正式发布并设为 Latest，标题为 `WeChatBot v0.10.2`，公开重新下载的摘要一致。Launcher `VersionStore.import_archive` 在临时根目录导入成功：识别 0.10.2、校验 1,567 个文件、worker/SDK/DLL 齐全、状态 compatible。v0.10.0 与 v0.10.1 的 Release 及附件已删除（`releases/tags/*` 返回 404），对应标签仍保留。未在 Launcher 内启动该版本，未替换运行实例。
 
-## v0.10.3 Launcher 驱动契约（2026-11-13，发布待确认）
+## v0.10.3 Launcher 驱动契约（2026-11-13，发布基线）
 
 用户升级到 0.10.2 后，启动实例报「实例驱动与清单不一致」和「备份缺少有效的实例配置」。
 
@@ -214,4 +214,6 @@ v0.10.1 实机反馈两个问题：启动桥接仍可能报“helper 启动失�
 
 兼容：0.10.1/0.10.2 已改写过的实例（`config.driver.type=sdk`、`mode=helper`）无法由 Bot 自行修复——Launcher 在启动 Bot 之前就会拒绝。需要 Launcher 增加 `sdk` mode 并把 mode 迁移为 sdk，或把 `config.driver.type` 改回 `helper`（0.10.3 起不会再被改写）。备份恢复同理。
 
-验证：507 项回归通过、1 项 Windows 符号链接权限测试跳过；临时配置验证 `helper` 配置下自动使用 sdk、`driver.type` 保持 `helper`、PID 与昵称正确写回。未发布、未修改用户实例配置或运行进程。
+验证：507 项回归通过、1 项 Windows 符号链接权限测试跳过；临时配置验证 `helper` 配置下自动使用 sdk、`driver.type` 保持 `helper`、PID 与昵称正确写回。未修改用户实例配置或运行进程。
+
+2026-11-13 用户明确确认发布顺序：**Launcher v0.8.12 先发**（`bot-launcher` 仓：窄视图读取实例配置、helper 实例兼容 `driver.type ∈ {helper, sdk}`、恢复时归一为 mode；不改 UI/Rust/数据迁移），**WeChatBot v0.10.3 随后**。Launcher 修复在 Bot 启动前解除「实例驱动与清单不一致」与备份恢复失败；Bot 0.10.3 防止未来再次改写 `driver.type`。两个 Release 均不替换运行实例。
