@@ -383,7 +383,7 @@ def test_helper_config_selection_falls_back_to_sdk_account(tmp_path: Path, monke
         assert response.json()["account"] == "wxid_sdk"
         assert response.json()["pid"] == 654
         stored = json.loads(config.path.read_text(encoding="utf-8"))
-        assert stored["driver"]["type"] == "sdk"
+        assert stored["driver"]["type"] == "helper"
         assert stored["driver"]["wechat_account"] == "wxid_sdk"
         assert stored["driver"]["wechat_pid"] == 654
 

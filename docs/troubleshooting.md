@@ -17,6 +17,8 @@
 
 - `UNSUPPORTED_BUILD` / “未发现已登录且受支持的微信账号”：确认微信是 4.2.0.52 且核心指纹匹配；4.2.0.52 只能用 `sdk`，其余已适配构建只能用 `helper`。修改 `supported_versions` 或复制 DLL 都不放行。
 - 升级到 4.2.0.52 后仍提示“目标账号未登录”：v0.10.0 及以前不会自动切换驱动。v0.10.1 起启动账号会自动尝试 `helper` 与 `sdk`，成功后把 `driver.type` 与 PID 写回配置；仍失败时错误会列出检测到的微信构建与错误码，可据此判断是构建不支持、账号不一致还是旧桥接占用。
+- Launcher 启动实例报“实例驱动与清单不一致”：启动器要求 `config.driver.type` 等于 `instance.json` 的 `mode`。v0.10.1/0.10.2 的自动回退曾把类型持久化为 `sdk`，而实例 mode 仍是 `helper`。v0.10.3 起 Bot 不再改写 `driver.type`；已有实例需由 Launcher 把 mode 迁移为 `sdk`，或把 `config.driver.type` 改回 `helper`（升级到 0.10.3 后不会再被改写）。
+- 恢复备份报“备份缺少有效的实例配置”：备份里的 `config.json` 若包含启动器尚不认识的 `driver.type=sdk`，恢复校验会失败。使用更新后的 Launcher，或改用仍为 `helper` 配置的备份。
 - `LAYOUT_NOT_READY` / “Core module has not loaded”：微信仍在启动或核心模块未加载；等待登录完成再扫描，枚举到的其他进程也会以该代码出现。
 - `ACCESS_DENIED`：Bot 进程权限低于微信；用与微信同级或更高权限的终端启动。
 - `SESSION_BUSY`：同一微信进程已有其他 owner 会话；关闭那个进程的 SDK/框架客户端后再启动。

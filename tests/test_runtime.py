@@ -170,9 +170,9 @@ async def test_start_account_falls_back_to_sdk_for_unsupported_helper_build(tmp_
         assert created == ["sdk"]
         assert runtime.driver.online is True
         assert runtime.pid == 31004
-        assert manager.config.driver.type == "sdk"
+        assert manager.config.driver.type == "helper"
         stored = json.loads(config.path.read_text(encoding="utf-8"))["driver"]
-        assert stored["type"] == "sdk"
+        assert stored["type"] == "helper"
         assert stored["wechat_pid"] == 31004
         assert stored["wechat_account"] == "wxid_robot"
     finally:
@@ -201,9 +201,9 @@ async def test_helper_start_rejection_falls_back_to_sdk(tmp_path: Path, monkeypa
         assert created == ["helper", "sdk"]
         assert runtime.driver.online is True
         assert runtime.pid == 31004
-        assert manager.config.driver.type == "sdk"
+        assert manager.config.driver.type == "helper"
         stored = json.loads(config.path.read_text(encoding="utf-8"))["driver"]
-        assert stored["type"] == "sdk"
+        assert stored["type"] == "helper"
         assert stored["wechat_pid"] == 31004
         assert stored["nickname"] == "墨染青花"
     finally:
@@ -244,7 +244,7 @@ async def test_configured_sdk_driver_falls_back_to_helper(tmp_path: Path, monkey
     try:
         await manager.start_account("wxid_robot")
         assert created == ["helper"]
-        assert manager.config.driver.type == "helper"
+        assert manager.config.driver.type == "sdk"
     finally:
         await manager.stop_all()
 

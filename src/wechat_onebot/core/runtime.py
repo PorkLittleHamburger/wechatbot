@@ -280,30 +280,27 @@ class RuntimeManager:
 
     def _remember_driver(self, driver_type: str | None, account: str, pid: int | None,
                          login: object | None) -> None:
+        """Persist account/binding facts, never the configured driver type.
+
+        The Launcher owns the instance mode and validates
+        ``config.driver.type == instance.mode`` before every start. Rewriting the
+        type from a runtime fallback would break that contract (and backups), so
+        an automatic switch stays in-memory only.
+        """
         if driver_type is None:
             return
         nickname = str(getattr(login, "nickname", "") or "") or self.config.driver.nickname
         bound = account == self.config.driver.wechat_account or not self.config.driver.wechat_account
-        changed = (driver_type != self.config.driver.type
-                   or (bound and (pid != self.config.driver.wechat_pid
-                                  or nickname != self.config.driver.nickname)))
+        changed = bound and (pid != self.config.driver.wechat_pid
+                             or nickname != self.config.driver.nickname)
         if not changed:
             return
-        if driver_type != self.config.driver.type:
-            logger.warning("已按微信构建自动切换驱动: %s -> %s（账号 %s）",
-                           self.config.driver.type, driver_type, account)
-        if bound:
-            try:
-                update_account(self.config.path, account=account, pid=pid, nickname=nickname,
-                               driver_type=driver_type)
-            except Exception:
-                logger.warning("自动切换驱动后写入配置失败；本次运行仍使用 %s 驱动",
-                               driver_type, exc_info=True)
-            self.config = replace(self.config, driver=replace(
-                self.config.driver, type=driver_type, wechat_account=account,
-                wechat_pid=pid, nickname=nickname))
-        else:
-            self.config = replace(self.config, driver=replace(self.config.driver, type=driver_type))
+        try:
+            update_account(self.config.path, account=account, pid=pid, nickname=nickname)
+        except Exception:
+            logger.warning("自动回退后写入账号绑定失败", exc_info=True)
+        self.config = replace(self.config, driver=replace(
+            self.config.driver, wechat_account=account, wechat_pid=pid, nickname=nickname))
 
     async def _start_with_driver(self, account: str, driver_type: str,
                                  login: object | None, pid: int | None) -> AccountRuntime:

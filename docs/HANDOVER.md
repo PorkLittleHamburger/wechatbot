@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.10.1，本轮源码为 v0.10.2（实际发布状态以远端标签和 Release 为准）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.10.2，本轮源码为 v0.10.3（实际发布状态以远端标签和 Release 为准）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -203,3 +203,15 @@ v0.10.1 实机反馈两个问题：启动桥接仍可能报“helper 启动失�
 2026-11-13 用户明确授权发布 **WeChatBot v0.10.2**，并要求撤下 v0.10.0 与 v0.10.1 两个不可用的 Release：删除两个 Release 及其附件，保留 Git 标签供历史引用；v0.10.2 为唯一受支持的下载版本。发布不替换运行实例。
 
 发布结果（2026-11-13）：标注标签 `v0.10.2` 指向 `0851dfa`；[Bot checks #43376900152](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43376900152) 成功；附件 `wechat-onebot-0.10.2-windows-x64.zip`（60,049,409 字节，SHA-256 `2d7cbd7109b940502e629b62e8fe8fb2d014640d503c3b2254e80f46e9014feb`）与同名 `.sha256`；正式发布并设为 Latest，标题为 `WeChatBot v0.10.2`，公开重新下载的摘要一致。Launcher `VersionStore.import_archive` 在临时根目录导入成功：识别 0.10.2、校验 1,567 个文件、worker/SDK/DLL 齐全、状态 compatible。v0.10.0 与 v0.10.1 的 Release 及附件已删除（`releases/tags/*` 返回 404），对应标签仍保留。未在 Launcher 内启动该版本，未替换运行实例。
+
+## v0.10.3 Launcher 驱动契约（2026-11-13，发布待确认）
+
+用户升级到 0.10.2 后，启动实例报「实例驱动与清单不一致」和「备份缺少有效的实例配置」。
+
+根因：Launcher 0.8.11 的 `manager.check_config` 要求 `config.json` 的 `driver.type` 等于 `instance.json` 的 `mode`（`launcher/manager.py:188`）。Bot 0.10.1/0.10.2 的自动回退把 `driver.type` 持久化成 `sdk`，而实例 `mode` 仍是 `helper`，启动前即被拒绝；`manager.py:67/134` 的实例元数据只接受 `mock`/`helper`，`restore_service.py:42` 的恢复校验同样只接受这两种，且恢复时用 Launcher 侧的 `AppConfig.load` 解析备份 config，遇到 `driver.type=sdk` 失败，表现为「备份缺少有效的实例配置」（即便解析成功也会以「备份驱动无效」拒绝）。
+
+修复（Bot 侧）：自动回退只保留在本次运行时的内存中，`_remember_driver` 不再写 `driver.type`，只持久化账号、PID 与昵称；WebUI 账号选择也不再改类型。`config.driver.type` 始终等于 Launcher 的 mode；`helper` 配置下 4.2.0.52 仍由 sdk 驱动运行。已与 `bot-launcher` 会话沟通 Launcher 侧方案。
+
+兼容：0.10.1/0.10.2 已改写过的实例（`config.driver.type=sdk`、`mode=helper`）无法由 Bot 自行修复——Launcher 在启动 Bot 之前就会拒绝。需要 Launcher 增加 `sdk` mode 并把 mode 迁移为 sdk，或把 `config.driver.type` 改回 `helper`（0.10.3 起不会再被改写）。备份恢复同理。
+
+验证：507 项回归通过、1 项 Windows 符号链接权限测试跳过；临时配置验证 `helper` 配置下自动使用 sdk、`driver.type` 保持 `helper`、PID 与昵称正确写回。未发布、未修改用户实例配置或运行进程。

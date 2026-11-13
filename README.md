@@ -49,6 +49,8 @@ v0.10.1 修复从 `helper` 配置升级到 4.2.0.52 后的启动误报：启动�
 
 v0.10.2 修复两处升级后的残留问题：配置驱动在发现阶段看到了账号、但原生启动被拒（例如 `helper` 对 4.2.0.52 报“不是绑定的机器人账号”）时，会用另一驱动重试并在成功后切换；绑定账号昵称改为从 SDK 只读联系人缓存补全（回退配置昵称），扫描、选择与启动不再用空昵称覆盖已知昵称。
 
+v0.10.3 调整与 Launcher 的驱动契约：实例 `mode` 由 Launcher 拥有，Bot 的自动回退只在本次运行时生效，**不再改写 `driver.type`**，只持久化账号、PID 与昵称。这样 `config.driver.type` 始终与实例 mode 一致，避免“实例驱动与清单不一致”，备份也不会因 sdk 类型而无法恢复；微信 4.2.0.52 在 `helper` 配置下仍会自动使用 sdk 驱动运行。
+
 ## 下载与升级
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。
