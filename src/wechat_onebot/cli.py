@@ -196,8 +196,8 @@ def command_run(args: argparse.Namespace) -> int:
     config = AppConfig.load(args.config)
     if args.mock:
         config = replace(config, driver=replace(config.driver, type="mock"))
-    if config.driver.type in ("helper", "sdk") and os.name == "nt" and not ctypes.windll.shell32.IsUserAnAdmin():
-        raise ConfigError(f"{config.driver.type} 原生驱动需要管理员权限，请从提权后的 PowerShell 启动；协议开发可使用 run --mock")
+    if config.driver.type == "helper" and os.name == "nt" and not ctypes.windll.shell32.IsUserAnAdmin():
+        raise ConfigError("helper 原生驱动需要管理员权限，请从提权后的 PowerShell 启动；协议开发可使用 run --mock")
     _configure_logging(args.log_level)
     manager = _build_manager(config)
     app = create_webui_app(config, manager, start_runtime=args.resume_bridge)
