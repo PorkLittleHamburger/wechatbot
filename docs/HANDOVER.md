@@ -183,3 +183,5 @@ Launcher 负责明确恢复设置/启动参数、所选 worker 能力握手及�
 验证：新增 6 项回归（回退成功并持久化、配置驱动优先、反向回退、失败错误含构建信息、自启回退、WebUI 选择回退），全量 **502 项通过、1 项 Windows 符号链接权限测试跳过**。用临时配置复现实例场景（helper + 过期 PID + 4.2.0.52）：日志“已按微信构建自动切换驱动: helper -> sdk”，连接成功（`SdkDriver`、`4.2.0.52`、watchdog `ready`，PID 修正为 31004），配置文件写回 `type=sdk`/`pid=31004`；停止后微信进程存活。未发送消息，未修改用户实例配置或运行进程。
 
 边界：自动回退只在“目标账号已被另一驱动验证”时发生；两驱动都找不到时仍失败，并列出检测到的构建与错误码。正在运行的 v0.10.0 服务不会热切换，需导入 v0.10.1 并切换实例运行版本后重启。2026-11-13 用户明确授权发布 **WeChatBot v0.10.1**（标签 `v0.10.1`，资产 `wechat-onebot-0.10.1-windows-x64.zip` + 同名 `.sha256`）；正式状态以 Release 页面为准，发布不会替换运行实例。
+
+发布结果（2026-11-13）：标注标签 `v0.10.1` 指向 `e059776`；[Bot checks #43373899369](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43373899369) 成功；附件 `wechat-onebot-0.10.1-windows-x64.zip`（60,046,846 字节，SHA-256 `331e45a53296cc9a6a40c8e97418d67751210dad2171f63a8a0e77f03040e55b`）与同名 `.sha256`；正式发布并设为 Latest，标题按新约定为 `WeChatBot v0.10.1`，公开重新下载的摘要一致。Launcher `VersionStore.import_archive` 在临时根目录导入成功：识别 0.10.1、校验 1,567 个文件、worker/SDK/DLL 齐全、状态 compatible。未在 Launcher 内启动该版本，未替换运行实例。
