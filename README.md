@@ -45,6 +45,8 @@ v0.9.2 支持将 `send_group_forward_msg` / `send_private_forward_msg` 的节点
 
 v0.10.0 新增 `sdk` 驱动，通过独立框架 `wechatbot-api 0.1.0.dev14` 支持微信 4.2.0.52：文本、真实群 `@`、PNG/文件/语音/视频发送，图片/文件/语音/视频接收与引用媒体解析，以及只读联系人/群/成员缓存。表情包发送、撤回、好友申请、群管理、原生合并转发卡片与出站原生引用仍明确不支持。该驱动已完成实机连接、查询与启停验收；入站消息和发送链路仍待真实消息验证，详见 [微信版本与能力](docs/wechat-versions.md)。
 
+v0.10.1 修复从 `helper` 配置升级到 4.2.0.52 后的启动误报：启动账号时若配置驱动找不到目标账号，会自动尝试另一真实驱动，成功后把 `driver.type` 与 PID 写回配置；账号扫描与选择也支持该回退。只有切换成功才写配置，失败保留原值，错误信息会列出检测到的微信构建与错误码。
+
 ## 下载与升级
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。

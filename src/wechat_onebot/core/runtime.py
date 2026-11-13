@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import logging
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from ..config import AppConfig, account_directories
-from ..bridge import discover_logged_accounts, discover_sdk_accounts
+from ..config import AppConfig, account_directories, update_account
+from ..bridge import discover_logged_accounts, discover_sdk_accounts, sdk_discovery_report
 from ..driver import create_driver
 from ..driver.base import Driver
 from ..ids import IdMapper
@@ -15,6 +16,8 @@ from ..onebot import MessageStore
 from ..onebot.instance import OneBotInstance
 from ..onebot.network import (AccountNetworkConfig, OneBotNetworkManager,
                               load_or_create_account_network_config, save_account_network_config)
+
+logger = logging.getLogger("wechat-onebot.runtime")
 
 
 class AccountNotLoggedInError(RuntimeError):
@@ -164,11 +167,15 @@ class RuntimeManager:
         async with self._lock:
             return await self._ensure_network_locked(account, network_config)
 
-    async def _ensure_network_locked(self, account: str, network_config: AccountNetworkConfig | None = None) -> AccountRuntime:
+    async def _ensure_network_locked(self, account: str, network_config: AccountNetworkConfig | None = None,
+                                     *, driver_type: str | None = None) -> AccountRuntime:
         runtime = self._runtimes.get(account)
         if runtime is not None:
             return runtime
-        runtime = AccountRuntime.create(self.config, account=account, network_config=network_config)
+        runtime_config = self.config
+        if driver_type and driver_type != self.config.driver.type:
+            runtime_config = replace(self.config, driver=replace(self.config.driver, type=driver_type))
+        runtime = AccountRuntime.create(runtime_config, account=account, network_config=network_config)
         try:
             await runtime.network.start()
         except Exception:
@@ -214,31 +221,96 @@ class RuntimeManager:
             return failure(1404, f"账号 Runtime 不存在: {account}", echo)
         return await runtime.service.dispatch(action, params, echo)
 
+    async def _discover_for(self, driver_type: str) -> list:
+        if driver_type == "sdk":
+            return await asyncio.to_thread(discover_sdk_accounts, self.config)
+        return await asyncio.to_thread(discover_logged_accounts, self.config.driver.helper_root)
+
+    async def _resolve_account(self, account: str) -> tuple[str | None, object | None]:
+        """Pick the configured driver, falling back to the other real driver.
+
+        A gateway upgraded from helper to 0.10.0 keeps ``driver.type=helper`` in
+        its existing config while the installed WeChat is a 4.2.0.52 build that
+        only the SDK driver supports. Trying the other driver here removes that
+        migration trap instead of reporting the account as logged out.
+        """
+        configured = self.config.driver.type
+        if configured == "mock":
+            return None, None
+        order: list[str] = []
+        if configured in ("helper", "sdk"):
+            order.append(configured)
+        for kind in ("helper", "sdk"):
+            if kind not in order:
+                order.append(kind)
+        for kind in order:
+            try:
+                rows = await self._discover_for(kind)
+            except Exception as error:
+                logger.info("%s 驱动账号发现失败: %s", kind, error)
+                continue
+            matches = [row for row in rows if row.wxid == account]
+            if len(matches) == 1:
+                if kind != configured:
+                    logger.info("配置驱动 %s 未找到账号 %s，改用 %s 驱动", configured, account, kind)
+                return kind, matches[0]
+            if len(matches) > 1:
+                raise RuntimeError("目标账号无法唯一识别，请在 WebUI 重新扫描")
+        try:
+            _, diagnostics = await asyncio.to_thread(sdk_discovery_report, self.config)
+        except Exception:
+            diagnostics = []
+        versions = sorted({row["version"] for row in diagnostics if row.get("version")})
+        codes = sorted({row["error"] for row in diagnostics
+                        if row.get("error") and row["error"] != "NOT_LOGGED_IN"})
+        hint = ""
+        if versions:
+            hint += f" 检测到微信构建 {', '.join(versions)}。"
+        if codes:
+            hint += f" 发现错误码 {', '.join(codes)}。"
+        raise AccountNotLoggedInError(
+            f"目标账号未登录，或当前微信构建不受支持（已尝试 {'/'.join(order)} 驱动）。{hint}"
+            "4.2.0.52 需要 sdk 驱动，4.1.15.x / 4.2.0.11 / 4.2.0.12 需要 helper 驱动；"
+            "请确认微信已登录、账号一致，且没有旧桥接占用该进程。"
+        )
+
+    def _remember_driver(self, driver_type: str | None, account: str, pid: int | None,
+                         login: object | None) -> None:
+        if driver_type is None:
+            return
+        nickname = str(getattr(login, "nickname", "") or "") or self.config.driver.nickname
+        bound = account == self.config.driver.wechat_account or not self.config.driver.wechat_account
+        changed = (driver_type != self.config.driver.type
+                   or (bound and (pid != self.config.driver.wechat_pid
+                                  or nickname != self.config.driver.nickname)))
+        if not changed:
+            return
+        if driver_type != self.config.driver.type:
+            logger.warning("已按微信构建自动切换驱动: %s -> %s（账号 %s）",
+                           self.config.driver.type, driver_type, account)
+        if bound:
+            try:
+                update_account(self.config.path, account=account, pid=pid, nickname=nickname,
+                               driver_type=driver_type)
+            except Exception:
+                logger.warning("自动切换驱动后写入配置失败；本次运行仍使用 %s 驱动",
+                               driver_type, exc_info=True)
+            self.config = replace(self.config, driver=replace(
+                self.config.driver, type=driver_type, wechat_account=account,
+                wechat_pid=pid, nickname=nickname))
+        else:
+            self.config = replace(self.config, driver=replace(self.config.driver, type=driver_type))
+
     async def start_account(self, account: str, pid: int | None = None) -> AccountRuntime:
-        if self.config.driver.type == "helper":
-            discovered = await asyncio.to_thread(discover_logged_accounts, self.config.driver.helper_root)
-            matches = [row for row in discovered if row.wxid == account]
-            if not matches:
-                raise AccountNotLoggedInError("目标账号未登录，请在 PC 微信中登录")
-            if len(matches) != 1:
-                raise RuntimeError("目标账号无法唯一识别，请在 WebUI 重新扫描")
-            pid = matches[0].pid
-        elif self.config.driver.type == "sdk":
-            discovered = await asyncio.to_thread(discover_sdk_accounts, self.config)
-            matches = [row for row in discovered if row.wxid == account]
-            if not matches:
-                raise AccountNotLoggedInError(
-                    "目标账号未登录，或当前微信构建不在 wechatbot_api 已适配范围内"
-                )
-            if len(matches) != 1:
-                raise RuntimeError("目标账号无法唯一识别，请在 WebUI 重新扫描")
-            pid = matches[0].pid
+        driver_type, login = await self._resolve_account(account)
+        target_pid = login.pid if login is not None else pid
         async with self._lock:
-            runtime = await self._ensure_network_locked(account)
+            runtime = await self._ensure_network_locked(account, driver_type=driver_type)
             if runtime.started:
                 raise RuntimeError(f"账号 runtime 已启动: {account}")
-            runtime.set_pid(pid)
+            runtime.set_pid(target_pid)
             await runtime.start()
+        self._remember_driver(driver_type, account, target_pid, login)
         return runtime
 
     async def stop_account(self, account: str) -> None:

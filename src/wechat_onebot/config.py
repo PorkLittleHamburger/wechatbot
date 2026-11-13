@@ -299,7 +299,8 @@ class AppConfig:
         )
 
 
-def update_account(path: str | Path, *, account: str, pid: int | None, nickname: str = "") -> None:
+def update_account(path: str | Path, *, account: str, pid: int | None, nickname: str = "",
+                   driver_type: str | None = None) -> None:
     target = Path(path).resolve()
     raw = json.loads(target.read_text(encoding="utf-8-sig"))
     if not isinstance(raw, dict):
@@ -310,4 +311,6 @@ def update_account(path: str | Path, *, account: str, pid: int | None, nickname:
     driver["wechat_account"] = account
     driver["wechat_pid"] = pid
     driver["nickname"] = nickname
+    if driver_type is not None:
+        driver["type"] = driver_type
     _atomic_write_json(target, raw)

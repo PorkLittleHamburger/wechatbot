@@ -6,9 +6,64 @@ from pathlib import Path
 
 import pytest
 
+from wechat_onebot.bridge import WeChatLogin
 from wechat_onebot.config import AppConfig, DriverConfig, OneBotConfig, StorageConfig
-from wechat_onebot.core.runtime import AccountRuntime
+from wechat_onebot.core import runtime as runtime_module
+from wechat_onebot.core.runtime import AccountNotLoggedInError, AccountRuntime, RuntimeManager
+from wechat_onebot.driver.base import Driver
 from wechat_onebot.driver.helper import HelperDriver
+from wechat_onebot.models import DriverStatus, LoginInfo
+
+
+class FakeDriver(Driver):
+    capabilities = frozenset({"text.receive", "text.send"})
+
+    def __init__(self, config: AppConfig):
+        self.config = config
+        self._online = False
+
+    @property
+    def online(self) -> bool:
+        return self._online
+
+    async def start(self, emit) -> None:
+        self._online = True
+
+    async def stop(self) -> None:
+        self._online = False
+
+    async def send_text(self, chat_id, text):
+        return True
+
+    async def send_at_text(self, chat_id, text, user_ids, display_names=None):
+        return True
+
+    async def send_image(self, chat_id, path):
+        return True
+
+    async def send_file(self, chat_id, path):
+        return True
+
+    async def send_voice(self, chat_id, path):
+        return True
+
+    async def send_emoticon(self, chat_id, path):
+        return True
+
+    async def get_login_info(self) -> LoginInfo:
+        return LoginInfo(external_user_id="wxid_robot", nickname="Robot")
+
+    async def get_friend_list(self):
+        return []
+
+    async def get_group_list(self):
+        return []
+
+    async def get_group_member_list(self, group_id):
+        return []
+
+    async def get_status(self) -> DriverStatus:
+        return DriverStatus(online=self._online)
 
 
 def make_config(tmp_path: Path) -> AppConfig:
@@ -62,3 +117,117 @@ async def test_network_only_runtime_rebinds_current_wechat_pid(tmp_path: Path):
         assert runtime.started is False and runtime.driver.online is False
     finally:
         await runtime.close()
+
+
+def make_manager_config(tmp_path: Path) -> AppConfig:
+    config = make_config(tmp_path)
+    config = replace(config, driver=replace(
+        config.driver, type="helper", helper_root=tmp_path / "helper",
+        wechat_account="wxid_robot", wechat_pid=None))
+    config.path.write_text(json.dumps({
+        "driver": {"type": "helper", "wechat_account": "wxid_robot",
+                   "wechat_pid": None, "nickname": ""},
+    }), encoding="utf-8")
+    return config
+
+
+def patch_discovery(monkeypatch, *, helper_rows=(), sdk_rows=(), diagnostics=()):
+    monkeypatch.setattr(runtime_module, "discover_logged_accounts",
+                        lambda root: list(helper_rows))
+    monkeypatch.setattr(runtime_module, "discover_sdk_accounts",
+                        lambda cfg: list(sdk_rows))
+    monkeypatch.setattr(runtime_module, "sdk_discovery_report",
+                        lambda cfg: (list(sdk_rows), list(diagnostics)))
+
+
+def patch_driver(monkeypatch, created: list[str]):
+    def factory(config: AppConfig) -> FakeDriver:
+        created.append(config.driver.type)
+        return FakeDriver(config)
+
+    monkeypatch.setattr(runtime_module, "create_driver", factory)
+
+
+@pytest.mark.asyncio
+async def test_start_account_falls_back_to_sdk_for_unsupported_helper_build(tmp_path: Path, monkeypatch):
+    config = make_manager_config(tmp_path)
+    patch_discovery(
+        monkeypatch,
+        helper_rows=[],
+        sdk_rows=[WeChatLogin(pid=31004, wxid="wxid_robot", nickname="Robot",
+                              version="4.2.0.52")],
+    )
+    created: list[str] = []
+    patch_driver(monkeypatch, created)
+    manager = RuntimeManager(config)
+    try:
+        runtime = await manager.start_account("wxid_robot")
+        assert created == ["sdk"]
+        assert runtime.driver.online is True
+        assert runtime.pid == 31004
+        assert manager.config.driver.type == "sdk"
+        stored = json.loads(config.path.read_text(encoding="utf-8"))["driver"]
+        assert stored["type"] == "sdk"
+        assert stored["wechat_pid"] == 31004
+        assert stored["wechat_account"] == "wxid_robot"
+    finally:
+        await manager.stop_all()
+
+
+@pytest.mark.asyncio
+async def test_configured_helper_driver_wins_when_it_matches(tmp_path: Path, monkeypatch):
+    config = make_manager_config(tmp_path)
+    patch_discovery(
+        monkeypatch,
+        helper_rows=[WeChatLogin(pid=123, wxid="wxid_robot")],
+        sdk_rows=[WeChatLogin(pid=31004, wxid="wxid_robot", version="4.2.0.52")],
+    )
+    created: list[str] = []
+    patch_driver(monkeypatch, created)
+    manager = RuntimeManager(config)
+    try:
+        await manager.start_account("wxid_robot")
+        assert created == ["helper"]
+        assert json.loads(config.path.read_text(encoding="utf-8"))["driver"]["type"] == "helper"
+    finally:
+        await manager.stop_all()
+
+
+@pytest.mark.asyncio
+async def test_configured_sdk_driver_falls_back_to_helper(tmp_path: Path, monkeypatch):
+    config = make_manager_config(tmp_path)
+    config = replace(config, driver=replace(config.driver, type="sdk"))
+    patch_discovery(
+        monkeypatch,
+        helper_rows=[WeChatLogin(pid=123, wxid="wxid_robot")],
+        sdk_rows=[],
+    )
+    created: list[str] = []
+    patch_driver(monkeypatch, created)
+    manager = RuntimeManager(config)
+    try:
+        await manager.start_account("wxid_robot")
+        assert created == ["helper"]
+        assert manager.config.driver.type == "helper"
+    finally:
+        await manager.stop_all()
+
+
+@pytest.mark.asyncio
+async def test_start_account_error_reports_detected_build(tmp_path: Path, monkeypatch):
+    config = make_manager_config(tmp_path)
+    patch_discovery(
+        monkeypatch,
+        helper_rows=[],
+        sdk_rows=[],
+        diagnostics=[{"pid": "1", "error": "UNSUPPORTED_BUILD",
+                      "version": "4.2.0.52", "detail": "no layout"}],
+    )
+    created: list[str] = []
+    patch_driver(monkeypatch, created)
+    manager = RuntimeManager(config)
+    with pytest.raises(AccountNotLoggedInError, match="4.2.0.52"):
+        await manager.start_account("wxid_robot")
+    assert created == []
+    stored = json.loads(config.path.read_text(encoding="utf-8"))["driver"]
+    assert stored["type"] == "helper"

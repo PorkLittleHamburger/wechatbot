@@ -107,10 +107,10 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             "ok": True,
             "app": config.app_name,
             "version": config.version,
-            "driver": config.driver.type,
-            "configuredAccount": config.driver.wechat_account,
-            "configuredNickname": config.driver.nickname,
-            "configuredPid": config.driver.wechat_pid,
+            "driver": manager.config.driver.type,
+            "configuredAccount": manager.config.driver.wechat_account,
+            "configuredNickname": manager.config.driver.nickname,
+            "configuredPid": manager.config.driver.wechat_pid,
             "lastError": manager.last_error,
             "runtimes": manager.snapshot(),
             "bridgeResume": bridge_resume.snapshot(),
@@ -276,6 +276,16 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
                     discovered = await asyncio.to_thread(discover_sdk_accounts, config)
                 else:
                     discovered = await asyncio.to_thread(discover_logged_accounts, config.driver.helper_root)
+                if not discovered:
+                    # A helper-configured instance may have been upgraded next
+                    # to a 4.2.0.52 client; show accounts the SDK can see.
+                    try:
+                        if config.driver.type == "sdk":
+                            discovered = await asyncio.to_thread(discover_logged_accounts, config.driver.helper_root)
+                        else:
+                            discovered = await asyncio.to_thread(discover_sdk_accounts, config)
+                    except Exception:
+                        discovered = []
                 for login in discovered:
                     row = rows.setdefault(login.wxid, {"account": login.wxid, "pid": login.pid,
                                                        "nickname": login.nickname, "configured": login.wxid == configured,
@@ -323,6 +333,7 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
         account = body["account"].strip()
         if not account:
             return Response("请选择有效账号", status_code=400)
+        selected_driver = config.driver.type
         if config.driver.type in ("helper", "sdk"):
             try:
                 if config.driver.type == "sdk":
@@ -332,6 +343,21 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             except Exception:
                 return Response("只读账号扫描失败", status_code=503)
             matches = [row for row in discovered if row.wxid == account]
+            if not matches and config.driver.type in ("helper", "sdk"):
+                try:
+                    if config.driver.type == "sdk":
+                        alternate = await asyncio.to_thread(discover_logged_accounts, config.driver.helper_root)
+                        alternate_driver = "helper"
+                    else:
+                        alternate = await asyncio.to_thread(discover_sdk_accounts, config)
+                        alternate_driver = "sdk"
+                except Exception:
+                    alternate = []
+                    alternate_driver = selected_driver
+                alternate_matches = [row for row in alternate if row.wxid == account]
+                if len(alternate_matches) == 1:
+                    matches = alternate_matches
+                    selected_driver = alternate_driver
             if len(matches) != 1:
                 return Response("账号未登录或无法唯一识别，请重新扫描", status_code=409)
             selected = matches[0]
@@ -340,8 +366,10 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             if account != config.driver.wechat_account:
                 return Response("Mock 模式只能选择已配置账号", status_code=409)
             pid, nickname = config.driver.wechat_pid, config.driver.nickname
-        update_account(config.path, account=account, pid=pid, nickname=nickname)
-        config = replace(config, driver=replace(config.driver, wechat_account=account,
+        update_account(config.path, account=account, pid=pid, nickname=nickname,
+                       driver_type=selected_driver if selected_driver != config.driver.type else None)
+        config = replace(config, driver=replace(config.driver, type=selected_driver,
+                                                wechat_account=account,
                                                 wechat_pid=pid, nickname=nickname))
         manager.config = config
         manager.last_error = ""

@@ -40,8 +40,18 @@ def discover_sdk_accounts(config: "AppConfig") -> list[WeChatLogin]:
     verified are returned; unsupported builds stay visible through the error
     detail instead of being reported as logged-out.
     """
+    return sdk_discovery_report(config)[0]
+
+
+def sdk_discovery_report(config: "AppConfig") -> tuple[list[WeChatLogin], list[dict[str, str]]]:
+    """Return verified SDK accounts and per-candidate diagnostics.
+
+    Diagnostics keep the build version and error code so the caller can explain
+    an unsupported or not-yet-logged-in client instead of reporting a generic
+    "not logged in" failure.
+    """
     if sys.platform != "win32":
-        return []
+        return [], []
     try:
         import wechatbot_api
     except ImportError as error:  # pragma: no cover - packaging check
@@ -49,11 +59,19 @@ def discover_sdk_accounts(config: "AppConfig") -> list[WeChatLogin]:
             "未安装 wechatbot_api 运行时；请安装 vendor/wechatbot_api 下的 wheel"
         ) from error
     rows: list[WeChatLogin] = []
+    diagnostics: list[dict[str, str]] = []
     for result in wechatbot_api.Client().discover():
-        account = getattr(result, "account", None)
-        if account is None or getattr(result, "error", None) is not None:
-            continue
         build = getattr(result, "build", None)
+        account = getattr(result, "account", None)
+        error = getattr(result, "error", None)
+        if account is None or error is not None:
+            diagnostics.append({
+                "pid": str(getattr(result, "pid", "")),
+                "error": (getattr(error, "value", None) or str(error)) if error is not None else "",
+                "version": str(getattr(build, "version", "") or ""),
+                "detail": str(getattr(result, "detail", "") or ""),
+            })
+            continue
         rows.append(WeChatLogin(
             pid=int(result.pid), wxid=str(account.wxid),
             nickname=str(getattr(account, "wechat_name", "") or ""),
@@ -64,7 +82,7 @@ def discover_sdk_accounts(config: "AppConfig") -> list[WeChatLogin]:
                 "sha256": str(getattr(build, "sha256", "") or ""),
             },
         ))
-    return rows
+    return rows, diagnostics
 
 
 def discover_accounts(config: "AppConfig") -> list[WeChatLogin]:

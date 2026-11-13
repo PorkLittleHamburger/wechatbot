@@ -107,6 +107,14 @@ class BridgeResumeController:
                 if not self._current(generation):
                     return
                 matches = [row for row in rows if row.wxid == account]
+                if not matches and self.config.driver.type == "helper":
+                    # Existing helper configs upgraded to 0.10+ may target a
+                    # 4.2.0.52 client that only the SDK driver can reach.
+                    try:
+                        sdk_rows = await asyncio.to_thread(discover_sdk_accounts, self.config)
+                    except Exception:
+                        sdk_rows = []
+                    matches = [row for row in sdk_rows if row.wxid == account]
                 if len(matches) > 1:
                     self._fail(RuntimeError("目标账号无法唯一识别，自动恢复已停止"))
                     return
