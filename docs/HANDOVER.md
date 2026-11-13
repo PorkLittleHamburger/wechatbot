@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.2（Launcher 配套 v0.8.12、框架 dev14）；源码 v0.11.4 已包含 WS 大帧与长语音分段但尚未发布；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.4（Launcher 配套 v0.8.12、框架 dev14）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -267,7 +267,7 @@ v0.10.1 实机反馈两个问题：启动桥接仍可能报“helper 启动失�
 
 发布结果（2026-11-13）：用户确认发布 **WeChatBot v0.11.2**。因本机代理中断，提交通过 GitHub Git Data API 写入并重建为远程 commit `a2d71f1`（内容与本地一致），随后正常打 annotated tag 并推送。annotated tag `v0.11.2` → `a2d71f1`；[Bot checks #43407712748](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43407712748) 成功；附件 `wechat-onebot-0.11.2-windows-x64.zip` 60,402,667 B，SHA-256 `46fdab1154b74be45c834721854ff6f44b65ee160aeab412ddd29b92a8c3431c`，与同名 `.sha256` 一同设为 Latest；公网重新下载摘要一致；Launcher `VersionStore.import_archive` 导入 1,586 个文件、状态 compatible；包内 Python 验证 `VoiceTooLong` 可识别 61 秒音频。框架与 Launcher 无需改动。
 
-## v0.11.3 WebSocket 大帧上限（2026-11-13，未发布）
+## v0.11.3 WebSocket 大帧上限（2026-11-13，并入 v0.11.4）
 
 AstrBot 点歌仍报 `Local voice send failed: WebSocket API call timeout`；bot 日志显示反向 WS 收到 **37,986,087 字节** 的单帧，超过网关硬编码的 16 MiB，`websockets` 以 `1009 (message too big)` 关闭连接。原因是 AstrBot 的 aiocqhttp 适配器把本地 `Record` 转成 `base64://` WAV 内联在 `send_private_msg` 请求中，长歌曲的 JSON 帧可达数十 MB；请求在进入 `_prepare_segments` 前就被传输层拒绝。
 
@@ -281,7 +281,7 @@ AstrBot 点歌仍报 `Local voice send failed: WebSocket API call timeout`；bot
 
 边界：128 MiB 是单帧内存上限，不是可靠性保证；不可信端点不应调高。微信实际文件上传耗时不受此字段控制。
 
-## v0.11.4 长语音分段与降码率（2026-11-13，未发布）
+## v0.11.4 长语音分段与降码率（2026-11-13，发布基线）
 
 用户明确要求“怎么来的就怎么出去”：长语音仍要以微信原生语音条发送，码率高就降码率、时间长就分段，不改发文件、不截断。此前 v0.11.2 的逻辑是 `VoiceTooLong → 文件消息`，且 `ensure_silk` 在 20 MiB 输入上限处会提前失败，AstrBot 的 28 MB base64 WAV 根本到不了 60 秒判断。
 
@@ -295,3 +295,5 @@ AstrBot 点歌仍报 `Local voice send failed: WebSocket API call timeout`；bot
 验证：新增/更新 `tests/test_music_send.py` 5 项（61 秒本地 WAV、125 秒 base64 WAV、61 秒 44.1 kHz 立体声高码率 WAV、music 短/长音频、url-only 与无地址失败），逐段断言腾讯 SILK 头、单段 ≤60 秒、总时长正确；全量 **528 passed / 1 skipped**。未在真实 AstrBot + 微信上验收多段语音的到达顺序与播放体验。
 
 边界：一条请求发送多段语音，AstrBot 若在发送过程中超时，bot 仍会继续把剩余分段发完；客户端可能看到“超时”但微信收到多段语音，重试可能重复。分段上限 30 分钟是保护值。
+
+发布结果（2026-11-13）：用户确认发布 **WeChatBot v0.11.4**（v0.11.3 的 WS 大帧改动并入本版，未单独发布）。annotated tag `v0.11.4` → `5ad3f6c`；[Bot checks #43416923179](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43416923179) 成功；附件 `wechat-onebot-0.11.4-windows-x64.zip` 60,406,474 B，SHA-256 `4c1fac928fe4d4c6b0447b003703b2396b50dd53476960eecb5884c833b1a7c5`，与同名 `.sha256` 一同设为 Latest；公网重新下载摘要一致；Launcher `VersionStore.import_archive` 导入 1,586 个文件、状态 compatible；包内实测 61 秒 WAV 分为 60s+1s 两条 SILK 语音。框架与 Launcher 无需改动。
