@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.1（Launcher 配套 v0.8.12、框架 dev14），源码 v0.11.2 已修复 AstrBot 长音频发送但尚未发布；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.2（Launcher 配套 v0.8.12、框架 dev14）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -251,7 +251,7 @@ v0.10.1 实机反馈两个问题：启动桥接仍可能报“helper 启动失�
 
 发布结果（2026-11-13）：用户要求先做 CR 再发布。CR 移除了 helper 端猜测性的 native-ID 兜底、重复的私聊撤回兜底，统一了 audio 导入与收到媒体校验；随后发布 **WeChatBot v0.11.1**。annotated tag `v0.11.1` → `bad397b`；[Bot checks #43397712069](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43397712069) 成功；附件 `wechat-onebot-0.11.1-windows-x64.zip` 60,400,590 B，SHA-256 `25b515c452c46d6f0e206b174dde96a08fbd43040006c4965ba94b150916b83d`，与同名 `.sha256` 一同设为 Latest；公网重新下载摘要一致；Launcher `VersionStore.import_archive` 导入 1,586 个文件、状态 compatible；包内 Python 实测 SILK→MP3 与 WAV→AMR。框架与 Launcher 无需改动。
 
-## v0.11.2 长音频与 music 段发送（2026-11-13，未发布）
+## v0.11.2 长音频与 music 段发送（2026-11-13，发布基线）
 
 用户报告 AstrBot `astrbot_plugin_music` 发歌时出现三个错误：本地语音 `record` 被 60 秒上限拒绝（1400）、`music` 段不支持（1404）、录音链接同样超 60 秒被拒绝。微信原生语音条上限确实为 60 秒，不能发超长语音。
 
@@ -264,3 +264,5 @@ v0.10.1 实机反馈两个问题：启动桥接仍可能报“helper 启动失�
 验证：新增 `tests/test_music_send.py` 4 项（本地超长 WAV、AstrBot 风格 base64 超长 WAV、custom music 短/长音频、url-only 与无地址失败）；全量 **526 passed / 1 skipped**。未在真实 AstrBot + 微信上跑通点歌全流程，仍需实机验收文件消息接收与播放。
 
 边界：超长音频降级为文件是明确的功能降级（不伪造 60 秒语音条、不截断），文件大小仍受媒体上限与驱动文件校验约束；AstrBot 若只发平台 ID 的 `music` 卡片且无可播放 `url/audio`，网关仍会失败。
+
+发布结果（2026-11-13）：用户确认发布 **WeChatBot v0.11.2**。因本机代理中断，提交通过 GitHub Git Data API 写入并重建为远程 commit `a2d71f1`（内容与本地一致），随后正常打 annotated tag 并推送。annotated tag `v0.11.2` → `a2d71f1`；[Bot checks #43407712748](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43407712748) 成功；附件 `wechat-onebot-0.11.2-windows-x64.zip` 60,402,667 B，SHA-256 `46fdab1154b74be45c834721854ff6f44b65ee160aeab412ddd29b92a8c3431c`，与同名 `.sha256` 一同设为 Latest；公网重新下载摘要一致；Launcher `VersionStore.import_archive` 导入 1,586 个文件、状态 compatible；包内 Python 验证 `VoiceTooLong` 可识别 61 秒音频。框架与 Launcher 无需改动。
