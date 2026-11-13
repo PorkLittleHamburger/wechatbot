@@ -68,6 +68,7 @@ def make_controller(config, manager, *, logged=True, enabled=True, discover=None
 @pytest.mark.asyncio
 async def test_helper_config_checks_sdk_discovery_before_waiting(config, monkeypatch):
     manager = Manager()
+    monkeypatch.setattr(module, "SDK_PROBE_DELAY", 0.0)
     monkeypatch.setattr(module, "discover_sdk_accounts",
                         lambda cfg: [WeChatLogin(pid=456, wxid="robot")])
     controller = make_controller(config, manager, discover=lambda _: [])

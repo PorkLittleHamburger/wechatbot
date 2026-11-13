@@ -587,12 +587,31 @@ class SdkDriver(Driver):
 
     async def get_login_info(self) -> LoginInfo:
         account = getattr(self._target, "account", None)
+        account_id = self._self_id
+        nickname = ""
         if account is not None:
-            return LoginInfo(external_user_id=str(account.wxid),
-                             nickname=_text(getattr(account, "wechat_name", "") or
-                                            self.config.driver.nickname, 256))
-        return LoginInfo(external_user_id=self._self_id,
-                         nickname=self.config.driver.nickname)
+            account_id = str(account.wxid)
+            nickname = _text(getattr(account, "wechat_name", ""), 256)
+        if not nickname:
+            import asyncio
+
+            nickname = await asyncio.to_thread(self._cached_self_name)
+        if not nickname:
+            nickname = self.config.driver.nickname
+        return LoginInfo(external_user_id=account_id or self._self_id, nickname=nickname)
+
+    def _cached_self_name(self) -> str:
+        """Read the bound account's own WeChat name from the read-only cache."""
+        client, target = self._client, self._target
+        if client is None or target is None:
+            return ""
+        try:
+            row = client.contact(self._self_id, pid=int(getattr(target, "pid", 0) or 0),
+                                 account_id=self._self_id)
+        except Exception:
+            logger.debug("读取账号昵称缓存失败", exc_info=True)
+            return ""
+        return _text(getattr(row, "wechat_name", None) or getattr(row, "remark", None), 256)
 
     async def _snapshot(self, method: str, *args: Any, **kwargs: Any) -> Any:
         import asyncio

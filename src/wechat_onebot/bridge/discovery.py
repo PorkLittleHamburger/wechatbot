@@ -58,9 +58,10 @@ def sdk_discovery_report(config: "AppConfig") -> tuple[list[WeChatLogin], list[d
         raise RuntimeError(
             "未安装 wechatbot_api 运行时；请安装 vendor/wechatbot_api 下的 wheel"
         ) from error
+    client = wechatbot_api.Client()
     rows: list[WeChatLogin] = []
     diagnostics: list[dict[str, str]] = []
-    for result in wechatbot_api.Client().discover():
+    for result in client.discover():
         build = getattr(result, "build", None)
         account = getattr(result, "account", None)
         error = getattr(result, "error", None)
@@ -72,9 +73,16 @@ def sdk_discovery_report(config: "AppConfig") -> tuple[list[WeChatLogin], list[d
                 "detail": str(getattr(result, "detail", "") or ""),
             })
             continue
+        wxid = str(account.wxid)
+        nickname = str(getattr(account, "wechat_name", "") or "")
+        if not nickname:
+            # Discovery exposes the cached contact row only for peers; read the
+            # bound account's own cached name so the gateway never persists a
+            # bare wxid where a nickname is available.
+            nickname = _cached_contact_name(client, pid=int(result.pid), wxid=wxid)
         rows.append(WeChatLogin(
-            pid=int(result.pid), wxid=str(account.wxid),
-            nickname=str(getattr(account, "wechat_name", "") or ""),
+            pid=int(result.pid), wxid=wxid,
+            nickname=nickname,
             version=str(getattr(build, "version", "") or ""),
             extra={
                 "bridge_supported": bool(getattr(result, "bridge_supported", False)),
@@ -83,6 +91,19 @@ def sdk_discovery_report(config: "AppConfig") -> tuple[list[WeChatLogin], list[d
             },
         ))
     return rows, diagnostics
+
+
+def _cached_contact_name(client: object, *, pid: int, wxid: str) -> str:
+    """Best-effort read of the account's own cached WeChat name; never invasive."""
+    contact = getattr(client, "contact", None)
+    if contact is None:
+        return ""
+    try:
+        row = contact(wxid, pid=pid, account_id=wxid)
+    except Exception:
+        return ""
+    name = getattr(row, "wechat_name", None) or getattr(row, "remark", None) or ""
+    return str(name)[:256]
 
 
 def discover_accounts(config: "AppConfig") -> list[WeChatLogin]:

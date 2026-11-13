@@ -174,8 +174,9 @@ class FakeClient:
             remark=None, role="admin"),))
 
 
-def discovery_result(pid=123, wxid="wxid_robot", version="4.2.0.52", error=None, bridge=True):
-    account = None if wxid is None else SimpleNamespace(wxid=wxid, wechat_name="机器人")
+def discovery_result(pid=123, wxid="wxid_robot", version="4.2.0.52", error=None, bridge=True,
+                     wechat_name="机器人"):
+    account = None if wxid is None else SimpleNamespace(wxid=wxid, wechat_name=wechat_name)
     return SimpleNamespace(
         pid=pid, process_created=0,
         build=SimpleNamespace(version=version, sha256="ab" * 32, size=1),
@@ -430,6 +431,29 @@ async def test_at_text_passes_members_and_display_names(monkeypatch, tmp_path: P
 
 # ------------------------------------------------------------------ reads
 @pytest.mark.asyncio
+async def test_login_info_falls_back_to_the_cached_account_name(tmp_path: Path):
+    driver = SdkDriver(make_config(tmp_path))
+    driver._target = SimpleNamespace(
+        pid=31004, account=SimpleNamespace(wxid="wxid_robot", wechat_name=None),
+        build=SimpleNamespace(version="4.2.0.52", sha256="ab"))
+    driver._client = SimpleNamespace(
+        contact=lambda wxid, pid=None, account_id=None: SimpleNamespace(
+            wechat_name="墨染青花", remark=None))
+    info = await driver.get_login_info()
+    assert info.external_user_id == "wxid_robot"
+    assert info.nickname == "墨染青花"
+
+
+@pytest.mark.asyncio
+async def test_login_info_prefers_existing_configured_nickname(tmp_path: Path):
+    driver = SdkDriver(make_config(tmp_path, nickname="配置昵称"))
+    driver._target = SimpleNamespace(pid=1, account=SimpleNamespace(wxid="wxid_robot", wechat_name=None))
+    driver._client = SimpleNamespace(contact=lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("no cache")))
+    info = await driver.get_login_info()
+    assert info.nickname == "配置昵称"
+
+
+@pytest.mark.asyncio
 async def test_reads_come_from_wechat_cache(monkeypatch, tmp_path: Path):
     driver, _, _, _ = await started_driver(monkeypatch, tmp_path)
     try:
@@ -548,6 +572,23 @@ def test_sdk_driver_config_rejects_invalid_values(tmp_path: Path, payload):
 
 
 # --------------------------------------------------------------- discovery
+def test_sdk_discovery_fills_missing_nickname_from_contact_cache(monkeypatch, tmp_path: Path):
+    class Client:
+        def discover(self):
+            return (discovery_result(pid=10, wxid="wxid_a", wechat_name=None),)
+
+        def contact(self, wxid, pid=None, account_id=None):
+            return SimpleNamespace(wechat_name="墨染青花", remark=None)
+
+    module = types.ModuleType("wechatbot_api")
+    module.Client = Client
+    module.__version__ = "0.1.0.dev14"
+    monkeypatch.setitem(sys.modules, "wechatbot_api", module)
+    rows = discover_sdk_accounts(make_config(tmp_path))
+    assert rows[0].wxid == "wxid_a"
+    assert rows[0].nickname == "墨染青花"
+
+
 def test_sdk_discovery_filters_unverified_rows(monkeypatch):
     from wechatbot_api import ErrorCode
 

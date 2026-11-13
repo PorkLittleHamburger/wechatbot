@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Callable
 
 from ..bridge import discover_logged_accounts, discover_sdk_accounts
@@ -11,6 +12,13 @@ from .startup import load_bridge_intent, save_bridge_intent, save_last_bridge
 
 
 RESUME_CAPABILITY_VERSION = 1
+
+# A helper-configured instance may target a 4.2.0.52 client that only the SDK
+# driver can reach. Probe the SDK after a short grace period, then sparingly:
+# the resume loop runs every few milliseconds and must not scan processes on
+# every iteration.
+SDK_PROBE_DELAY = 2.0
+SDK_PROBE_INTERVAL = 5.0
 
 
 class BridgeResumeController:
@@ -32,6 +40,8 @@ class BridgeResumeController:
         self._owned: set[asyncio.Task] = set()
         self._closing = False
         self._close_task: asyncio.Task | None = None
+        self._waiting_since: float | None = None
+        self._sdk_checked_at = 0.0
 
     def snapshot(self) -> dict:
         return {"supported": True, "version": RESUME_CAPABILITY_VERSION,
@@ -65,6 +75,8 @@ class BridgeResumeController:
             if self.error and self.manager.last_error == self.error:
                 self.manager.last_error = ""
             self.error = ""
+            self._waiting_since = None
+            self._sdk_checked_at = 0.0
             self.state = "waiting_login"
             self._task = asyncio.create_task(self._run(self.account, self._generation))
         return self.snapshot()
@@ -107,14 +119,23 @@ class BridgeResumeController:
                 if not self._current(generation):
                     return
                 matches = [row for row in rows if row.wxid == account]
-                if not matches and self.config.driver.type == "helper":
+                if matches:
+                    self._waiting_since = None
+                elif self.config.driver.type == "helper":
                     # Existing helper configs upgraded to 0.10+ may target a
-                    # 4.2.0.52 client that only the SDK driver can reach.
-                    try:
-                        sdk_rows = await asyncio.to_thread(discover_sdk_accounts, self.config)
-                    except Exception:
-                        sdk_rows = []
-                    matches = [row for row in sdk_rows if row.wxid == account]
+                    # 4.2.0.52 client that only the SDK driver can reach. Probe
+                    # after a grace period instead of scanning every loop.
+                    now = time.monotonic()
+                    if self._waiting_since is None:
+                        self._waiting_since = now
+                    if (now - self._waiting_since >= SDK_PROBE_DELAY
+                            and now - self._sdk_checked_at >= SDK_PROBE_INTERVAL):
+                        self._sdk_checked_at = now
+                        try:
+                            sdk_rows = await asyncio.to_thread(discover_sdk_accounts, self.config)
+                        except Exception:
+                            sdk_rows = []
+                        matches = [row for row in sdk_rows if row.wxid == account]
                 if len(matches) > 1:
                     self._fail(RuntimeError("目标账号无法唯一识别，自动恢复已停止"))
                     return

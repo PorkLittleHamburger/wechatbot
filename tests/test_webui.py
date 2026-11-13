@@ -352,6 +352,20 @@ def test_sdk_driver_account_selection_uses_framework_discovery(tmp_path: Path, m
         assert stored["driver"]["wechat_pid"] == 654
 
 
+def test_process_scan_keeps_known_nickname_when_discovery_name_is_empty(tmp_path: Path, monkeypatch):
+    config = make_config(tmp_path)
+    config = replace(config, driver=replace(config.driver, type="helper", wechat_account="wxid_robot",
+                                            wechat_pid=123, nickname="墨染青花"))
+    manager = RuntimeManager(config)
+    monkeypatch.setattr(webui_server, "discover_logged_accounts",
+                        lambda root: [WeChatLogin(pid=123, wxid="wxid_robot", nickname="")])
+    with TestClient(create_webui_app(config, manager, start_runtime=False)) as client:
+        login_and_set_password(client)
+        row = client.get("/api/processes?scan=true").json()["processes"][0]
+    assert row["account"] == "wxid_robot"
+    assert row["nickname"] == "墨染青花"
+
+
 def test_helper_config_selection_falls_back_to_sdk_account(tmp_path: Path, monkeypatch):
     config = make_config(tmp_path)
     config = replace(config, driver=replace(config.driver, type="helper",

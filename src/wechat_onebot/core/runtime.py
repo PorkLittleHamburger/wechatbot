@@ -24,6 +24,10 @@ class AccountNotLoggedInError(RuntimeError):
     """The selected account disappeared before native startup began."""
 
 
+class AccountAlreadyStartedError(RuntimeError):
+    """The account runtime is already running."""
+
+
 @dataclass
 class AccountRuntime:
     config: AppConfig
@@ -301,16 +305,61 @@ class RuntimeManager:
         else:
             self.config = replace(self.config, driver=replace(self.config.driver, type=driver_type))
 
-    async def start_account(self, account: str, pid: int | None = None) -> AccountRuntime:
-        driver_type, login = await self._resolve_account(account)
+    async def _start_with_driver(self, account: str, driver_type: str,
+                                 login: object | None, pid: int | None) -> AccountRuntime:
         target_pid = login.pid if login is not None else pid
         async with self._lock:
             runtime = await self._ensure_network_locked(account, driver_type=driver_type)
             if runtime.started:
-                raise RuntimeError(f"账号 runtime 已启动: {account}")
-            runtime.set_pid(target_pid)
-            await runtime.start()
-        self._remember_driver(driver_type, account, target_pid, login)
+                raise AccountAlreadyStartedError(f"账号 runtime 已启动: {account}")
+            try:
+                runtime.set_pid(target_pid)
+                await runtime.start()
+            except Exception:
+                await self._discard_runtime(account, runtime)
+                raise
+        return runtime
+
+    async def _discard_runtime(self, account: str, runtime: AccountRuntime) -> None:
+        if self._runtimes.get(account) is runtime:
+            self._runtimes.pop(account, None)
+        try:
+            await runtime.close()
+        except Exception:
+            logger.warning("清理启动失败的账号 runtime 时出错", exc_info=True)
+
+    async def _find_account(self, driver_type: str, account: str):
+        rows = await self._discover_for(driver_type)
+        matches = [row for row in rows if row.wxid == account]
+        if len(matches) > 1:
+            raise RuntimeError("目标账号无法唯一识别，请在 WebUI 重新扫描")
+        return matches[0] if matches else None
+
+    async def start_account(self, account: str, pid: int | None = None) -> AccountRuntime:
+        driver_type, login = await self._resolve_account(account)
+        try:
+            runtime = await self._start_with_driver(account, driver_type, login, pid)
+        except Exception as error:
+            if driver_type not in ("helper", "sdk") or isinstance(error, AccountAlreadyStartedError):
+                raise
+            # A driver can verify the account in its discovery pass yet still
+            # reject the native start (unsupported build, stale PID, account
+            # mismatch). Retry once with the other real driver when it can see
+            # the same account; persist only the driver that actually starts.
+            other = "sdk" if driver_type == "helper" else "helper"
+            try:
+                alternate = await self._find_account(other, account)
+            except Exception:
+                alternate = None
+            if alternate is None:
+                raise
+            logger.warning("驱动 %s 启动失败（%s），改用 %s 重试", driver_type, error, other)
+            runtime = await self._start_with_driver(account, other, alternate, pid)
+            driver_type, login = other, alternate
+        final_pid = getattr(runtime, "pid", None)
+        if final_pid is None:
+            final_pid = login.pid if login is not None else pid
+        self._remember_driver(driver_type, account, final_pid, login)
         return runtime
 
     async def stop_account(self, account: str) -> None:

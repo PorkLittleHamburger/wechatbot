@@ -292,7 +292,8 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
                                                        "running": False, "online": False, "started": False})
                     if not row["running"]:
                         row["pid"] = login.pid
-                    row["nickname"] = login.nickname
+                    if login.nickname:
+                        row["nickname"] = login.nickname
             except Exception:
                 error = "只读账号扫描失败"
         result: dict[str, Any] = {"processes": list(rows.values())}
@@ -361,7 +362,9 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             if len(matches) != 1:
                 return Response("账号未登录或无法唯一识别，请重新扫描", status_code=409)
             selected = matches[0]
-            pid, nickname = selected.pid, selected.nickname
+            pid = selected.pid
+            nickname = selected.nickname or (
+                config.driver.nickname if account == config.driver.wechat_account else "")
         else:
             if account != config.driver.wechat_account:
                 return Response("Mock 模式只能选择已配置账号", status_code=409)

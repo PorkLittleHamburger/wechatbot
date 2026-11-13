@@ -10,7 +10,7 @@ from wechat_onebot.bridge import WeChatLogin
 from wechat_onebot.config import AppConfig, DriverConfig, OneBotConfig, StorageConfig
 from wechat_onebot.core import runtime as runtime_module
 from wechat_onebot.core.runtime import AccountNotLoggedInError, AccountRuntime, RuntimeManager
-from wechat_onebot.driver.base import Driver
+from wechat_onebot.driver.base import Driver, DriverError
 from wechat_onebot.driver.helper import HelperDriver
 from wechat_onebot.models import DriverStatus, LoginInfo
 
@@ -119,6 +119,11 @@ async def test_network_only_runtime_rebinds_current_wechat_pid(tmp_path: Path):
         await runtime.close()
 
 
+class FailingHelperDriver(FakeDriver):
+    async def start(self, emit) -> None:
+        raise DriverError("helper 启动失败: 目标进程登录的不是绑定的机器人账号，等待正确账号登录")
+
+
 def make_manager_config(tmp_path: Path) -> AppConfig:
     config = make_config(tmp_path)
     config = replace(config, driver=replace(
@@ -170,6 +175,37 @@ async def test_start_account_falls_back_to_sdk_for_unsupported_helper_build(tmp_
         assert stored["type"] == "sdk"
         assert stored["wechat_pid"] == 31004
         assert stored["wechat_account"] == "wxid_robot"
+    finally:
+        await manager.stop_all()
+
+
+@pytest.mark.asyncio
+async def test_helper_start_rejection_falls_back_to_sdk(tmp_path: Path, monkeypatch):
+    config = make_manager_config(tmp_path)
+    patch_discovery(
+        monkeypatch,
+        helper_rows=[WeChatLogin(pid=28904, wxid="wxid_robot")],
+        sdk_rows=[WeChatLogin(pid=31004, wxid="wxid_robot", nickname="墨染青花",
+                              version="4.2.0.52")],
+    )
+    created: list[str] = []
+
+    def factory(cfg: AppConfig) -> FakeDriver:
+        created.append(cfg.driver.type)
+        return FailingHelperDriver(cfg) if cfg.driver.type == "helper" else FakeDriver(cfg)
+
+    monkeypatch.setattr(runtime_module, "create_driver", factory)
+    manager = RuntimeManager(config)
+    try:
+        runtime = await manager.start_account("wxid_robot")
+        assert created == ["helper", "sdk"]
+        assert runtime.driver.online is True
+        assert runtime.pid == 31004
+        assert manager.config.driver.type == "sdk"
+        stored = json.loads(config.path.read_text(encoding="utf-8"))["driver"]
+        assert stored["type"] == "sdk"
+        assert stored["wechat_pid"] == 31004
+        assert stored["nickname"] == "墨染青花"
     finally:
         await manager.stop_all()
 
