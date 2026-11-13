@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.0（Launcher 配套 v0.8.12、框架 dev14），源码 v0.11.1 已完成消息流修复但尚未发布；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.1（Launcher 配套 v0.8.12、框架 dev14）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -236,7 +236,7 @@ v0.10.1 实机反馈两个问题：启动桥接仍可能报“helper 启动失�
 
 发布结果（2026-11-13）：annotated tag `v0.11.0` → `949b21d`；[Bot checks #43392184037](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43392184037) 成功；附件 `wechat-onebot-0.11.0-windows-x64.zip` 60,395,830 B，SHA-256 `9fb4f7d7dbcb8dc4cefea12a47298b592a092d9000a30a406b5ac20fa58f0465`，与同名 `.sha256` 一同设为 Latest；公网重新下载摘要一致；Launcher `VersionStore.import_archive` 导入 1,586 个文件、状态 compatible。包内 Python 实测 MP3→Tencent SILK（300 ms）。
 
-## v0.11.1 OneBot v11 消息流一致性修复（2026-11-13，未发布）
+## v0.11.1 OneBot v11 消息流一致性修复（2026-11-13，发布基线）
 
 用户要求按官方 OneBot v11 检查对外 API（尤其消息流），确认后要求修复发现的问题。本轮只改 Bot，框架与 Launcher 无需配合。
 
@@ -248,3 +248,5 @@ v0.10.1 实机反馈两个问题：启动桥接仍可能报“helper 启动失�
 6. **自发消息引用**：驱动 `take_native_message_ids()` 返回 native ID（sdk 使用 `SendResult.native_message_id`；helper 原生发送只返回成功布尔值，因此保持引用快照降级），发送快照登记后，后续引用该消息解析到真实发送 ID，而不新建 time=0 引用快照。
 
 验证：全量 **523 passed / 1 skipped**；新增事件顺序、快速操作独立、helper 语音/视频与撤回转换、`get_image`/`get_record`（含 SILK→ogg、WAV→mp3/amr）、native ID 引用测试。仍为能力子集：群撤回、群成员进退、群管理、出站 `reply`、`@全体`、原生合并转发卡片保持显式失败/抑制；helper 原生发送只返回成功布尔值，没有 native ID 时仍走引用快照降级。未在真实微信上逐项验收，发布需用户确认。
+
+发布结果（2026-11-13）：用户要求先做 CR 再发布。CR 移除了 helper 端猜测性的 native-ID 兜底、重复的私聊撤回兜底，统一了 audio 导入与收到媒体校验；随后发布 **WeChatBot v0.11.1**。annotated tag `v0.11.1` → `bad397b`；[Bot checks #43397712069](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43397712069) 成功；附件 `wechat-onebot-0.11.1-windows-x64.zip` 60,400,590 B，SHA-256 `25b515c452c46d6f0e206b174dde96a08fbd43040006c4965ba94b150916b83d`，与同名 `.sha256` 一同设为 Latest；公网重新下载摘要一致；Launcher `VersionStore.import_archive` 导入 1,586 个文件、状态 compatible；包内 Python 实测 SILK→MP3 与 WAV→AMR。框架与 Launcher 无需改动。
