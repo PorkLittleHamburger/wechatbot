@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.10.3（Launcher 配套 v0.8.12），本轮源码为 v0.11.0（实际发布状态以远端标签和 Release 为准）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.0（Launcher 配套 v0.8.12、框架 dev14）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -233,3 +233,5 @@ v0.10.1 实机反馈两个问题：启动桥接仍可能报“helper 启动失�
 安全与边界：ffmpeg 只读取已由 `media.resolve_input` 落到本地的文件，`-nostdin`、单线程、45 秒超时、输出字节与时长上限；不解析网络协议。转码有 CPU 延迟（通常几百毫秒），首发明显、缓存后无感；SILK 重编码不可避免会改变音质。
 
 2026-11-13 用户明确确认发布 **WeChatBot v0.11.0**（标签 `v0.11.0`，资产 `wechat-onebot-0.11.0-windows-x64.zip` + 同名 `.sha256`）。本版本只改 Bot，框架与 Launcher 无需配合或重新发布；发布不替换运行实例。真实微信语音收件（听感、时长、私聊/群）仍需升级后验收。
+
+发布结果（2026-11-13）：annotated tag `v0.11.0` → `949b21d`；[Bot checks #43392184037](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43392184037) 成功；附件 `wechat-onebot-0.11.0-windows-x64.zip` 60,395,830 B，SHA-256 `9fb4f7d7dbcb8dc4cefea12a47298b592a092d9000a30a406b5ac20fa58f0465`，与同名 `.sha256` 一同设为 Latest；公网重新下载摘要一致；Launcher `VersionStore.import_archive` 导入 1,586 个文件、状态 compatible。包内 Python 实测 MP3→Tencent SILK（300 ms）。
