@@ -172,3 +172,4 @@ Launcher 负责明确恢复设置/启动参数、所选 worker 能力握手及�
 - 附件：`wechat-onebot-0.10.0-windows-x64.zip`（60,042,666 字节，SHA-256 `d3820a3dc3a89177c23719ed6d4a33f69c9994dc67ce3b4de5bfbb59973f5158`）与同名 `.sha256`；正式发布并设为 Latest，公开重新下载的摘要与本地一致。
 - 用独立 Launcher 的 `VersionStore.import_archive` 在临时根目录执行真实导入：识别版本 `0.10.0`，生成并校验 1,567 个文件，注入 worker、`wechatbot_api` 包与 `wca_bridge.dll` 均存在，状态 compatible；未使用或修改任何实例目录。
 - 未在 Launcher 内实际启动该版本；发布不会替换运行实例，入站/发送实机验收仍待真实消息。
+- 版本命名约定（自下一版本起）：Release 标题与文档中的版本称呼统一为 `WeChatBot vX.Y.Z`；Git 标签保持 `vX.Y.Z`、资产名保持 `wechat-onebot-<version>-windows-x64.zip`，不添加 `WeChatBot ` 前缀，以免破坏 Launcher 的版本发现与下载。

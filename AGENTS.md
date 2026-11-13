@@ -7,6 +7,7 @@
 - 每次改动后核对受影响的 README、配置、命令、能力限制及交接说明，保证与代码一致；阶段性交接或发布前清查全部项目文档及历史遗留描述。
 - 检查远端默认分支的 README，不能仅凭本地文档宣称远端已更新。使用通用路径、占位值和可配置条件，区分默认值、已实现能力、规划、上游 helper 功能和本机验证结果。
 - 发布包必须沿用 `wechat-onebot-<version>-windows-x64.zip` 与同名 `.sha256`，通过构建脚本生成；发布后用实际 Launcher 的版本目录、下载及导入流程复验。公开 URL 可下载不等同启动器完整兼容。
+- 版本命名统一为 `WeChatBot v<major>.<minor>.<patch>`：自下一版本起，Release 标题、发布说明、README 与交接中的当前版本称呼都使用该形式（如 `WeChatBot v0.11.0`）。代码字段（`pyproject.toml` 的 `version`、`__version__`）仍为纯数字 `X.Y.Z`。Git 标签仍为 `v<version>`、发布资产仍为 `wechat-onebot-<version>-windows-x64.zip`：Launcher 只识别 `v*` 标签并拼装该资产名，`WeChatBot ` 前缀不得写入标签、标签目录或文件名。
 - 更新交接中的架构入口、关键决策、已知限制、验证证据及未完成事项。不得把个人账号、实例 ID、绝对部署路径、代理地址或一次性测试结果写成通用要求。
 - 保留第三方原文和许可的来源边界；修改 vendored 文件时更新差异声明及相应哈希。验证后提交并推送；发布 Release 仍需用户明确确认。
 
