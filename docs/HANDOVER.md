@@ -163,4 +163,12 @@ Launcher 负责明确恢复设置/启动参数、所选 worker 能力握手及�
 
 2026-11-13 实机验收（用户授权，仅连接/接收/查询，不发送）：使用**临时配置与临时数据目录**，未读取或修改运行实例的 `config.json`。直接驱动连接耗时 0.87 秒，`get_status` 报 `connected` / `4.2.0.52` / watchdog `ready`，读回好友 87、群 4、首个群成员 9，20 秒窗口内无入站事件，停止 0.50 秒；守护日志为 `WATCHDOG_READY` → `NORMAL_STOP`，微信进程保持存活。随后用完整 Bot 服务（临时 WebUI/OneBot 端口）做端到端：账号扫描命中已配置账号、`/start` 返回 `{"ok":true}`、`/api/status` 显示 `driver=sdk` 且 `online=true`、`/stop` 正常，再次确认 `NORMAL_STOP` 且无残留进程/端口。入站事件与发送链路仍未验证。
 
-未完成/未验证：**入站消息与发送链路尚未用真实微信消息验证**（验收窗口内没有新消息，且未获发送授权）。待实机验收：群 `@`、图片/文件/语音/视频收发、私聊引用（含引用图片）、转发接收；`sdk` 驱动逐条消息串行等待媒体（受 `sdk_media_timeout` 限制），高并发长媒体会延迟后续事件，暂未改为并发流水线；通知类系统消息与撤回尚无 OneBot 映射；`get_stranger_info` 仍依赖事件/缓存观测，非任意陌生人查询。2026-11-13 用户明确授权发布 v0.10.0（`wechat-onebot-0.10.0-windows-x64.zip` + 同名 `.sha256`）；正式提交、CI、标签、附件与 Latest 状态以 Release 页面为准，发布不会替换运行实例。
+未完成/未验证：**入站消息与发送链路尚未用真实微信消息验证**（验收窗口内没有新消息，且未获发送授权）。待实机验收：群 `@`、图片/文件/语音/视频收发、私聊引用（含引用图片）、转发接收；`sdk` 驱动逐条消息串行等待媒体（受 `sdk_media_timeout` 限制），高并发长媒体会延迟后续事件，暂未改为并发流水线；通知类系统消息与撤回尚无 OneBot 映射；`get_stranger_info` 仍依赖事件/缓存观测，非任意陌生人查询。
+
+## v0.10.0 发布结果（2026-11-13）
+
+- 标注标签 `v0.10.0` 指向发布提交 `347f519`；`main` 与标签一致，发布包由该提交构建。
+- [Bot checks #43369866824](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43369866824) 成功；CI 新增 vendored wheel 的哈希核对与安装步骤。
+- 附件：`wechat-onebot-0.10.0-windows-x64.zip`（60,042,666 字节，SHA-256 `d3820a3dc3a89177c23719ed6d4a33f69c9994dc67ce3b4de5bfbb59973f5158`）与同名 `.sha256`；正式发布并设为 Latest，公开重新下载的摘要与本地一致。
+- 用独立 Launcher 的 `VersionStore.import_archive` 在临时根目录执行真实导入：识别版本 `0.10.0`，生成并校验 1,567 个文件，注入 worker、`wechatbot_api` 包与 `wca_bridge.dll` 均存在，状态 compatible；未使用或修改任何实例目录。
+- 未在 Launcher 内实际启动该版本；发布不会替换运行实例，入站/发送实机验收仍待真实消息。
