@@ -167,6 +167,8 @@ Launcher 负责明确恢复设置/启动参数、所选 worker 能力握手及�
 
 ## v0.10.0 发布结果（2026-11-13）
 
+该版本已因启动失败与昵称问题被 v0.10.2 取代，Release 已按用户要求撤下；标签 `v0.10.0` 保留供历史引用。
+
 - 标注标签 `v0.10.0` 指向发布提交 `347f519`；`main` 与标签一致，发布包由该提交构建。
 - [Bot checks #43369866824](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43369866824) 成功；CI 新增 vendored wheel 的哈希核对与安装步骤。
 - 附件：`wechat-onebot-0.10.0-windows-x64.zip`（60,042,666 字节，SHA-256 `d3820a3dc3a89177c23719ed6d4a33f69c9994dc67ce3b4de5bfbb59973f5158`）与同名 `.sha256`；正式发布并设为 Latest，公开重新下载的摘要与本地一致。
@@ -184,16 +186,18 @@ Launcher 负责明确恢复设置/启动参数、所选 worker 能力握手及�
 
 边界：自动回退只在“目标账号已被另一驱动验证”时发生；两驱动都找不到时仍失败，并列出检测到的构建与错误码。正在运行的 v0.10.0 服务不会热切换，需导入 v0.10.1 并切换实例运行版本后重启。2026-11-13 用户明确授权发布 **WeChatBot v0.10.1**（标签 `v0.10.1`，资产 `wechat-onebot-0.10.1-windows-x64.zip` + 同名 `.sha256`）；正式状态以 Release 页面为准，发布不会替换运行实例。
 
-发布结果（2026-11-13）：标注标签 `v0.10.1` 指向 `e059776`；[Bot checks #43373899369](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43373899369) 成功；附件 `wechat-onebot-0.10.1-windows-x64.zip`（60,046,846 字节，SHA-256 `331e45a53296cc9a6a40c8e97418d67751210dad2171f63a8a0e77f03040e55b`）与同名 `.sha256`；正式发布并设为 Latest，标题按新约定为 `WeChatBot v0.10.1`，公开重新下载的摘要一致。Launcher `VersionStore.import_archive` 在临时根目录导入成功：识别 0.10.1、校验 1,567 个文件、worker/SDK/DLL 齐全、状态 compatible。未在 Launcher 内启动该版本，未替换运行实例。
+发布结果（2026-11-13）：标注标签 `v0.10.1` 指向 `e059776`；[Bot checks #43373899369](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43373899369) 成功；附件 `wechat-onebot-0.10.1-windows-x64.zip`（60,046,846 字节，SHA-256 `331e45a53296cc9a6a40c8e97418d67751210dad2171f63a8a0e77f03040e55b`）与同名 `.sha256`；正式发布并设为 Latest，标题按新约定为 `WeChatBot v0.10.1`，公开重新下载的摘要一致。Launcher `VersionStore.import_archive` 在临时根目录导入成功：识别 0.10.1、校验 1,567 个文件、worker/SDK/DLL 齐全、状态 compatible。未在 Launcher 内启动该版本，未替换运行实例。该版本因启动失败回退与昵称问题已由 v0.10.2 取代，Release 已按用户要求撤下；标签 `v0.10.1` 保留供历史引用。
 
-## v0.10.2 启动失败回退与昵称修复（2026-11-13，发布待确认）
+## v0.10.2 启动失败回退与昵称修复（2026-11-13，发布基线）
 
 v0.10.1 实机反馈两个问题：启动桥接仍可能报“helper 启动失败: 目标进程登录的不是绑定的机器人账号，等待正确账号登录”；账号信息显示 wxid/数字 ID 而不是昵称“墨染青花”。
 
-根因一：v0.10.1 的自动回退只覆盖“配置驱动发现不到账号”。若 helper 的发现阶段碰巧命中（或运行时复用了早前创建的 helper runtime），原生启动仍会执行 helper 的账号校验；该协助对 4.2.0.52 不适用，直接拒绝。启动失败后没有清理 runtime，也没有换用 SDK。
+根因一：v0.10.1 的自动回退只覆盖“配置驱动发现不到账号”。若 helper 的发现阶段碰巧命中（或运行时复用了早前创建的 helper runtime），原生启动仍会执行 helper 的账号校验；该账号校验对 4.2.0.52 不适用，直接拒绝。启动失败后没有清理 runtime，也没有换用 SDK。
 
 根因二：SDK 的 `Account.wechat_name` 在 discovery 中为 `None`，而 `discover_sdk_accounts`、WebUI 扫描/选择与持久化直接使用空字符串，覆盖了配置里已有的“墨染青花”；`get_login_info` 同样只读该字段，导致 OneBot/WebUI 只能显示 wxid 或数字 ID。
 
 修复：`start_account` 在选定驱动启动失败时关闭并移除该 runtime，用另一真实驱动重新发现并重试一次，成功后只持久化实际可用的驱动；昵称改为从 SDK 只读联系人缓存 `Client.contact(wxid)` 补全，`get_login_info` 的回退链为“discovery 名称 → 联系人缓存 → 配置昵称”；扫描与选择只在拿到非空昵称时更新，切换账号时不会把旧昵称带到新账号。开机自启恢复的 SDK 探测改为等待 2 秒后、每 5 秒最多一次，避免恢复循环每毫秒扫描进程。
 
-验证：新增 5 项回归；全量 **507 项通过、1 项 Windows 符号链接权限测试跳过**。临时配置复现用户场景（helper + 过期 PID + 空昵称 + 4.2.0.52）：自动切换 `helper -> sdk`，`get_login_info` 返回昵称“墨染青花”，好友 87、群 6，配置写回 `type=sdk`、当前 PID 与昵称；停止后微信进程存活。未发送消息，未修改用户实例配置。发布 Release 需用户明确确认。
+验证：新增 5 项回归；全量 **507 项通过、1 项 Windows 符号链接权限测试跳过**。临时配置复现用户场景（helper + 过期 PID + 空昵称 + 4.2.0.52）：自动切换 `helper -> sdk`，`get_login_info` 返回昵称“墨染青花”，好友 87、群 6，配置写回 `type=sdk`、当前 PID 与昵称；停止后微信进程存活。未发送消息，未修改用户实例配置。
+
+2026-11-13 用户明确授权发布 **WeChatBot v0.10.2**，并要求撤下 v0.10.0 与 v0.10.1 两个不可用的 Release：删除两个 Release 及其附件，保留 Git 标签供历史引用；v0.10.2 为唯一受支持的下载版本。发布不替换运行实例。
