@@ -31,15 +31,18 @@ sdk 驱动还要求 `wechatbot_api` 包与包内 `wca_bridge.dll` 的版本、�
 - 支持：私聊/群聊文本收发、1–2 人真实缓存名称的群 `@`、PNG 图片与普通文件
   收发、SILK/WAV/MP3/AAC/M4A/OGG/Opus/AMR-NB/WB/FLAC 语音发送（统一转为
   腾讯 SILK v3）、H.264 静音视频发送、入站图片/文件/语音/视频的显式
-  `request_media` 下载、私聊引用文本/引用原图与两层嵌套转发、只读联系人/群/
-  群成员缓存查询。
+  `request_media` 下载、`get_image`/`get_record` 读取收到的媒体（语音可转
+  mp3/amr/wma/m4a/spx/ogg/wav/flac）、私聊引用文本/引用原图与两层嵌套转发、
+  只读联系人/群/群成员缓存查询。
 - 不支持：表情包发送、撤回、好友申请、群管理、原生合并转发卡片、出站原生引用。
   网关对这些保持明确失败，不返回假成功。
 - 群富图片的 `request_media` 在框架内仍为开发 opt-in；网关默认只在私聊场景解析
   引用媒体。设置 `driver.sdk_allow_unverified=true` 只是打开框架的实验开关，
   **不等于已验证能力**。
-- 语音入站交付为 WAV（框架解码后的格式），不是原始 SILK。视频入站要求安装
-  框架的 video extra（`av==18.1.0`）；语音解码依赖 voice extra。
+- 语音入站交付为 WAV（sdk 框架解码后的格式），不是原始 SILK；helper 下载完成的
+  语音/视频分别上报标准 `record`/`video` 段，未就绪或失败时保留明确的文本占位。
+  视频入站要求安装框架的 video extra（`av==18.1.0`）；语音解码依赖 voice extra。
+  `get_record` 可将已收到的 SILK/WAV 等语音转成请求的格式。
 - 语音发送在网关侧统一归一化：SILK 原样透传；其他格式由内置 ffmpeg 解码为
   24 kHz 单声道 PCM，再用内置 `silk-python==0.2.9` 编码为腾讯 SILK v3，最后交给
   驱动原生发送。单条上限 60 秒 / 20 MiB；无法解码、超限或编码失败都会明确失败。

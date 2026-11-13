@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.0（Launcher 配套 v0.8.12、框架 dev14）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.0（Launcher 配套 v0.8.12、框架 dev14），源码 v0.11.1 已完成消息流修复但尚未发布；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -235,3 +235,16 @@ v0.10.1 实机反馈两个问题：启动桥接仍可能报“helper 启动失�
 2026-11-13 用户明确确认发布 **WeChatBot v0.11.0**（标签 `v0.11.0`，资产 `wechat-onebot-0.11.0-windows-x64.zip` + 同名 `.sha256`）。本版本只改 Bot，框架与 Launcher 无需配合或重新发布；发布不替换运行实例。真实微信语音收件（听感、时长、私聊/群）仍需升级后验收。
 
 发布结果（2026-11-13）：annotated tag `v0.11.0` → `949b21d`；[Bot checks #43392184037](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43392184037) 成功；附件 `wechat-onebot-0.11.0-windows-x64.zip` 60,395,830 B，SHA-256 `9fb4f7d7dbcb8dc4cefea12a47298b592a092d9000a30a406b5ac20fa58f0465`，与同名 `.sha256` 一同设为 Latest；公网重新下载摘要一致；Launcher `VersionStore.import_archive` 导入 1,586 个文件、状态 compatible。包内 Python 实测 MP3→Tencent SILK（300 ms）。
+
+## v0.11.1 OneBot v11 消息流一致性修复（2026-11-13，未发布）
+
+用户要求按官方 OneBot v11 检查对外 API（尤其消息流），确认后要求修复发现的问题。本轮只改 Bot，框架与 Launcher 无需配合。
+
+1. **事件顺序**：`OneBotService.start` 新增每账号 `asyncio.Queue` + 单 worker（`service.py`），驱动只入队；`_on_driver_event` 串行执行，避免成员/好友补全的 `await` 让后到消息先入库/上报。`_enqueue_event` 等待本账号队列处理完成，Mock 测试与真实驱动均保持原语义。
+2. **快速操作**：`_handle_quick_operation` 逐字段处理；同响应中的 `reply` 不再因 `delete`/`kick`/`ban`/`approve` 被整条拒绝，不支持项记录 warning。
+3. **helper 入站语音/视频**：helper 下载完成（`voice_status=ready`/`video_status=ready` 且路径存在）时映射标准 `record`/`video` 段，不再固定为 `[语音]`/`[视频]` 文本；pending/failed 仍显式占位。
+4. **私聊撤回**：`friend_recall` 在私聊对端或原消息可用时复用原 `message_id`；helper 的 recall 载荷没有 sender 时用私聊对端补上。群撤回因无可靠 `operator_id` 继续抑制并记录。
+5. **媒体读取**：新增标准 `get_image`/`get_record`（`onebot/actions.py`、`media.received_path`、`audio.export_format`）。`get_record` 可把收到的 SILK/WAV 等转为 mp3/amr/wma/m4a/spx/ogg/wav/flac，按内容哈希缓存；`file` 只接受当前账号已注册的媒体 ID/文件名，不接受任意路径或 URL。
+6. **自发消息引用**：驱动 `take_native_message_ids()` 返回 native ID（sdk 使用 `SendResult.native_message_id`；helper 尝试从结果字典读取），发送快照登记后，后续引用该消息解析到真实发送 ID，而不新建 time=0 引用快照。
+
+验证：全量 **524 passed / 1 skipped**；新增事件顺序、快速操作独立、helper 语音/视频与撤回转换、`get_image`/`get_record`（含 SILK→ogg、WAV→mp3/amr）、native ID 引用测试。仍为能力子集：群撤回、群成员进退、群管理、出站 `reply`、`@全体`、原生合并转发卡片保持显式失败/抑制；helper 的 native ID 取决于上游是否返回，缺失时仍走引用快照降级。未在真实微信上逐项验收，发布需用户确认。

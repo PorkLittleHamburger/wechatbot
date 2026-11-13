@@ -117,7 +117,8 @@ async def test_http_post_real_quick_reply_and_unsupported_operation(tmp_path: Pa
         for _ in range(3):
             await adapter.send_event(event)
             await asyncio.wait_for(adapter.flush(), 2)
-        assert [sent.payload["text"] for sent in service.driver.sent] == ["hello", "after failure"]
+        assert [sent.payload["text"] for sent in service.driver.sent] == [
+            "hello", "must not send", "after failure"]
         assert "kick" in caplog.text
     finally:
         await adapter.stop()

@@ -81,6 +81,9 @@ class OneBotService:
         self._rate_worker: asyncio.Task | None = None
         self._stopping_actions = False
         self._send_lock = asyncio.Lock()
+        self._event_queue: asyncio.Queue[DriverEvent | None] = asyncio.Queue()
+        self._event_worker: asyncio.Task | None = None
+        self._events_closed = False
 
     @property
     def supported_actions(self) -> frozenset[str]:
@@ -93,14 +96,49 @@ class OneBotService:
         if self.started:
             return
         self._stopping_actions = False
+        self._events_closed = False
         login = await self.driver.get_login_info()
         if not login.external_user_id:
             raise DriverError("微信账号 ID 为空，无法启动 OneBot")
         self.self_id = self.mapper.get_or_create("user", login.external_user_id)
         self.message_store.remember_profiles(self.account, [
             (login.external_user_id, "", login.nickname, "", "login")])
-        await self.driver.start(self._on_driver_event)
+        self._event_worker = asyncio.create_task(self._run_event_queue(), name="onebot-events")
+        try:
+            await self.driver.start(self._enqueue_event)
+        except Exception:
+            await self._drain_events()
+            raise
         self.started = True
+
+    async def _enqueue_event(self, event: DriverEvent) -> None:
+        """Queue one driver event and wait for this account's serial processing."""
+        if self._events_closed:
+            return
+        self._event_queue.put_nowait(event)
+        await self._event_queue.join()
+
+    async def _run_event_queue(self) -> None:
+        while True:
+            event = await self._event_queue.get()
+            try:
+                if event is None:
+                    return
+                await self._on_driver_event(event)
+            except Exception:
+                logger.exception("处理驱动事件失败")
+            finally:
+                self._event_queue.task_done()
+
+    async def _drain_events(self) -> None:
+        self._events_closed = True
+        worker = self._event_worker
+        if worker is None:
+            return
+        if not worker.done():
+            self._event_queue.put_nowait(None)
+            await worker
+        self._event_worker = None
 
     async def stop(self) -> None:
         if not self.started:
@@ -120,7 +158,10 @@ class OneBotService:
             while not self._rate_queue.empty():
                 self._rate_queue.get_nowait()
                 self._rate_queue.task_done()
-            await self.driver.stop()
+            try:
+                await self.driver.stop()
+            finally:
+                await self._drain_events()
         finally:
             if self._owns_message_store:
                 self.message_store.close()
@@ -180,6 +221,9 @@ class OneBotService:
         elif isinstance(event, NoticeEvent):
             if event.notice_type == "group_decrease":
                 self.message_store.forget_membership(self.account, event.external_user_id, event.external_chat_id)
+            if event.notice_type == "friend_recall" and not event.external_user_id:
+                # Private chat peers are the only possible original author.
+                event = replace(event, external_user_id=event.external_chat_id)
             recalled_id = None
             if event.notice_type in ("group_recall", "friend_recall"):
                 recall = event.raw.get("recall", {})
@@ -361,8 +405,18 @@ class OneBotService:
         for key in ("delete", "kick", "ban", "approve"):
             if key in operations and type(operations[key]) is not bool:
                 raise OneBotActionError(1400, f"{key} 必须是布尔值")
-            if operations.get(key) is True or (key == "approve" and key in operations):
-                raise OneBotActionError(1404, f"当前原生桥接不支持快速操作 {key}")
+        if "ban_duration" in operations and (
+                isinstance(operations["ban_duration"], bool) or
+                not isinstance(operations["ban_duration"], (int, float))):
+            raise OneBotActionError(1400, "ban_duration 必须是数字")
+        unsupported = [key for key in ("delete", "kick", "ban")
+                       if operations.get(key) is True]
+        if "approve" in operations:
+            unsupported.append("approve")
+        if unsupported:
+            # Quick-operation fields are independent; a field this native bridge
+            # cannot perform must not discard a supported reply in the same body.
+            logger.warning("HTTP 快速操作包含不支持项 %s，已按字段独立执行", ",".join(unsupported))
         if "reply" not in operations:
             return
         if event.get("post_type") != "message" or event.get("self_id") != self.self_id:
@@ -627,6 +681,8 @@ class OneBotService:
             logger.exception("普通消息发送期间发生内部错误")
             raise OneBotActionError(1500, "消息发送期间发生内部错误",
                                     {"sent_segments": sent}) from error
+        native_take = getattr(self.driver, "take_native_message_ids", None)
+        native_ids = tuple(native_take()) if callable(native_take) else ()
         try:
             message_id = self.message_store.allocate_sent_id(
                 account=self.account,
@@ -650,6 +706,10 @@ class OneBotService:
                 session_key=chat_id,
                 payload=sent_event,
             )
+            for native_id in native_ids:
+                if native_id.isdigit():
+                    self.message_store.remember_native_id(
+                        self.account, chat_id, native_id, message_id)
         except Exception as error:
             logger.exception("发送后保存消息记录失败")
             raise OneBotActionError(1500, "微信发送已执行，但消息记录保存失败",
@@ -938,6 +998,33 @@ class OneBotService:
 
     async def _can_send_record(self, params: dict[str, Any]) -> dict[str, Any]:
         return {"yes": self.driver.online and "voice.send" in self.driver.capabilities}
+
+    async def _get_image(self, params: dict[str, Any]) -> dict[str, Any]:
+        value = params.get("file")
+        if not isinstance(value, str) or not value.strip():
+            raise OneBotActionError(1400, "file 必须是非空字符串")
+        path = self.media.received_path(value)
+        if path is None:
+            raise OneBotActionError(1404, "图片不在当前账号的媒体存储中")
+        return {"file": str(path)}
+
+    async def _get_record(self, params: dict[str, Any]) -> dict[str, Any]:
+        value = params.get("file")
+        out_format = params.get("out_format")
+        if not isinstance(value, str) or not value.strip():
+            raise OneBotActionError(1400, "file 必须是非空字符串")
+        path = self.media.received_path(value)
+        if path is None:
+            raise OneBotActionError(1404, "语音不在当前账号的媒体存储中")
+        from .audio import VoiceError, export_format
+
+        try:
+            converted = await asyncio.to_thread(
+                export_format, path, str(out_format or ""),
+                cache_dir=self.media.media_dir / "cache" / "voice-export")
+        except VoiceError as error:
+            raise OneBotActionError(1400, f"语音转换失败: {error}") from error
+        return {"file": str(converted)}
 
     async def _get_capabilities(self, params: dict[str, Any]) -> dict[str, Any]:
         return {

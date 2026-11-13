@@ -200,6 +200,17 @@ ACTION_REGISTRY: dict[str, ActionDefinition] = {
     ),
     "can_send_image": ActionDefinition("can_send_image", "_can_send_image", "是否可发送图片", {}, {"type": "object"}, read_only=True),
     "can_send_record": ActionDefinition("can_send_record", "_can_send_record", "是否可发送语音", {}, {"type": "object"}, read_only=True),
+    "get_image": ActionDefinition(
+        "get_image", "_get_image", "获取收到的图片文件",
+        {"file": ParamSpec("str", True, "消息段中的 file")},
+        {"type": "object"}, read_only=True,
+    ),
+    "get_record": ActionDefinition(
+        "get_record", "_get_record", "获取收到的语音并转换格式",
+        {"file": ParamSpec("str", True, "消息段中的 file"),
+         "out_format": ParamSpec("str", True, "mp3/amr/wma/m4a/spx/ogg/wav/flac")},
+        {"type": "object"}, read_only=True,
+    ),
     "get_capabilities": ActionDefinition("get_capabilities", "_get_capabilities", "获取驱动、动作与能力矩阵", {}, {"type": "object"}, read_only=True),
 }
 

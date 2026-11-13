@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import ctypes
+from collections import deque
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -118,6 +119,7 @@ class HelperDriver(Driver):
         self._wechat_data_directory: Path | None = app_config.driver.wechat_data_directory
         self._lifecycle_executor: ThreadPoolExecutor | None = None
         self._process_lock: Any = None
+        self._native_ids: deque[str] = deque(maxlen=64)
         self._lifecycle_lock = asyncio.Lock()
 
     def rebind(self, app_config: AppConfig) -> None:
@@ -299,10 +301,13 @@ class HelperDriver(Driver):
             recall = data.get("recall")
             if isinstance(recall, dict):
                 chat = str(recall.get("chat_id") or data.get("chat_id") or "")
+                sender = str(recall.get("sender_id") or "")
+                if not sender and chat and not chat.endswith("@chatroom"):
+                    sender = chat  # A private recall's peer is the message author.
                 return NoticeEvent(
                     notice_type="group_recall" if chat.endswith("@chatroom") else "friend_recall",
                     external_chat_id=chat,
-                    external_user_id=str(recall.get("sender_id") or ""),
+                    external_user_id=sender,
                     external_operator_id=str(recall.get("operator_id") or ""),
                     timestamp=self._raw_timestamp(data),
                     raw=data,
@@ -344,9 +349,17 @@ class HelperDriver(Driver):
             path = data.get("file_path") or ""
             segments.append(Segment("file", {"file": str(path), "name": data.get("file_name", "")}) if path else Segment("text", {"text": "[文件或卡片]"}))
         elif msg_type == 34:
-            segments.append(Segment("text", {"text": "[语音]"}))
+            voice = str(data.get("voice_path") or "")
+            if data.get("voice_status") == "ready" and voice:
+                segments.append(Segment("record", {"file": voice}))
+            else:
+                segments.append(Segment("text", {"text": "[语音]"}))
         elif msg_type == 43:
-            segments.append(Segment("text", {"text": "[视频]"}))
+            video = str(data.get("video_path") or "")
+            if data.get("video_status") == "ready" and video:
+                segments.append(Segment("video", {"file": video}))
+            else:
+                segments.append(Segment("text", {"text": "[视频]"}))
         elif msg_type == 47:
             segments.append(Segment("text", {"text": "[表情]"}))
         if not segments:
@@ -385,10 +398,13 @@ class HelperDriver(Driver):
             recall = data.get("recall")
             if isinstance(recall, dict):
                 chat = str(recall.get("chat_id") or message.chat_id or "")
+                sender = str(recall.get("sender_id") or "")
+                if not sender and chat and not chat.endswith("@chatroom"):
+                    sender = chat
                 return NoticeEvent(
                     notice_type="group_recall" if chat.endswith("@chatroom") else "friend_recall",
                     external_chat_id=chat,
-                    external_user_id=str(recall.get("sender_id") or ""),
+                    external_user_id=sender,
                     external_operator_id=str(recall.get("operator_id") or ""),
                     timestamp=self._timestamp(data),
                     raw=data,
@@ -432,9 +448,17 @@ class HelperDriver(Driver):
             path = message.file_path
             segments.append(Segment("file", {"file": str(path), "name": data.get("file_name", "")}) if path else Segment("text", {"text": "[文件或卡片]"}))
         elif msg_type == 34:
-            segments.append(Segment("text", {"text": "[语音]"}))
+            voice = str(data.get("voice_path") or "")
+            if data.get("voice_status") == "ready" and voice:
+                segments.append(Segment("record", {"file": voice}))
+            else:
+                segments.append(Segment("text", {"text": "[语音]"}))
         elif msg_type == 43:
-            segments.append(Segment("text", {"text": "[视频]"}))
+            video = str(data.get("video_path") or "")
+            if data.get("video_status") == "ready" and video:
+                segments.append(Segment("video", {"file": video}))
+            else:
+                segments.append(Segment("text", {"text": "[视频]"}))
         elif msg_type == 47:
             segments.append(Segment("text", {"text": "[表情]"}))
         if not segments:
@@ -490,6 +514,7 @@ class HelperDriver(Driver):
         self._require_service()
         try:
             result = await asyncio.to_thread(self._service.send_text, chat_id, text)
+            self._capture_native(result)
             return result is not False
         except Exception as error:
             raise DriverError(f"文本发送失败: {error}") from error
@@ -502,6 +527,7 @@ class HelperDriver(Driver):
                 self._service.send_at_text, chat_id, text, list(user_ids),
                 display_names=list(display_names) if display_names else None,
             )
+            self._capture_native(result)
             return result is not False
         except Exception as error:
             raise DriverError(f"群 @ 发送失败: {error}") from error
@@ -511,6 +537,7 @@ class HelperDriver(Driver):
         self._require_service()
         try:
             result = await asyncio.to_thread(self._service.send_image, chat_id, path)
+            self._capture_native(result)
             return result is not False
         except Exception as error:
             raise DriverError(f"图片发送失败: {error}") from error
@@ -544,6 +571,7 @@ class HelperDriver(Driver):
         self._require_service()
         try:
             result = await asyncio.to_thread(self._service.send_file, chat_id, path)
+            self._capture_native(result)
             return result is not False
         except Exception as error:
             raise DriverError(f"文件发送失败: {error}") from error
@@ -553,9 +581,24 @@ class HelperDriver(Driver):
         self._require_service()
         try:
             result = await asyncio.to_thread(self._service.send_voice, chat_id, path)
+            self._capture_native(result)
             return result is not False
         except Exception as error:
             raise DriverError(f"语音发送失败: {error}") from error
+
+    def _capture_native(self, result: Any) -> None:
+        if not isinstance(result, dict):
+            return
+        for key in ("native_message_id", "message_id", "newmsgid", "server_id", "msg_id"):
+            value = result.get(key)
+            if value is not None and str(value).isdigit():
+                self._native_ids.append(str(value))
+                return
+
+    def take_native_message_ids(self) -> tuple[str, ...]:
+        ids = tuple(self._native_ids)
+        self._native_ids.clear()
+        return ids
 
     async def send_emoticon(self, chat_id: str, path: str) -> bool:
         import asyncio

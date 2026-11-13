@@ -216,3 +216,76 @@ def _encode_silk(pcm: bytes) -> bytes:
 def _transcode(path: Path) -> bytes:
     pcm = _decode_pcm(path)
     return _encode_silk(pcm)
+
+
+EXPORT_FORMATS: dict[str, tuple[str, str, int]] = {
+    "mp3": ("mp3", "libmp3lame", 24000),
+    "amr": ("amr", "libopencore_amrnb", 8000),
+    "wma": ("asf", "wmav2", 24000),
+    "m4a": ("ipod", "aac", 24000),
+    "spx": ("spx", "libspeex", 16000),
+    "ogg": ("ogg", "libvorbis", 24000),
+    "wav": ("wav", "pcm_s16le", 24000),
+    "flac": ("flac", "flac", 24000),
+}
+
+
+def export_format(source: str | Path, out_format: str, *, cache_dir: Path) -> Path:
+    """Convert received voice to a standard get_record output format."""
+    if not isinstance(out_format, str) or out_format.lower() not in EXPORT_FORMATS:
+        raise VoiceError("out_format 必须是 mp3/amr/wma/m4a/spx/ogg/wav/flac")
+    fmt = out_format.lower()
+    muxer, codec, rate = EXPORT_FORMATS[fmt]
+    path = Path(source)
+    try:
+        data = path.read_bytes()
+    except OSError as error:
+        raise VoiceError("语音文件不可用") from error
+    digest = hashlib.sha256(data).hexdigest()
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    target = cache_dir / f"{digest[:40]}.{fmt}"
+    if target.is_file() and target.stat().st_size > 0:
+        return target
+    pcm = _decode_pcm_any(path, data)
+    executable = _ffmpeg_executable()
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=target.parent)
+    os.close(descriptor)
+    temporary_path = Path(temporary)
+    command = [
+        executable, "-y", "-nostdin", "-hide_banner", "-loglevel", "error",
+        "-f", "s16le", "-ar", str(SILK_SAMPLE_RATE), "-ac", "1", "-i", "pipe:0",
+        "-acodec", codec, "-ar", str(rate), "-f", muxer, str(temporary_path),
+    ]
+    try:
+        result = subprocess.run(command, input=pcm, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL, timeout=_DECODE_TIMEOUT)
+        if result.returncode != 0 or not temporary_path.is_file() or temporary_path.stat().st_size == 0:
+            raise VoiceError(f"无法转换为 {fmt}")
+        os.replace(temporary_path, target)
+    except subprocess.TimeoutExpired as error:
+        raise VoiceError(f"转换为 {fmt} 超时") from error
+    finally:
+        if temporary_path.exists():
+            temporary_path.unlink(missing_ok=True)
+    return target
+
+
+def _decode_pcm_any(path: Path, data: bytes) -> bytes:
+    if data.startswith((TENCENT_SILK_HEADER, STANDARD_SILK_HEADER)):
+        try:
+            import pysilk
+        except (ImportError, OSError) as error:
+            raise VoiceError("解码 SILK 需要 silk-python 组件") from error
+        output = BytesIO()
+        try:
+            pysilk.decode(BytesIO(data), output, SILK_SAMPLE_RATE)
+        except Exception as error:
+            raise VoiceError("SILK 语音解码失败") from error
+        pcm = output.getvalue()
+        if not pcm:
+            raise VoiceError("SILK 语音没有可用的声音数据")
+        duration = len(pcm) / _PCM_BYTES_PER_SECOND
+        if duration > MAX_VOICE_SECONDS:
+            raise VoiceError(f"语音超过 {MAX_VOICE_SECONDS} 秒上限")
+        return pcm
+    return _decode_pcm(path)

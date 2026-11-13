@@ -152,6 +152,52 @@ def test_raw_helper_dictionary_conversion_supports_text_image_file_and_group_men
     assert group_event.raw["is_at_self"] is True
 
 
+def test_ready_voice_and_video_map_to_standard_segments(tmp_path: Path):
+    config = make_config(tmp_path)
+    sys.path.insert(0, str(config.driver.helper_root))
+    driver = HelperDriver(config)
+    voice = driver._convert_raw_data({
+        "wx_type": 34, "chat_id": "wxid_alice", "sender_id": "wxid_alice",
+        "voice_status": "ready", "voice_path": str(tmp_path / "voice.wav"),
+        "sequence": 10, "native_message_id": "201",
+    })
+    assert voice is not None and voice.segments[0].type == "record"
+    assert voice.segments[0].data["file"] == str(tmp_path / "voice.wav")
+    video = driver._convert_raw_data({
+        "wx_type": 43, "chat_id": "wxid_alice", "sender_id": "wxid_alice",
+        "video_status": "ready", "video_path": str(tmp_path / "video.mp4"),
+        "sequence": 11, "native_message_id": "202",
+    })
+    assert video is not None and video.segments[0].type == "video"
+    assert video.segments[0].data["file"] == str(tmp_path / "video.mp4")
+    assert driver._convert_raw_data({
+        "wx_type": 34, "chat_id": "wxid_alice", "sender_id": "wxid_alice",
+        "voice_status": "pending", "sequence": 12, "native_message_id": "203",
+    }) is None
+
+
+def test_private_recall_derives_the_peer_as_author(tmp_path: Path):
+    config = make_config(tmp_path)
+    sys.path.insert(0, str(config.driver.helper_root))
+    driver = HelperDriver(config)
+    event = driver._convert_raw_data({
+        "wx_type": 10002, "chat_id": "wxid_alice",
+        "recall": {"message_id": "9001", "chat_id": "wxid_alice"},
+        "sequence": 13, "create_time": 1700000000,
+    })
+    assert event is not None
+    assert event.notice_type == "friend_recall"
+    assert event.external_chat_id == "wxid_alice"
+    assert event.external_user_id == "wxid_alice"
+    group = driver._convert_raw_data({
+        "wx_type": 10002, "chat_id": "123@chatroom", "room_wxid": "123@chatroom",
+        "recall": {"message_id": "9002", "chat_id": "123@chatroom"},
+        "sequence": 14, "create_time": 1700000000,
+    })
+    assert group is not None and group.notice_type == "group_recall"
+    assert group.external_user_id == ""
+
+
 def test_monitor_only_media_is_not_emitted_before_download_finishes(tmp_path: Path):
     config = make_config(tmp_path)
     sys.path.insert(0, str(config.driver.helper_root))

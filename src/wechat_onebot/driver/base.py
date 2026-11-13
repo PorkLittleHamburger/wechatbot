@@ -28,6 +28,10 @@ class DriverUnsupported(DriverError):
 class Driver(ABC):
     capabilities: frozenset[str] = frozenset()
 
+    def take_native_message_ids(self) -> tuple[str, ...]:
+        """Return and clear native message IDs produced by the last sends."""
+        return ()
+
     async def validate_media(self, kind: str, path: str) -> None:
         """Preflight local input; native drivers additionally check their formats."""
         def validate():

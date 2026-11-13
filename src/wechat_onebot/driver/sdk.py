@@ -102,6 +102,7 @@ class SdkDriver(Driver):
         self._media_timeout = app_config.driver.sdk_media_timeout
         self._inbound_dir: Path | None = None
         self._self_id = app_config.driver.wechat_account
+        self._native_ids: deque[str] = deque(maxlen=64)
 
     # ------------------------------------------------------------------ state
     @property
@@ -556,6 +557,11 @@ class SdkDriver(Driver):
     async def send_emoticon(self, chat_id: str, path: str) -> bool:
         raise DriverUnsupported("wechatbot_api 驱动不支持发送表情")
 
+    def take_native_message_ids(self) -> tuple[str, ...]:
+        ids = tuple(self._native_ids)
+        self._native_ids.clear()
+        return ids
+
     async def _send(self, method: str, *args: Any, **kwargs: Any) -> bool:
         import asyncio
 
@@ -570,6 +576,9 @@ class SdkDriver(Driver):
         state_value = getattr(result, "state", "")
         state = getattr(state_value, "value", str(state_value))
         if state == "completed":
+            native = getattr(result, "native_message_id", None)
+            if native:
+                self._native_ids.append(str(native))
             return True
         if state in ("accepted", "unknown"):
             # A native send may still complete. Never retry it automatically.

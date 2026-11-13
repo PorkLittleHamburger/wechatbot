@@ -107,6 +107,50 @@ async def test_recall_reuses_original_message_id_and_drops_unknown(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_private_recall_without_sender_uses_the_peer(tmp_path):
+    service, driver, mapper, events = await make_service(tmp_path)
+    try:
+        await driver.inject_message(chat_id="wxid_alice", message_id="9001", text="original")
+        original_id = events[-1]["message_id"]
+        await service._on_driver_event(NoticeEvent(
+            "friend_recall", "wxid_alice", "", raw={"recall": {"message_id": "9001"}}))
+        notice = events[-1]
+        assert notice["notice_type"] == "friend_recall"
+        assert notice["message_id"] == original_id
+        assert notice["user_id"] == mapper.get_or_create("user", "wxid_alice")
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_sent_message_native_id_resolves_a_later_quote(tmp_path, monkeypatch):
+    service, driver, mapper, events = await make_service(tmp_path)
+    pending = ["900123"]
+
+    def take_native():
+        return (pending.pop(0),) if pending else ()
+
+    monkeypatch.setattr(driver, "take_native_message_ids", take_native)
+    try:
+        alice = mapper.get_or_create("user", "wxid_alice")
+        sent = await service.dispatch("send_private_msg", {"user_id": alice, "message": "self msg"})
+        sent_id = sent["data"]["message_id"]
+        cached = service.message_store.native_message(service.account, "wxid_alice", "900123")
+        assert cached is not None and cached["message_id"] == sent_id
+        await service._on_driver_event(IncomingMessage(
+            external_chat_id="wxid_alice", external_sender_id="wxid_alice",
+            segments=(Segment("text", {"text": "quoted"}),), sequence=77,
+            raw={"reply": {"native_message_id": "900123", "sender_id": "wxid_robot",
+                           "type": 1, "content": "self msg"}}))
+        payload = events[-1]
+        assert payload["message"][0] == {"type": "reply", "data": {"id": str(sent_id)}}
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
 async def test_quick_reply_and_unknown_profile_fields(tmp_path):
     service, driver, mapper, events = await make_service(tmp_path)
     try:
@@ -122,9 +166,9 @@ async def test_quick_reply_and_unknown_profile_fields(tmp_path):
         assert members[0]["role"] in ("owner", "admin", "member")
         assert type(members[0]["card_changeable"]) is bool
         count = len(driver.sent)
-        with pytest.raises(Exception, match="不支持快速操作"):
-            await service.handle_quick_operation(event, {"reply": "atomic", "ban": True})
-        assert len(driver.sent) == count
+        await service.handle_quick_operation(event, {"reply": "independent", "ban": True})
+        assert len(driver.sent) == count + 1
+        assert driver.sent[-1].payload["text"] == "independent"
     finally:
         await service.stop()
         mapper.close()

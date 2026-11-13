@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -270,3 +271,29 @@ async def test_unknown_action_fails_explicitly(tmp_path: Path):
     finally:
         await service.stop()
         mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_driver_events_keep_arrival_order(tmp_path: Path, monkeypatch):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    order = []
+    original = service._on_driver_event
+
+    async def slow(event):
+        order.append(("start", event.external_message_id))
+        if event.external_message_id == "first":
+            await asyncio.sleep(0.05)
+        await original(event)
+        order.append(("end", event.external_message_id))
+
+    monkeypatch.setattr(service, "_on_driver_event", slow)
+    try:
+        await asyncio.gather(
+            driver.inject_message(chat_id="wxid_alice", message_id="first", text="one"),
+            driver.inject_message(chat_id="wxid_alice", message_id="second", text="two"),
+        )
+    finally:
+        await service.stop()
+        mapper.close()
+    assert order == [("start", "first"), ("end", "first"),
+                     ("start", "second"), ("end", "second")]

@@ -170,6 +170,22 @@ class MediaStore:
             raise MediaError(f"已注册媒体不存在、已变化或超过大小限制: {value}")
         return available[0].path
 
+    def received_path(self, value: str) -> Path | None:
+        """Resolve a received media ID/filename for get_image/get_record.
+
+        Only account-registered media is accepted; values are never treated as
+        URLs or arbitrary local paths.
+        """
+        if not isinstance(value, str) or not value.strip():
+            return None
+        try:
+            registered = self._resolve_registered(value.strip())
+            if registered is None:
+                return None
+            return self._validate_path(registered)
+        except MediaError:
+            return None
+
     def url_for(self, record: MediaRecord) -> str:
         # Remember issued account routes across listener/base changes. This is
         # account-local evidence, never inferred from a URL supplied for refresh.
