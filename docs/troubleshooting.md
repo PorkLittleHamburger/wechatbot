@@ -11,6 +11,20 @@
 
 源码默认 helper 路径为配置文件目录下的 `vendor/helper`；外部 Launcher 可指定另一位置。使用有相应读取权限的终端查看报错给出的绝对路径，不要硬编码其他人的安装目录。isolated/embeddable Python 的导入路径修复位于 `native/bridge_watchdog.py`。
 
+## sdk 驱动（微信 4.2.0.52）
+
+`driver.type="sdk"` 的错误代码来自框架，含义稳定，不要解析异常文本：
+
+- `UNSUPPORTED_BUILD` / “未发现已登录且受支持的微信账号”：确认微信是 4.2.0.52 且核心指纹匹配；4.2.0.52 只能用 `sdk`，其余已适配构建只能用 `helper`。修改 `supported_versions` 或复制 DLL 都不放行。
+- `LAYOUT_NOT_READY` / “Core module has not loaded”：微信仍在启动或核心模块未加载；等待登录完成再扫描，枚举到的其他进程也会以该代码出现。
+- `ACCESS_DENIED`：Bot 进程权限低于微信；用与微信同级或更高权限的终端启动。
+- `SESSION_BUSY`：同一微信进程已有其他 owner 会话；关闭那个进程的 SDK/框架客户端后再启动。
+- `SHUTDOWN_PENDING` / `MEDIA_CLEANUP_PENDING`：原生任务或私有文件清理尚未完成。保留会话并等待，不要强制卸载或结束微信进程。
+- 发送返回“结果未知”：原生可能已发送。不要自动重发；用返回的 `operation` 或状态页确认，禁止把 `accepted` 当成功。
+- 入站媒体显示 `[图片]`/`[语音]` 等占位：检查 `driver.sdk_media_timeout`、框架能力是否支持该场景；群富图片在框架内仍为开发 opt-in，语音/视频接收需要框架的 extras。占位是明确失败，不是已接收。
+
+`get_status` 的 `details.watchdog` 与 `details.wechat_version/sha256` 可确认守护状态和实际构建；框架守护 journal 在账号目录的 `sdk/.guards/` 下，只应读取，不要手工改写或删除正在使用的条目。
+
 ## 桥接 DLL 未正确加载
 
 核对错误中的预期路径和实际路径、实例引用的 helper 目录、DLL 是否存在及 `VENDORED_SHA256.json`。`native/run_selftest.py` 和 `native/filehelper_service.py` 会统一比较 Windows 扩展驱动器及 UNC 路径，但其他目录下的同名 DLL 不能冒充当前模块。这里的模块路径比较不表示媒体发送支持 UNC。
