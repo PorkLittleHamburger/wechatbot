@@ -20,7 +20,7 @@ from dataclasses import replace
 from ..config import AppConfig, account_directories, update_account
 from ..onebot.network import AccountNetworkConfig, load_or_create_account_network_config
 from ..core.runtime import RuntimeManager, account_media_key
-from ..bridge import discover_logged_accounts
+from ..bridge import discover_logged_accounts, discover_sdk_accounts
 from .auth import PasswordStore
 from .startup import autostart_task, load_last_bridge
 from .bridge_resume import BridgeResumeController
@@ -270,9 +270,12 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
                        running=runtime["started"],
                        online=runtime["online"], started=runtime["started"])
         error = None
-        if scan and config.driver.type == "helper":
+        if scan and config.driver.type in ("helper", "sdk"):
             try:
-                discovered = await asyncio.to_thread(discover_logged_accounts, config.driver.helper_root)
+                if config.driver.type == "sdk":
+                    discovered = await asyncio.to_thread(discover_sdk_accounts, config)
+                else:
+                    discovered = await asyncio.to_thread(discover_logged_accounts, config.driver.helper_root)
                 for login in discovered:
                     row = rows.setdefault(login.wxid, {"account": login.wxid, "pid": login.pid,
                                                        "nickname": login.nickname, "configured": login.wxid == configured,
@@ -301,7 +304,7 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
         body = await request.json()
         if not isinstance(body, dict) or type(body.get("enabled")) is not bool:
             return Response("enabled 必须是布尔值", status_code=400)
-        if body["enabled"] and config.driver.type != "helper":
+        if body["enabled"] and config.driver.type not in ("helper", "sdk"):
             return Response("Mock 模式不能启用真实开机自启", status_code=409)
         task = await asyncio.to_thread(autostart_task, "install" if body["enabled"] else "remove")
         return {**task, "lastAccount": load_last_bridge(config.storage.data_dir)}
@@ -320,9 +323,12 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
         account = body["account"].strip()
         if not account:
             return Response("请选择有效账号", status_code=400)
-        if config.driver.type == "helper":
+        if config.driver.type in ("helper", "sdk"):
             try:
-                discovered = await asyncio.to_thread(discover_logged_accounts, config.driver.helper_root)
+                if config.driver.type == "sdk":
+                    discovered = await asyncio.to_thread(discover_sdk_accounts, config)
+                else:
+                    discovered = await asyncio.to_thread(discover_logged_accounts, config.driver.helper_root)
             except Exception:
                 return Response("只读账号扫描失败", status_code=503)
             matches = [row for row in discovered if row.wxid == account]

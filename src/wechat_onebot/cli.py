@@ -14,7 +14,7 @@ from typing import Any
 import uvicorn
 
 from . import __version__
-from .bridge import discover_logged_accounts
+from .bridge import discover_accounts, discover_logged_accounts
 from .config import AppConfig, ConfigError, update_account
 from .core.runtime import RuntimeManager
 from .webui import create_webui_app
@@ -109,6 +109,14 @@ def command_doctor(args: argparse.Namespace) -> int:
         except (OSError, KeyError, TypeError, json.JSONDecodeError):
             native_hashes = {"manifest": False}
     is_admin = bool(ctypes.windll.shell32.IsUserAnAdmin()) if os.name == "nt" else False
+    sdk: dict[str, Any] | None = None
+    if config.driver.type == "sdk":
+        try:
+            import wechatbot_api
+        except ImportError:
+            sdk = {"installed": False, "version": ""}
+        else:
+            sdk = {"installed": True, "version": getattr(wechatbot_api, "__version__", "")}
     report = {
         "platform": sys.platform,
         "python": sys.version.split()[0],
@@ -132,27 +140,33 @@ def command_doctor(args: argparse.Namespace) -> int:
         "webui_enabled": config.webui.enabled,
         "webui_endpoint": f"http://{config.webui.host}:{config.webui.port}",
         "onebot_endpoint": f"http://{config.onebot.host}:{config.onebot.port}",
+        "sdk": sdk,
     }
     print(json.dumps(report, ensure_ascii=False, indent=2))
-    ok = all((
+    checks = [
         sys.platform == "win32",
         sys.maxsize > 2**32,
         is_admin,
-        report["helper_license"],
-        report["native_bridge"],
-        report["native_bridge_hash_ok"],
-        report["supported_wechat_found"],
         not report["token_is_placeholder"],
         not report["webui_token_is_placeholder"],
-    ))
-    return 0 if ok else 1
+    ]
+    if config.driver.type == "helper":
+        checks.extend((
+            report["helper_license"],
+            report["native_bridge"],
+            report["native_bridge_hash_ok"],
+            report["supported_wechat_found"],
+        ))
+    if sdk is not None:
+        checks.append(sdk["installed"])
+    return 0 if all(checks) else 1
 
 
 def command_bind(args: argparse.Namespace) -> int:
     config = AppConfig.load(args.config)
     if os.name == "nt" and not ctypes.windll.shell32.IsUserAnAdmin():
         raise ConfigError("账号识别与原生桥接需要管理员权限，请在提权后的 PowerShell 中运行 bind")
-    accounts = discover_logged_accounts(config.driver.helper_root)
+    accounts = discover_accounts(config)
     if not accounts:
         print("没有发现已登录的电脑微信账号。请先打开微信并登录。")
         return 1
@@ -182,8 +196,8 @@ def command_run(args: argparse.Namespace) -> int:
     config = AppConfig.load(args.config)
     if args.mock:
         config = replace(config, driver=replace(config.driver, type="mock"))
-    if config.driver.type == "helper" and os.name == "nt" and not ctypes.windll.shell32.IsUserAnAdmin():
-        raise ConfigError("helper 原生驱动需要管理员权限，请从提权后的 PowerShell 启动；协议开发可使用 run --mock")
+    if config.driver.type in ("helper", "sdk") and os.name == "nt" and not ctypes.windll.shell32.IsUserAnAdmin():
+        raise ConfigError(f"{config.driver.type} 原生驱动需要管理员权限，请从提权后的 PowerShell 启动；协议开发可使用 run --mock")
     _configure_logging(args.log_level)
     manager = _build_manager(config)
     app = create_webui_app(config, manager, start_runtime=args.resume_bridge)

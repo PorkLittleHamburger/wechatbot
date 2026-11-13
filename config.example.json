@@ -13,6 +13,9 @@
     "wechat_pid": null,
     "nickname": "",
     "wechat_data_directory": null,
+    "sdk_data_root": null,
+    "sdk_allow_unverified": false,
+    "sdk_media_timeout": 30.0,
     "supported_versions": [
       "4.1.15.13",
       "4.1.15.56",

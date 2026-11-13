@@ -3,11 +3,14 @@
 ## Layers
 
 ```text
-WeChat 4.1.15.13 / 4.1.15.56 / 4.2.0.11 / 4.2.0.12 (fingerprint-locked Windows x64 builds)
+WeChat (fingerprint-locked Windows x64 builds)
+  helper driver: 4.1.15.13 / 4.1.15.56 / 4.2.0.11 / 4.2.0.12
+  sdk driver:    4.2.0.52 (wechatbot_api 0.1.0.dev14)
         |
         v
 Driver implementation + bridge helpers
-  driver/helper.py: native service lifecycle and event conversion
+  driver/helper.py: vendored native service lifecycle and event conversion
+  driver/sdk.py: wechatbot_api Session, immutable event/media mapping, sends
   bridge/: discovery, process ownership and compatibility wrappers
         |
         v
@@ -55,7 +58,7 @@ WebUI
 
 ## Driver contract
 
-`service.py` uses the `Driver` contract from `driver/base.py`; `core/runtime.py` creates helper or mock implementations. The `bridge` package provides related lifecycle/discovery helpers and compatibility names, rather than a separate transport abstraction used by every caller.
+`service.py` uses the `Driver` contract from `driver/base.py`; `core/runtime.py` creates `helper`, `sdk` or `mock` implementations. The `bridge` package provides related lifecycle/discovery helpers and compatibility names, rather than a separate transport abstraction used by every caller.
 
 Current helper capabilities include:
 
@@ -67,6 +70,13 @@ Current helper capabilities include:
 - emoticon send
 - friend and group metadata
 - recall notification where the backend provides it
+
+The `sdk` driver maps the framework's public API instead of raw native messages:
+
+- events are immutable SDK `Event` objects with `kind` (`message`/`media_update`/`diagnostic`), `content_type`, `mentions`, `reference` and bounded rich `content`; the driver thaws them into plain dicts and reuses `protocol/rich_content.py` for OneBot projection;
+- pending media is downloaded with `Session.request_media`, exported from the SDK-owned `MediaHandle` into the account media `inbound/` directory, and released before the OneBot event is emitted; failures stay explicit text placeholders;
+- `Session` calls run on an executor, events are consumed on a dedicated thread and dispatched with `run_coroutine_threadsafe`, and `close()` is drained (`SHUTDOWN_PENDING` → `wait_closed`) rather than forced;
+- capabilities describe only mapped operations; emoticon send, recall, friend requests and group management are absent, so the corresponding actions fail explicitly.
 
 Unavailable capabilities remain visible in the capability matrix.
 

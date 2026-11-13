@@ -6,10 +6,9 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from ..config import AppConfig, account_directories
-from ..bridge import discover_logged_accounts
+from ..bridge import discover_logged_accounts, discover_sdk_accounts
 from ..driver import create_driver
 from ..driver.base import Driver
-from ..driver.helper import HelperDriver
 from ..ids import IdMapper
 from ..media import MediaStore
 from ..onebot import MessageStore
@@ -104,8 +103,9 @@ class AccountRuntime:
         self.pid = pid
         self.config = replace(self.config, driver=replace(self.config.driver, wechat_pid=pid))
         self.service.config = self.config
-        if isinstance(self.driver, HelperDriver):
-            self.driver.rebind(self.config)
+        rebind = getattr(self.driver, "rebind", None)
+        if rebind is not None:
+            rebind(self.config)
 
     async def reconfigure_network(self, config: AccountNetworkConfig) -> None:
         if self.closed:
@@ -220,6 +220,16 @@ class RuntimeManager:
             matches = [row for row in discovered if row.wxid == account]
             if not matches:
                 raise AccountNotLoggedInError("目标账号未登录，请在 PC 微信中登录")
+            if len(matches) != 1:
+                raise RuntimeError("目标账号无法唯一识别，请在 WebUI 重新扫描")
+            pid = matches[0].pid
+        elif self.config.driver.type == "sdk":
+            discovered = await asyncio.to_thread(discover_sdk_accounts, self.config)
+            matches = [row for row in discovered if row.wxid == account]
+            if not matches:
+                raise AccountNotLoggedInError(
+                    "目标账号未登录，或当前微信构建不在 wechatbot_api 已适配范围内"
+                )
             if len(matches) != 1:
                 raise RuntimeError("目标账号无法唯一识别，请在 WebUI 重新扫描")
             pid = matches[0].pid

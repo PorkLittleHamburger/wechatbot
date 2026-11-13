@@ -1,5 +1,18 @@
 # Third-Party Notices
 
+## wechatbot-api
+
+`vendor/wechatbot_api` contains an **unmodified** wheel of the independent framework:
+
+- Package: `wechatbot-api 0.1.0.dev14` (import name `wechatbot_api`)
+- Build commit: `ae575aea4d85de7818be21b14ee8887b3e0f96a0`
+- Wheel: `wechatbot_api-0.1.0.dev14-py3-none-win_amd64.whl`, SHA-256 `408a04302156a5fa4988ff5e5c1a732529826f7dc834d03a312222261566b523`
+- Native bridge: `wechatbot_api/bin/wca_bridge.dll` (bridge 10 / ABI 1), SHA-256 `5af4026cd8a5b8940c11b451df77ca78b2addaeb64e66e383322449be08a6c0b`
+- Target build: WeChat 4.2.0.52 (`Weixin.dll` 204168240 bytes, SHA-256 `d733489eea0b62af77e1aa61ba645cd941583d2a64fb2d7572da818d285f8d84`)
+- License: helper Noncommercial License 1.0 (`LicenseRef-helper-noncommercial-1.0`), full text at `vendor/wechatbot_api/LICENSE`
+
+The gateway consumes the wheel only through the public `wechatbot_api` API in `src/wechat_onebot/driver/sdk.py`. It does not patch the wheel or its DLL; upgrades replace the whole wheel and update `vendor/wechatbot_api/VENDORED.json` and this section. The wheel bundles MinHook 1.3.4 and its license files under its own distribution metadata. Pillow is an install-time dependency pinned by `requirements-runtime.lock`.
+
 ## helper
 
 `vendor/helper` is vendored from:

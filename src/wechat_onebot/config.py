@@ -53,6 +53,9 @@ def default_config() -> dict[str, Any]:
             "wechat_pid": None,
             "nickname": "",
             "wechat_data_directory": None,
+            "sdk_data_root": None,
+            "sdk_allow_unverified": False,
+            "sdk_media_timeout": 30.0,
             "supported_versions": ["4.1.15.13", "4.1.15.56", "4.2.0.11", "4.2.0.12"],
         },
         "storage": {
@@ -141,12 +144,15 @@ class DriverConfig:
     nickname: str = ""
     supported_versions: tuple[str, ...] = ("4.1.15.13", "4.1.15.56", "4.2.0.11", "4.2.0.12")
     wechat_data_directory: Path | None = None
+    sdk_data_root: Path | None = None
+    sdk_allow_unverified: bool = False
+    sdk_media_timeout: float = 30.0
 
     @classmethod
     def from_dict(cls, value: dict[str, Any], *, base_dir: Path) -> "DriverConfig":
         driver_type = value.get("type", "helper")
-        if driver_type not in ("helper", "mock"):
-            raise ConfigError("driver.type 只能是 helper 或 mock")
+        if driver_type not in ("helper", "mock", "sdk"):
+            raise ConfigError("driver.type 只能是 helper、sdk 或 mock")
         helper_root_raw = value.get("helper_root", "vendor/helper")
         if not isinstance(helper_root_raw, str) or not helper_root_raw.strip():
             raise ConfigError("driver.helper_root 必须是非空路径")
@@ -171,9 +177,24 @@ class DriverConfig:
             raise ConfigError("driver.wechat_pid 必须是正整数或 null")
         if not isinstance(versions, list) or not versions or any(not isinstance(item, str) for item in versions):
             raise ConfigError("driver.supported_versions 必须是非空字符串数组")
+        sdk_root_raw = value.get("sdk_data_root")
+        sdk_data_root = None
+        if sdk_root_raw is not None:
+            if not isinstance(sdk_root_raw, str) or not sdk_root_raw.strip():
+                raise ConfigError("driver.sdk_data_root 必须是非空路径或 null")
+            sdk_data_root = Path(sdk_root_raw)
+            if not sdk_data_root.is_absolute():
+                sdk_data_root = (base_dir / sdk_data_root).resolve()
+        allow_unverified = value.get("sdk_allow_unverified", False)
+        if type(allow_unverified) is not bool:
+            raise ConfigError("driver.sdk_allow_unverified 必须是布尔值")
+        media_timeout = value.get("sdk_media_timeout", 30.0)
+        if type(media_timeout) not in (int, float) or not 1 <= float(media_timeout) <= 300:
+            raise ConfigError("driver.sdk_media_timeout 必须在 1–300 秒之间")
         return cls(type=driver_type, helper_root=helper_root, wechat_account=account.strip(),
                    wechat_pid=pid, nickname=nickname.strip(), supported_versions=tuple(versions),
-                   wechat_data_directory=data_directory)
+                   wechat_data_directory=data_directory, sdk_data_root=sdk_data_root,
+                   sdk_allow_unverified=allow_unverified, sdk_media_timeout=float(media_timeout))
 
 
 @dataclass(frozen=True)

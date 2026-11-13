@@ -312,6 +312,46 @@ def test_process_scan_error_retains_configured_account(tmp_path: Path, monkeypat
         assert "secret-token" not in response.text
 
 
+def test_sdk_driver_process_scan_uses_framework_discovery(tmp_path: Path, monkeypatch):
+    config = make_config(tmp_path)
+    config = replace(config, driver=replace(config.driver, type="sdk", wechat_pid=321))
+    manager = RuntimeManager(config)
+    calls = []
+
+    def discover_sdk(cfg):
+        calls.append(cfg)
+        return [WeChatLogin(pid=321, wxid="wxid_robot", nickname="SDK Robot",
+                            version="4.2.0.52")]
+
+    monkeypatch.setattr(webui_server, "discover_sdk_accounts", discover_sdk)
+    with TestClient(create_webui_app(config, manager, start_runtime=False)) as client:
+        login_and_set_password(client)
+        scanned = client.get("/api/processes?scan=true").json()
+    assert len(calls) == 1
+    row = scanned["processes"][0]
+    assert row["pid"] == 321
+    assert row["nickname"] == "SDK Robot"
+    assert row["configured"] is True
+
+
+def test_sdk_driver_account_selection_uses_framework_discovery(tmp_path: Path, monkeypatch):
+    config = make_config(tmp_path)
+    config = replace(config, driver=replace(config.driver, type="sdk", wechat_account="", wechat_pid=None))
+    config.path.write_text(json.dumps({"driver": {"type": "sdk", "wechat_account": None,
+                                                  "wechat_pid": None, "nickname": ""}}), encoding="utf-8")
+    manager = RuntimeManager(config)
+    monkeypatch.setattr(webui_server, "discover_sdk_accounts", lambda cfg: [
+        WeChatLogin(pid=654, wxid="wxid_sdk", nickname="SDK Login")])
+    with TestClient(create_webui_app(config, manager, start_runtime=False)) as client:
+        login_and_set_password(client)
+        response = client.post("/api/account-selection", json={"account": "wxid_sdk"})
+        assert response.status_code == 200
+        assert response.json()["account"] == "wxid_sdk"
+        stored = json.loads(config.path.read_text(encoding="utf-8"))
+        assert stored["driver"]["wechat_account"] == "wxid_sdk"
+        assert stored["driver"]["wechat_pid"] == 654
+
+
 def test_webui_selects_fresh_logged_in_account_without_starting_runtime(tmp_path: Path, monkeypatch):
     config = make_config(tmp_path)
     config = replace(config, driver=replace(config.driver, type="helper", wechat_account="", wechat_pid=None))

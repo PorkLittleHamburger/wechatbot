@@ -57,9 +57,18 @@ Profile APIs provide standard fields with unknown defaults (`sex=unknown`, age/t
 
 `groupMentionOnly` filters only outer group message reporting. Private messages remain enabled; untriggered group messages are stored for quote resolution. Forwarded inner messages are never replayed as live events. Local WebUI/bridge/account management need not implement OneBot APIs.
 
-## Native build differences
+## Native build and driver differences
 
-v0.9.4 adds fingerprint-locked WeChat 4.2.0.11 and 4.2.0.12. Full friend-directory reads and emoticon sending are unavailable on these builds; capability queries reflect the active helper backend. Observed-profile queries still work. The upstream quote/video/local anti-recall primitives have no additional OneBot mapping here. Inbound rich quotes and ordinary-message forward conversion retain their existing contracts. See [version scope](wechat-versions.md); 4.2.0.52 is not supported.
+v0.10.0 adds a second real driver. `helper` supports fingerprint-locked 4.1.15.13, 4.1.15.56, 4.2.0.11 and 4.2.0.12; `sdk` supports fingerprint-locked 4.2.0.52 through `wechatbot-api 0.1.0.dev14`. The active `driver.type` is exclusive; a build is never accepted because its version string matches.
+
+Capabilities are queried from the running driver, not assumed:
+
+- `helper`: text, native group `at`, image, ordinary file, voice send, emoticon send, contacts/members, inbound rich quotes and forwarded records. Recall, native forward cards and native outbound quotes remain unavailable; forward sending still converts to ordinary messages.
+- `sdk`: text, native group `at` (1–2 real cached names by default), PNG image, ordinary file, WAV/SILK voice and H.264 silent video send; image/file/voice/video receive; private quoted text/image and nested forwarded media; read-only contacts, groups and members from the WeChat cache. **No** emoticon send, recall, friend request, group management, native outbound quote or native forward card. Group rich images stay behind the framework's development opt-in and are not a gateway-promised capability.
+- `sdk` inbound voice is delivered as decoded WAV, not original SILK. Video/voice reception requires the framework's optional `video`/`voice` extras; `DEPENDENCY_MISSING` is reported, never silently downgraded.
+- `sdk` directory reads are `source=wechat_cache`, `complete=False`; `LAYOUT_NOT_READY` means the cache was not readable at that moment, not that the account has no contacts.
+
+Account discovery also follows the driver: `helper` scans its own logged-in accounts; `sdk` uses the framework's read-only `discover()`. Unsupported builds are reported with their error code instead of being treated as logged out. See [version scope](wechat-versions.md).
 
 ## Verification and limits
 

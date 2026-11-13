@@ -54,9 +54,20 @@ def bundle_python(target: Path) -> None:
          str(runtime / "Lib" / "site-packages"), "-r", str(ROOT / "requirements-runtime.lock")],
         check=True,
     )
+    sdk_wheels = sorted((ROOT / "vendor" / "wechatbot_api").glob("wechatbot_api-*.whl"))
+    if len(sdk_wheels) != 1:
+        raise SystemExit(f"vendor/wechatbot_api 必须恰好包含一个 wheel，实际 {len(sdk_wheels)} 个")
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "--no-index", "--no-deps", "--no-compile",
+         "--python-version", "3.13", "--implementation", "cp", "--abi", "cp313",
+         "--platform", "win_amd64", "--target",
+         str(runtime / "Lib" / "site-packages"), str(sdk_wheels[0])],
+        check=True,
+    )
     subprocess.run(
         [str(runtime / "python.exe"), "-B", "-c",
-         "import fastapi, uvicorn, cryptography, PIL, wechat_onebot; print(wechat_onebot.__version__)"],
+         "import fastapi, uvicorn, cryptography, PIL, wechat_onebot, wechatbot_api; "
+         "print(wechat_onebot.__version__, wechatbot_api.__version__)"],
         cwd=target, check=True,
     )
     subprocess.run(
@@ -102,6 +113,7 @@ def main() -> int:
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "helper_commit": (helper_root / "VENDORED_COMMIT.txt").read_text(encoding="utf-8").strip(),
         "native_hashes": helper_hashes,
+        "sdk": json.loads((ROOT / "vendor" / "wechatbot_api" / "VENDORED.json").read_text(encoding="utf-8")),
         "entrypoint": "start.cmd",
         "config_example": "config.example.json",
     }
@@ -116,7 +128,7 @@ def main() -> int:
         "   Start the WeChat bridge separately from the account page when needed.\n"
         "5. Enable autostart in WebUI Settings > Service to resume the last bridged account at Windows logon.\n"
         "   PC WeChat must log in first; this bridge does not provide a PC login QR API.\n"
-        "The helper native bridge is non-commercial and requires the pinned WeChat build.\n",
+        "The native bridge is non-commercial and requires a pinned WeChat build (see docs/wechat-versions.md).\n",
         encoding="utf-8",
     )
     print(target)

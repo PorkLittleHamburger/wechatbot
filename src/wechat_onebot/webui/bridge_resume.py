@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 
-from ..bridge import discover_logged_accounts
+from ..bridge import discover_logged_accounts, discover_sdk_accounts
 from ..config import AppConfig
 from ..core.runtime import AccountNotLoggedInError, RuntimeManager
 from .startup import load_bridge_intent, save_bridge_intent, save_last_bridge
@@ -94,9 +94,12 @@ class BridgeResumeController:
             if current is not None and current.started:
                 self.state = "running"
                 return
-            if self.config.driver.type == "helper":
+            if self.config.driver.type in ("helper", "sdk"):
                 try:
-                    rows = await asyncio.to_thread(self.discover, self.config.driver.helper_root)
+                    if self.config.driver.type == "sdk":
+                        rows = await asyncio.to_thread(discover_sdk_accounts, self.config)
+                    else:
+                        rows = await asyncio.to_thread(self.discover, self.config.driver.helper_root)
                 except Exception as error:
                     if self._current(generation):
                         self._fail(error)

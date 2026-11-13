@@ -14,10 +14,11 @@
 
 This repository is the standalone Python OneBot v11 gateway for a personal Windows WeChat account. Run commands from the repository root.
 
-- `src/wechat_onebot/`: `bridge/` handles WeChat and helper lifecycle; `protocol/` normalizes events; `onebot/` implements actions and transports; `core/` owns account runtimes; `webui/` serves the management UI.
+- `src/wechat_onebot/`: `driver/` owns real/Mock bridging (`helper.py`, `sdk.py`, `mock.py`); `bridge/` handles discovery and lifecycle; `protocol/` normalizes events; `onebot/` implements actions and transports; `core/` owns account runtimes; `webui/` serves the management UI.
 - `tests/`: pytest coverage for protocol conversion, IDs, networking, runtime, bridge management, storage, and WebUI APIs.
 - `webui/`, `assets/`, `docs/`, and `scripts/`: frontend files, icons, design notes, and launch/preflight/build utilities.
-- `vendor/helper/`: pinned native bridge. Do not modify vendored files without following its README and updating `VENDORED_SHA256.json`.
+- `vendor/helper/`: pinned helper native bridge (WeChat 4.1.15.x, 4.2.0.11/0.12). Do not modify vendored files without following its README and updating `VENDORED_SHA256.json`.
+- `vendor/wechatbot_api/`: pinned `wechatbot-api` wheel for the `sdk` driver (WeChat 4.2.0.52). Treat it as read-only; record upgrades in `VENDORED.json` and `THIRD_PARTY_NOTICES.md`.
 - `config.example.json`: configuration template. Never commit local `config.json`, `data/`, credentials, or logs.
 
 Do not add unrelated application code to this repository.
@@ -28,6 +29,7 @@ Do not add unrelated application code to this repository.
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-runtime.lock
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pip install --no-index --no-deps .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev14-py3-none-win_amd64.whl
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe -m compileall -q src
 .\scripts\run_mock.ps1
@@ -35,7 +37,7 @@ python -m venv .venv
 pwsh -File .\scripts\build_portable.ps1
 ```
 
-The first three commands create the development environment. `run_mock.ps1` starts an offline service; `start.cmd` launches the Helper service; the build command writes a portable package to `dist/`.
+The first four commands create the development environment; the vendored SDK wheel is only needed for the `sdk` driver and its tests. `run_mock.ps1` starts an offline service; `start.cmd` launches the configured real bridge (`helper` or `sdk`); the build command writes a portable package to `dist/`.
 
 ## Coding Style & Naming Conventions
 
@@ -51,4 +53,4 @@ Use concise imperative commit subjects; focused Conventional Commits such as `fi
 
 ## Security & Native Bridge Rules
 
-Never return fake success for unsupported OneBot actions. Preserve durable ID mappings and account isolation. Native sends must use the helper bridge, not OCR, clicks, clipboard, or keyboard simulation. Reserve elevated/live WeChat tests for deliberate verification and confirm before real sends.
+Never return fake success for unsupported OneBot actions. Preserve durable ID mappings and account isolation. Native sends must use the configured bridge (`helper` native service or the `wechatbot_api` SDK), not OCR, clicks, clipboard, or keyboard simulation. Never retry an `unknown` SDK send. Reserve elevated/live WeChat tests for deliberate verification and confirm before real sends.

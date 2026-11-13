@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-12** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），本次发布基线为 v0.9.4（实际发布状态以远端标签和 Release 为准）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），上一发布基线为 v0.9.4，本轮源码为 v0.10.0（实际发布状态以远端标签和 Release 为准）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -12,7 +12,7 @@
 | --- | --- |
 | `cli.py`、`config.py` | CLI、首次配置、路径解析与环境检查 |
 | `core/runtime.py` | 账号 Runtime、端点恢复、桥接生命周期 |
-| `driver/helper.py`、`driver/mock.py` | 真实原生服务与离线替身 |
+| `driver/helper.py`、`driver/sdk.py` | 固定 helper 原生服务；`wechatbot_api` 公开 SDK 驱动（4.2.0.52） |
 | `bridge/` | 账号发现、PID 所有权和兼容会话包装 |
 | `service.py`、`onebot/actions.py` | 动作编排、参数校验和结果 |
 | `protocol/converters.py` | 用户/群 ID 和消息事件转换 |
@@ -145,3 +145,20 @@ Launcher 负责明确恢复设置/启动参数、所选 worker 能力握手及�
 本轮将既有发布约定固化到 scripts/package_portable.py：自动生成标准版本附件名、同名单层根目录、正斜杠 ZIP 路径及无 BOM 的同名 SHA-256 文件；PowerShell 构建直接调用该入口。补充路径、重复项和摘要回归。仍为 Launcher 支持的 legacy portable 输入，由 Launcher 注入自身 worker 并生成 VERSION_MANIFEST.json，不在 Bot 仓库混入 Launcher 源码。微信适配和网关业务代码保持 v0.9.4 范围。
 
 用户随后澄清下载已恢复，之前可能是网络问题；实际问题为打开 WebUI 时 Launcher 报 WebView2 0x80010108。当前 Bot 实例的首页和 healthz 均返回 HTTP 200。已将窗口缺陷交由独立 Launcher 会话诊断修复；不再按包损坏处理，不发布无关的 Bot 替代版、不撤下有效 v0.9.4。打包规则改进另行验证推送，不改变 Bot 版本或运行实例。467 项 Bot 回归通过、1 项权限测试跳过。
+
+## v0.10.0 wechatbot_api 驱动（2026-11-13，未实机验收）
+
+背景：用户的微信已升级到 **4.2.0.52**，上游 helper 没有该构建的适配（修改版本号不会放行）。独立框架仓库 `wechatbot-api` 已完成 `0.1.0.dev14` 快照，仅适配这一精确构建；本轮在 Bot 侧接入其公开 SDK，不修改框架代码，也不改动 Launcher/AstrBot/运行实例。
+
+代码入口：
+
+- `src/wechat_onebot/driver/sdk.py`：`SdkDriver(Driver)`。`start` 用框架只读 `discover()` 选账号并 `Session.connect(receive=True)`；独立消费线程把不可变 `Event` 转成 `IncomingMessage`（thaw 冻结结构后复用 `protocol/rich_content.py`）；入站 pending 媒体经 `request_media` 下载、从 `MediaHandle` 导出到账号 `media/inbound/` 并 `release()`；`stop` 排空（`SHUTDOWN_PENDING` → `wait_closed`），不强制卸载。
+- 发送只映射文本、原生群 `@`、图片、文件、语音与视频；`completed` 才返回成功，`accepted`/`unknown` 一律抛“结果未知、不要重发”，绝不伪造成功。能力集合不含表情、撤回、好友申请与群管理，对应动作返回 1404。
+- 配置：`driver.type` 新增 `sdk`；`sdk_data_root`（默认账号目录 `sdk/`）、`sdk_allow_unverified`（默认 false）、`sdk_media_timeout`（默认 30 秒）。`bridge.discovery` 新增 `discover_sdk_accounts`/`discover_accounts`，CLI、Runtime、WebUI、桥接恢复控制器按 `driver.type` 分派；helper 路径与既有测试契约不变。
+- 依赖：固定 `vendor/wechatbot_api/wechatbot_api-0.1.0.dev14-py3-none-win_amd64.whl`（sha256 `408a0430…b523`，bridge 10/ABI 1），`VENDORED.json` 记录来源与指纹；`build_portable.py` 安装该 wheel 并导入校验。SDK 要求 Pillow 13.0.0，运行锁与 `pyproject` 已同步到 `Pillow>=13,<14`。
+
+能力边界（来自框架公开契约，不是网关猜测）：支持 4.2.0.52 的文本收发、1–2 人真实缓存名称群 `@`、PNG/普通文件/语音/视频发送、四类私聊媒体与群 PNG/文件/视频/群 CDN 语音接收、私聊引用文本/引用原图/两层嵌套转发、只读联系人/群/成员缓存；不支持表情发送、撤回、好友申请、群管理、原生合并转发卡片与出站原生引用。群富图片在框架内仍为开发 opt-in，网关默认不承诺；入站语音是解码后的 WAV。
+
+验证：496 项 Bot 回归通过、1 项 Windows 符号链接权限测试跳过；`compileall`、便携包构建（含包内 `wechatbot_api` 导入）通过。新增 `tests/test_sdk_driver.py` 覆盖事件/引用/富内容映射、媒体导出与句柄释放、异常媒体占位、发送结果四态、只读查询、目标选择、启停与配置校验；测试用假 SDK，不注入微信。另用打包后的 Python 执行了只读 `discover()`：识别到本机两个已登录的 4.2.0.52 进程（核心指纹 `d733489e…`，`bridge_supported=true`），Bot 的 `discover_sdk_accounts` 也正确映射；该步骤不注入、不发送、不创建会话。
+
+未完成/未验证：**没有注入 4.2.0.52、没有发送真实消息、没有替换运行实例**。待实机验收：只读发现与绑定、启停与守护状态、群 `@`、图片/文件/语音/视频收发、私聊引用（含引用图片）、转发接收；`sdk` 驱动逐条消息串行等待媒体（受 `sdk_media_timeout` 限制），高并发长媒体会延迟后续事件，暂未改为并发流水线；通知类系统消息与撤回尚无 OneBot 映射；`get_stranger_info` 仍依赖事件/缓存观测，非任意陌生人查询。发布 Release 需用户明确确认。

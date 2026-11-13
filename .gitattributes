@@ -4,3 +4,9 @@ vendor/helper/**/*.dll binary
 vendor/helper/**/*.png binary
 vendor/helper/**/*.jpg binary
 vendor/helper/**/*.ico binary
+
+# The pinned SDK wheel and its native bridge are binary; metadata stays LF.
+vendor/wechatbot_api/**/*.whl binary
+vendor/wechatbot_api/**/*.dll binary
+vendor/wechatbot_api/*.json text=auto eol=lf
+vendor/wechatbot_api/*.md text=auto eol=lf
