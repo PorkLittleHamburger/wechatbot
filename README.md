@@ -63,6 +63,8 @@ v0.11.4 长语音保真发送：`record` / `music` 的音频统一解码为 24 k
 
 v0.11.5 桥接重启等待：未停止桥接就关闭实例后，旧 Bot 进程退出与 SDK watchdog 卸载原生 bridge 之间有短暂竞态，立即启动新桥接会报 `SESSION_BUSY`。sdk 驱动现在会等待并重试最多 20 秒，通常可直接恢复；若超时仍失败，再按提示结束旧实例/桥接或重启微信。
 
+v0.11.6 群 @ 名称校验修复：AstrBot 的 `At` 段不带昵称时，网关曾用 wxid 兜底，SDK 原生层按缓存校验会报 `NOT_VERIFIED`（retcode 1500，`sent_segments=0`）。现在 sdk 驱动检测到 wxid/空/过期昵称后改用 SDK 缓存名称；若仍被原生拒绝，会在发送前校验失败（不会重复发送）时用缓存名称重试一次。
+
 ## 下载与升级
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。

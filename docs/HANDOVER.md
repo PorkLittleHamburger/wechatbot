@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.5（Launcher 配套 v0.8.12、框架 dev14）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.5（Launcher 配套 v0.8.12、框架 dev14）；源码 v0.11.6 已加入群 @ 名称校验修复但尚未发布；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -309,3 +309,15 @@ AstrBot 点歌仍报 `Local voice send failed: WebSocket API call timeout`；bot
 边界：如果旧 Bot 进程或旧桥接仍然存活（不是短暂卸载窗口），重试不会成功，20 秒后报错；正确做法仍是 Launcher 在关闭实例前停止桥接，或手动结束旧进程/重启微信。重试窗口固定 20 秒，暂无配置项。
 
 发布结果（2026-11-13）：用户确认发布 **WeChatBot v0.11.5**。annotated tag `v0.11.5` → `6b66516`；[Bot checks #43419495096](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43419495096) 成功；附件 `wechat-onebot-0.11.5-windows-x64.zip` 60,407,721 B，SHA-256 `db0a8a4ba4f6863989b842b8c85761d088f7894336a2ec2f2f0bc945997393e6`，与同名 `.sha256` 一同设为 Latest；公网重新下载摘要一致；Launcher `VersionStore.import_archive` 导入 1,586 个文件、状态 compatible。框架与 Launcher 无需改动。
+
+## v0.11.6 群 @ 名称校验（2026-11-14，未发布）
+
+用户报告群友消息后 bot 回复失败：AstrBot 日志 `ActionFailed status=failed retcode=1500 data={'sent_segments': 0} message='发送失败: NOT_VERIFIED'`，消息链是 `At(qq=发送者)` + 文本。
+
+原因：AstrBot 的 `At` 组件只序列化 `qq`，不带昵称；网关 `_send_prepared_message` 在本地 profile 没有可用昵称时用 wxid 兜底作为 `display_names`。SDK 原生 `group.mention` 会用微信缓存校验标签，wxid 不在缓存名称集合中，所以在**发送前**返回 `NOT_VERIFIED`，没有任何分段发出。
+
+修复：`SdkDriver.send_at_text` 检测 wxid/空/长度不匹配的标签后改为 `display_names=None`，让 SDK 自己从微信缓存解析 `group_nickname/wechat_name`；若显式标签仍触发 `NOT_VERIFIED`，因为这是发送前校验失败、不会重复投递，重试一次 `display_names=None`。
+
+验证：新增“wxid 兜底时传 None”“NOT_VERIFIED 后用缓存名称重试”两项测试；全量 **531 passed / 1 skipped**。未在真实群聊复测 AstrBot @ 回复。
+
+边界：如果成员名称确实不在微信缓存中，改用缓存名称也会失败；此时需刷新群成员缓存或临时开启 `driver.sdk_allow_unverified`。helper 驱动不校验显示名，wxid 兜底能发送但 @ 文本显示 wxid。

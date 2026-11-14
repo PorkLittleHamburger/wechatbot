@@ -429,6 +429,44 @@ async def test_at_text_passes_members_and_display_names(monkeypatch, tmp_path: P
         await driver.stop()
 
 
+@pytest.mark.asyncio
+async def test_at_text_uses_sdk_names_when_gateway_only_has_wxid(monkeypatch, tmp_path: Path):
+    driver, client, _, _ = await started_driver(monkeypatch, tmp_path)
+    try:
+        await driver.send_at_text("1@chatroom", "hi", ["wxid_a"], ["wxid_a"])
+        _, _, kwargs = client.session_obj.sent[0]
+        assert kwargs["display_names"] is None
+    finally:
+        await driver.stop()
+
+
+@pytest.mark.asyncio
+async def test_at_text_retries_with_cache_names_after_not_verified(monkeypatch, tmp_path: Path):
+    driver, client, _, _ = await started_driver(monkeypatch, tmp_path)
+    session = client.session_obj
+    calls: list[list[str] | None] = []
+
+    def send_at_text(chat_id, text, members, display_names=None, timeout=30):
+        calls.append(display_names)
+        if display_names is not None:
+            return SimpleNamespace(
+                state=SimpleNamespace(value="failed"),
+                error=SimpleNamespace(code=SimpleNamespace(value="NOT_VERIFIED")),
+                detail="stale label", operation_id="op-1",
+            )
+        return SimpleNamespace(
+            state=SimpleNamespace(value="completed"), error=None,
+            detail="", operation_id="op-2",
+        )
+
+    session.send_at_text = send_at_text
+    try:
+        assert await driver.send_at_text("1@chatroom", "hi", ["wxid_a"], ["旧昵称"]) is True
+        assert calls == [["旧昵称"], None]
+    finally:
+        await driver.stop()
+
+
 # ------------------------------------------------------------------ reads
 @pytest.mark.asyncio
 async def test_login_info_falls_back_to_the_cached_account_name(tmp_path: Path):

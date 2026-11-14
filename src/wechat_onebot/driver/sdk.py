@@ -567,7 +567,26 @@ class SdkDriver(Driver):
         if not members:
             raise DriverError("群聊 @ 消息缺少目标成员")
         names = [str(item) for item in display_names] if display_names else None
-        return await self._send("send_at_text", chat_id, text, members=members, display_names=names)
+        if names is not None and (
+                len(names) != len(members)
+                or any(not name.strip() or name == member
+                       for name, member in zip(names, members))):
+            # Gateway falls back to the wxid when no display name is cached.
+            # wxid is not a native-verifiable mention label; let the SDK resolve
+            # the exact cached group nickname/wechat_name instead.
+            names = None
+        try:
+            return await self._send("send_at_text", chat_id, text,
+                                    members=members, display_names=names)
+        except DriverError as error:
+            if names is None or "NOT_VERIFIED" not in str(error):
+                raise
+            # A stale/custom label can fail the native cache check even though a
+            # valid cached label exists. NOT_VERIFIED is a pre-send rejection, so
+            # retrying once with SDK-resolved labels cannot duplicate a message.
+            logger.warning("原生 @ 名称校验失败，改用 SDK 缓存名称重试: %s", error)
+            return await self._send("send_at_text", chat_id, text,
+                                    members=members, display_names=None)
 
     async def send_image(self, chat_id: str, path: str) -> bool:
         return await self._send("send_image", chat_id, str(path))
