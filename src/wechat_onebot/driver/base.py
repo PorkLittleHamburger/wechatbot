@@ -73,6 +73,15 @@ class Driver(ABC):
         """Return the best native-cached display name, if the driver can read it."""
         return None
 
+    async def resolve_foreign_mention_label(self, chat_id: str, user_id: str) -> str | None:
+        """Return a real display name from another logged-in local account cache.
+
+        This is a read-only fallback for SDK accounts whose own cache does not
+        contain a member name. Implementations must not use another account's
+        private remark and must never send from that account.
+        """
+        return None
+
     @abstractmethod
     async def send_image(self, chat_id: str, path: str) -> bool:
         raise NotImplementedError

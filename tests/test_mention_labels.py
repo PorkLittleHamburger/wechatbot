@@ -129,6 +129,51 @@ async def test_mention_label_validation_rejects_wxid_and_blank(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_foreign_account_cache_name_is_used_when_own_cache_missing(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = mapper.get_or_create("group", "10001@chatroom")
+        user = mapper.get_or_create("user", "wxid_alice")
+        driver.resolve_mention_label = AsyncMock(return_value=None)
+        driver.resolve_foreign_mention_label = AsyncMock(return_value="外账号名")
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group,
+            "message": [{"type": "at", "data": {"qq": user}},
+                        {"type": "text", "data": {"text": "hi"}}],
+        })
+        assert response["status"] == "ok"
+        payload = driver.sent[-1].payload
+        assert payload["display_names"] == ["外账号名"]
+        assert payload["labels_verified"] is False
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_manual_binding_wins_over_foreign_account_name(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = mapper.get_or_create("group", "10001@chatroom")
+        user = mapper.get_or_create("user", "wxid_alice")
+        service.set_mention_label(group, user, "手工真名")
+        driver.resolve_mention_label = AsyncMock(return_value=None)
+        driver.resolve_foreign_mention_label = AsyncMock(return_value="外账号名")
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group,
+            "message": [{"type": "at", "data": {"qq": user}},
+                        {"type": "text", "data": {"text": "hi"}}],
+        })
+        assert response["status"] == "ok"
+        payload = driver.sent[-1].payload
+        assert payload["display_names"] == ["手工真名"]
+        assert payload["labels_verified"] is False
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
 async def test_current_cache_name_wins_over_stale_manual_binding(tmp_path: Path):
     service, driver, mapper, _ = await make_service(tmp_path)
     try:

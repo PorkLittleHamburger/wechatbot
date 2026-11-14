@@ -646,6 +646,17 @@ class OneBotService:
                     sources.append("manual")
                     fallback_labels.append(manual)
                     continue
+                foreign = ""
+                try:
+                    foreign = await self.driver.resolve_foreign_mention_label(
+                        chat_id, external) or ""
+                except DriverError:
+                    foreign = ""
+                if foreign:
+                    names.append(foreign)
+                    sources.append("foreign")
+                    fallback_labels.append(foreign)
+                    continue
                 profile = self._display_name(external, chat_id)
                 if profile:
                     names.append(profile)
@@ -656,25 +667,27 @@ class OneBotService:
                 sources.append("none")
                 fallback_labels.append(supplied or external)
             has_manual = "manual" in sources
+            has_unverified = has_manual or "foreign" in sources
             attempt_native = False
             display_names: tuple[str, ...] | None = None
             labels_verified = True
             if at_ids:
                 if not all(names):
-                    # Without a manual label the SDK may still resolve all
-                    # targets from its cache; with a manual label an incomplete
-                    # set must not turn the other names into unverified labels.
-                    attempt_native = not has_manual
-                elif not has_manual:
+                    # Without an unverified source the SDK may still resolve all
+                    # targets from its cache; with a manual/foreign label an
+                    # incomplete set must not turn other names into unverified.
+                    attempt_native = not has_unverified
+                elif not has_unverified:
                     attempt_native = True
                     display_names = tuple(names)
-                elif all(source in ("manual", "cache") for source in sources):
+                elif all(source in ("manual", "foreign", "cache")
+                         for source in sources):
                     attempt_native = True
                     display_names = tuple(names)
                     labels_verified = False
                 else:
                     # A profile/history name is not proof of the current
-                    # display name. Mixing it with manual labels under
+                    # display name. Mixing it with manual/foreign labels under
                     # labels_verified=False would look like D组: native
                     # completed but no real @. Degrade the whole batch.
                     logger.warning("多目标 @ 名称来源混合，降级为普通文本")

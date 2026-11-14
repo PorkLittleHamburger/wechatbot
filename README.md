@@ -13,6 +13,7 @@ Windows 11 x64 个人微信 OneBot v11 网关。本项目包含协议转换、�
 - OneBot v11 HTTP API、HTTP 事件上报、正向 WebSocket 与反向 WebSocket。
 - 私聊与群聊文本、图片、微信原生群 `@`；收到的文件以标准文本下载链接交付，微信贴图以图片交付。语音、文件及贴图发送能力与可选扩展的区别见协议兼容说明。
 - 群成员 `@` 显示名绑定：当微信缓存查不到某成员昵称时，可在实例 WebUI 为该成员录入真实群显示名，用 `labels_verified=False` 发出真实原生 @；没有真实名时仍降级为可见文本，任意标签不会伪造 @。
+- 跨账号名称补全：sdk 驱动在本账号缓存查不到成员名时，可只读查询同一 Windows 用户下其他已登录微信账号的群成员缓存，取群昵称/微信名（不使用他人备注）作为未验证标签。默认开启，可用 `driver.sdk_cross_account_mentions=false` 关闭。
 - 稳定且持久化的 OneBot 用户、群与消息 ID。
 - 本地 WebUI 管理账号扫描、桥接、OneBot 端点、日志和媒体存储。
 - Mock 驱动用于离线测试；`helper` 驱动通过固定版本原生桥接读写真实微信消息；`sdk` 驱动通过 `wechatbot-api` 公开 SDK 支持微信 4.2.0.52。
@@ -70,6 +71,8 @@ v0.11.7 群 @ 发送兜底：如果微信本地缓存里确实没有该成员的
 
 v0.11.8 群 @ 真实显示名与 dev15：升级 `wechatbot_api 0.1.0.dev15`（bridge 10 不变），新增群成员 `@` 显示名绑定和实例 WebUI 管理入口。实测确认任意标签即使 `labels_verified=False` 且原生 `completed`，接收端也不会出现真实 @；只有真实显示名才会。网关优先使用当前 SDK 缓存名（verified）；缓存查不到时才用实例 WebUI 手工绑定的真实名（按次 `labels_verified=False`）。多目标 @ 只有全部标签都是手工真实名或当前缓存名时才发原生 @，混入历史资料/未知名时整条消息降级为可见文本。手工绑定名只在缓存缺失时生效，且必须与群内实际显示名一致。
 
+v0.11.9 跨账号名称补全：某些成员的名称只存在于另一台已登录账号的微信缓存中（本机 test 群实例：B 缓存无名称，A 缓存有名称）。sdk 驱动在本账号 `mention_label` 为空时，会只读扫描同一 Windows 用户下其他已登录账号的群成员缓存，取该成员的群昵称或微信名作为未验证标签（不读取他人备注、不从其他账号发送）。默认开启；如不希望读取其他账号缓存，设置 `driver.sdk_cross_account_mentions=false`。
+
 ## 下载与升级
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。
@@ -118,7 +121,7 @@ python -m venv .venv
 
 `config.example.json` 是带占位 Token 的字段样例，不应原样复制用于运行。实际 `config.json` 和运行数据仅保留在本机。默认账号网络配置为 `data/accounts/<账号>/onebot.json`，用户/群 ID 映射为同目录的 `ids.sqlite3`，消息 ID、消息及用户资料为 `messages.sqlite3`，媒体为 `data/media/<账号>/`。路径可由 `storage` 配置修改，相对路径按配置文件目录解析。
 
-`sdk` 驱动另有 `driver.sdk_data_root`（默认 `data/accounts/<账号>/sdk/`，保存框架守护 journal 与私有快照）与 `driver.sdk_allow_unverified`、`driver.sdk_media_timeout`。它的入站媒体先由框架 `request_media` 下载，再导出到账号媒体目录的 `inbound/` 后注册；导出失败会保留明确的文本占位，不会指向不存在或已释放的文件。
+`sdk` 驱动另有 `driver.sdk_data_root`（默认 `data/accounts/<账号>/sdk/`，保存框架守护 journal 与私有快照）与 `driver.sdk_allow_unverified`、`driver.sdk_cross_account_mentions`、`driver.sdk_media_timeout`。它的入站媒体先由框架 `request_media` 下载，再导出到账号媒体目录的 `inbound/` 后注册；导出失败会保留明确的文本占位，不会指向不存在或已释放的文件。
 
 备份或迁移时应先停止服务，再复制配置、完整账号数据和媒体目录，避免遗漏 SQLite WAL，并核对自定义组件路径。不要提交密码、Token、账号标识、消息内容或运行日志。
 

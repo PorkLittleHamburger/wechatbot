@@ -1,4 +1,4 @@
 """WeChat OneBot v11 gateway."""
 
-__version__ = "0.11.8"
+__version__ = "0.11.9"
 APP_NAME = "wechat-onebot"

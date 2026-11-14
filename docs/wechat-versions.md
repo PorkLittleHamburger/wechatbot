@@ -36,7 +36,9 @@ sdk 驱动还要求 `wechatbot_api` 包与包内 `wca_bridge.dll` 的版本、�
   只读联系人/群/群成员缓存查询。
 - 群 `@` 名称：dev15 新增按次 `labels_verified=False` 和只读
   `mention_label(room, wxid)`。网关优先使用当前 SDK 缓存名（verified）；
-  缓存查不到时才用手工绑定的真实显示名（按次未验证提交）。任意标签即使
+  缓存查不到时先用实例 WebUI 手工绑定的真实名（按次未验证提交），仍没有时
+  只读查询同一 Windows 用户下其他已登录微信账号的群成员缓存，取群昵称或
+  微信名作为未验证标签（不读私人备注、不从其他账号发送）。任意标签即使
   原生 `completed` 也不会被接收端识别为真实 @；没有真实名时保持可见文本降级。
   手工绑定名必须与群内实际显示名一致，且不会覆盖缓存已有的当前名。
 - 不支持：表情包发送、撤回、好友申请、群管理、原生合并转发卡片、出站原生引用。
@@ -69,6 +71,7 @@ sdk 驱动还要求 `wechatbot_api` 包与包内 `wca_bridge.dll` 的版本、�
     "wechat_pid": 12345,
     "sdk_data_root": null,
     "sdk_allow_unverified": false,
+    "sdk_cross_account_mentions": true,
     "sdk_media_timeout": 30.0
   }
 }
@@ -110,3 +113,8 @@ v0.11.8 将 sdk 框架固定版本升级到 `0.1.0.dev15`（bridge 10 / ABI 1 �
 `labels_verified=False` 且 native completed，接收端也没有真实 @；真实显示名才有效。
 缓存无名称时，手工绑定真实名走按次未验证提交；没有真实名则保持可见文本降级。
 **手工绑定名必须与群内实际显示名一致，不能填 wxid 或占位标签。**
+
+v0.11.9 新增跨账号名称补全：本账号缓存缺失时，sdk 驱动只读查询同机其他
+已登录微信账号的群成员缓存，取群昵称/微信名作为未验证标签；默认开启，
+`driver.sdk_cross_account_mentions=false` 可关闭。该路径不读其他账号备注，
+也不从其他账号发送；其他账号都未缓存该成员时仍需手工绑定或可见文本降级。

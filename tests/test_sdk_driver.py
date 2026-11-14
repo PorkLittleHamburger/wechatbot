@@ -561,6 +561,35 @@ async def test_at_text_retry_exhausted_raises_without_third_attempt(monkeypatch,
         await driver.stop()
 
 
+@pytest.mark.asyncio
+async def test_foreign_mention_label_reads_other_local_account_cache(monkeypatch, tmp_path: Path):
+    client = install_fake_sdk(monkeypatch)
+    client.rows = [discovery_result(pid=123, wxid="wxid_robot"),
+                   discovery_result(pid=456, wxid="wxid_other", wechat_name="其他账号")]
+    driver = SdkDriver(make_config(tmp_path))
+    try:
+        await driver.start(lambda message: None)
+        assert driver._other_accounts == [(456, "wxid_other")]
+        assert await driver.resolve_foreign_mention_label("1@chatroom", "wxid_a") == "群昵称"
+        # Cached positive result avoids a second cross-account read.
+        assert await driver.resolve_foreign_mention_label("1@chatroom", "wxid_a") == "群昵称"
+    finally:
+        await driver.stop()
+
+
+@pytest.mark.asyncio
+async def test_foreign_mention_label_honors_disable_flag(monkeypatch, tmp_path: Path):
+    client = install_fake_sdk(monkeypatch)
+    client.rows = [discovery_result(pid=123, wxid="wxid_robot"),
+                   discovery_result(pid=456, wxid="wxid_other", wechat_name="其他账号")]
+    driver = SdkDriver(make_config(tmp_path, sdk_cross_account_mentions=False))
+    try:
+        await driver.start(lambda message: None)
+        assert await driver.resolve_foreign_mention_label("1@chatroom", "wxid_a") is None
+    finally:
+        await driver.stop()
+
+
 # ------------------------------------------------------------------ reads
 @pytest.mark.asyncio
 async def test_login_info_falls_back_to_the_cached_account_name(tmp_path: Path):
@@ -725,11 +754,12 @@ def test_sdk_driver_config_accepts_new_fields(tmp_path: Path):
     config = DriverConfig.from_dict({
         "type": "sdk", "wechat_account": "wxid_robot",
         "sdk_data_root": "sdk-data", "sdk_allow_unverified": True,
-        "sdk_media_timeout": 12.5,
+        "sdk_cross_account_mentions": False, "sdk_media_timeout": 12.5,
     }, base_dir=tmp_path)
     assert config.type == "sdk"
     assert config.sdk_data_root == (tmp_path / "sdk-data").resolve()
     assert config.sdk_allow_unverified is True
+    assert config.sdk_cross_account_mentions is False
     assert config.sdk_media_timeout == 12.5
 
 
@@ -737,6 +767,7 @@ def test_sdk_driver_config_accepts_new_fields(tmp_path: Path):
     {"type": "unknown"},
     {"type": "sdk", "sdk_data_root": ""},
     {"type": "sdk", "sdk_allow_unverified": "yes"},
+    {"type": "sdk", "sdk_cross_account_mentions": "yes"},
     {"type": "sdk", "sdk_media_timeout": 0},
     {"type": "sdk", "sdk_media_timeout": 301},
 ])

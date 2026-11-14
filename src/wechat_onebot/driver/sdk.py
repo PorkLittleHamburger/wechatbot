@@ -107,6 +107,20 @@ class SdkDriver(Driver):
         self._inbound_dir: Path | None = None
         self._self_id = app_config.driver.wechat_account
         self._native_ids: deque[str] = deque(maxlen=64)
+        self._other_accounts: list[tuple[int, str]] = []
+        self._accounts_refresh_at = 0.0
+        self._foreign_labels: dict[tuple[str, str], tuple[str, float]] = {}
+
+    @staticmethod
+    def _collect_other_accounts(rows: Any, self_id: str) -> list[tuple[int, str]]:
+        return sorted({
+            (int(row.pid), str(row.account.wxid))
+            for row in rows
+            if getattr(row, "account", None) is not None
+            and getattr(row, "error", None) is None
+            and getattr(row, "bridge_supported", False)
+            and str(row.account.wxid) != str(self_id)
+        })
 
     # ------------------------------------------------------------------ state
     @property
@@ -213,7 +227,11 @@ class SdkDriver(Driver):
                 "未安装 wechatbot_api 运行时；请安装 vendor/wechatbot_api 下的 wheel"
             ) from error
         client = wechatbot_api.Client(data_root=data_root)
-        target = self._select_target(client.discover())
+        discovered = client.discover()
+        target = self._select_target(discovered)
+        self._other_accounts = self._collect_other_accounts(
+            discovered, str(target.account.wxid))
+        self._accounts_refresh_at = time.monotonic() + 60
         deadline = time.monotonic() + _SESSION_BUSY_RETRY_SECONDS
         attempt = 0
         while True:
@@ -265,6 +283,9 @@ class SdkDriver(Driver):
         self._session = None
         self._client = None
         self._target = None
+        self._other_accounts = []
+        self._accounts_refresh_at = 0.0
+        self._foreign_labels.clear()
         if subscription is not None:
             try:
                 subscription.close(wait=False)
@@ -608,6 +629,51 @@ class SdkDriver(Driver):
             logger.debug("读取 @ 缓存名称失败: %s", _code(error), exc_info=True)
             return None
         return _text(value, 64) or None
+
+    async def resolve_foreign_mention_label(self, chat_id: str, user_id: str) -> str | None:
+        import asyncio
+
+        if not self.config.driver.sdk_cross_account_mentions:
+            return None
+        client = self._client
+        if client is None:
+            return None
+        if time.monotonic() >= self._accounts_refresh_at:
+            try:
+                rows = await asyncio.to_thread(client.discover)
+                self._other_accounts = self._collect_other_accounts(
+                    rows, str(self._self_id))
+            except Exception:
+                logger.debug("刷新其他微信账号列表失败", exc_info=True)
+            self._accounts_refresh_at = time.monotonic() + 60
+        if not self._other_accounts:
+            return None
+        key = (str(chat_id), str(user_id))
+        now = time.monotonic()
+        cached = self._foreign_labels.get(key)
+        if cached is not None and cached[1] > now:
+            return cached[0] or None
+        for pid, account in self._other_accounts:
+            try:
+                snapshot = await asyncio.to_thread(
+                    client.group_members, chat_id,
+                    pid=pid, account_id=account)
+            except Exception:
+                continue
+            row = next((item for item in getattr(snapshot, "records", ())
+                        if str(getattr(item, "wxid", "")) == str(user_id)), None)
+            if row is None:
+                continue
+            # Never use another account's private remark. Group nickname and
+            # the global WeChat name are visible to every group member.
+            label = _text(getattr(row, "group_nickname", None), 64) or _text(
+                getattr(row, "wechat_name", None), 64)
+            if label and label != user_id:
+                self._foreign_labels[key] = (label, now + 300)
+                logger.info("从其他本机微信账号缓存补全 @ 显示名: %s", label)
+                return label
+        self._foreign_labels[key] = ("", now + 30)
+        return None
 
     async def send_image(self, chat_id: str, path: str) -> bool:
         return await self._send("send_image", chat_id, str(path))

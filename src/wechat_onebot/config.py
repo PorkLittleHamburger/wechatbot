@@ -146,6 +146,7 @@ class DriverConfig:
     wechat_data_directory: Path | None = None
     sdk_data_root: Path | None = None
     sdk_allow_unverified: bool = False
+    sdk_cross_account_mentions: bool = True
     sdk_media_timeout: float = 30.0
 
     @classmethod
@@ -188,13 +189,18 @@ class DriverConfig:
         allow_unverified = value.get("sdk_allow_unverified", False)
         if type(allow_unverified) is not bool:
             raise ConfigError("driver.sdk_allow_unverified 必须是布尔值")
+        cross_account_mentions = value.get("sdk_cross_account_mentions", True)
+        if type(cross_account_mentions) is not bool:
+            raise ConfigError("driver.sdk_cross_account_mentions 必须是布尔值")
         media_timeout = value.get("sdk_media_timeout", 30.0)
         if type(media_timeout) not in (int, float) or not 1 <= float(media_timeout) <= 300:
             raise ConfigError("driver.sdk_media_timeout 必须在 1–300 秒之间")
         return cls(type=driver_type, helper_root=helper_root, wechat_account=account.strip(),
                    wechat_pid=pid, nickname=nickname.strip(), supported_versions=tuple(versions),
                    wechat_data_directory=data_directory, sdk_data_root=sdk_data_root,
-                   sdk_allow_unverified=allow_unverified, sdk_media_timeout=float(media_timeout))
+                   sdk_allow_unverified=allow_unverified,
+                   sdk_cross_account_mentions=cross_account_mentions,
+                   sdk_media_timeout=float(media_timeout))
 
 
 @dataclass(frozen=True)
