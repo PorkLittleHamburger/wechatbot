@@ -12,6 +12,9 @@ htmlcov/
 
 # Runtime and secrets
 config.json
+.env
+.env.*
+!.env.example
 data/*
 !data/.gitkeep
 .development/

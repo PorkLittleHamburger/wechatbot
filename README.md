@@ -15,7 +15,7 @@ Windows 11 x64 个人微信 OneBot v11 网关。本项目包含协议转换、�
 - 群成员 `@` 显示名绑定：当微信缓存查不到某成员昵称时，可在实例 WebUI 为该成员录入真实群显示名，用 `labels_verified=False` 发出真实原生 @；没有真实名时仍降级为可见文本，任意标签不会伪造 @。
 - 跨账号名称补全：sdk 驱动在本账号缓存查不到成员名时，可只读查询同一 Windows 用户下其他已登录微信账号的群成员缓存，取群昵称/微信名（不使用他人备注）作为未验证标签。默认开启，可用 `driver.sdk_cross_account_mentions=false` 关闭。
 - 稳定且持久化的 OneBot 用户、群与消息 ID。
-- 本地 WebUI 管理账号扫描、桥接、OneBot 端点、日志和媒体存储。
+- 本地 WebUI 管理账号扫描、桥接、OneBot 端点、日志和媒体存储；系统设置 → 存储管理可直接调整 `storage.max_media_bytes`（媒体解码后大小上限，1 KiB–1 GiB）。
 - Mock 驱动用于离线测试；`helper` 驱动通过固定版本原生桥接读写真实微信消息；`sdk` 驱动通过 `wechatbot-api` 公开 SDK 支持微信 4.2.0.52。
 - 可构建包含 Python、依赖、原生组件和 WebUI 的 Windows 便携包。
 
@@ -73,6 +73,8 @@ v0.11.8 群 @ 真实显示名与 dev15：升级 `wechatbot_api 0.1.0.dev15`（br
 
 v0.11.9 跨账号名称补全：某些成员的名称只存在于另一台已登录账号的微信缓存中（本机 test 群实例：B 缓存无名称，A 缓存有名称）。sdk 驱动在本账号 `mention_label` 为空时，会只读扫描同一 Windows 用户下其他已登录账号的群成员缓存，取该成员的群昵称或微信名作为未验证标签（不读取他人备注、不从其他账号发送）。默认开启；如不希望读取其他账号缓存，设置 `driver.sdk_cross_account_mentions=false`。
 
+v0.11.10 媒体上限可调：实例 WebUI 的“系统设置 → 存储管理”新增 `storage.max_media_bytes` 输入（默认 50 MiB，范围 1 KiB–1 GiB），保存后写入 `config.json` 并热更新当前账号的媒体存储，无需重启。页面同时说明它与 OneBot 端点 `maxMessageBytes` 的区别：前者限制解码后的媒体大小，后者限制 WS 原始帧大小。
+
 ## 下载与升级
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。
@@ -120,6 +122,8 @@ python -m venv .venv
 微信 4.1.15.56 的昵称读取先查好友缓存，再按用户 ID 查询已验证的非好友联系人 LRU 缓存，因此群成员不必先添加好友。该读取不触发网络刷新；微信尚未缓存资料时仍可能缺名，后续收到带昵称的消息或读取到成员资料后会补全。4.2.0.11 / 4.2.0.12 使用上游分别验证的缓存地址映射，沿用账号校验、稳定双读和原始名称校验；不会将旧版偏移套用到未知构建。
 
 `config.example.json` 是带占位 Token 的字段样例，不应原样复制用于运行。实际 `config.json` 和运行数据仅保留在本机。默认账号网络配置为 `data/accounts/<账号>/onebot.json`，用户/群 ID 映射为同目录的 `ids.sqlite3`，消息 ID、消息及用户资料为 `messages.sqlite3`，媒体为 `data/media/<账号>/`。路径可由 `storage` 配置修改，相对路径按配置文件目录解析。
+
+`storage.max_media_bytes` 默认 50 MiB、可设 1 KiB–1 GiB，限制 base64/URL/本地媒体**解码后**的实际大小；可在 WebUI“系统设置 → 存储管理”修改并热更新当前账号媒体存储。它与端点的 `maxMessageBytes` 不同：后者限制 WS 原始帧（含 base64 文本）大小，二者必须同时满足。base64 约为原始媒体的 4/3，例如 AstrBot 将 12 MB MP3 转成 56 MiB WAV 后 base64 约 75 MiB：WS 帧能通过但会被 50 MiB 媒体上限拒绝。
 
 `sdk` 驱动另有 `driver.sdk_data_root`（默认 `data/accounts/<账号>/sdk/`，保存框架守护 journal 与私有快照）与 `driver.sdk_allow_unverified`、`driver.sdk_cross_account_mentions`、`driver.sdk_media_timeout`。它的入站媒体先由框架 `request_media` 下载，再导出到账号媒体目录的 `inbound/` 后注册；导出失败会保留明确的文本占位，不会指向不存在或已释放的文件。
 

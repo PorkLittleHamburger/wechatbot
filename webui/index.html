@@ -526,7 +526,7 @@ const S = {
   processes: null, processError: "", processSort: "status", processLoading: false, processRequest: 0, bridgeBusy: false,
   friends: null, groups: null, friendQuery: "", groupQuery: "",
   mentionLabels: null, mentionGroup: "", mentionUser: "", mentionLabel: "",
-  storage: null,
+  storage: null, maxMediaBytes: null, mediaLimitBusy: false,
   action: null, actionParams: {}, actionJsonMode: false, actionResult: null, actionBusy: false, confirmWrite: false, actionQuery: "", debugTab: "tester", apiQuery: "",
   composeType: "private", composeTarget: "", composeMessage: "", composeResult: null,
   settingsTab: "appearance",
@@ -1724,32 +1724,52 @@ async function runDebugAction() {
 
 /* ================= 存储 ================= */
 function renderStorage(root) {
-  if (!S.runtime) { root.innerHTML = "<div class=\"card\"><div class=\"card-b\">" + emptyState("账号 Runtime 未启动，暂无法读取存储统计", "i-db") + "</div></div>"; return; }
-  root.innerHTML = "<div id=\"stoBody\">" + emptyState("读取存储统计…", "i-db") + "</div>";
+  root.innerHTML = "<div id=\"stoBody\">" + emptyState("读取存储配置…", "i-db") + "</div>";
   loadStorage();
 }
 async function loadStorage() {
   if (!S.account) { const b = $("#stoBody"); if (b) b.innerHTML = emptyState("账号未就绪"); return; }
-  try { S.storage = await api("/api/accounts/" + encodeURIComponent(S.account) + "/storage"); }
-  catch (error) { const b = $("#stoBody"); if (b) b.innerHTML = emptyState("读取失败：" + error.message, "i-db"); return; }
+  let limit = null;
+  try { const cfg = await api("/api/storage"); limit = cfg.maxMediaBytes; S.maxMediaBytes = limit; }
+  catch (error) { const b = $("#stoBody"); if (b) b.innerHTML = emptyState("读取存储配置失败：" + error.message, "i-db"); return; }
+  S.storage = null;
+  if (S.runtime) {
+    try { S.storage = await api("/api/accounts/" + encodeURIComponent(S.account) + "/storage"); }
+    catch (error) { S.storage = null; }
+  }
   if (S.view === "settings" && S.settingsTab === "storage") drawStorage();
 }
 function drawStorage() {
-  const b = $("#stoBody"); const st = S.storage; if (!b || !st) return;
+  const b = $("#stoBody"); if (!b) return;
+  const st = S.storage || {};
   const msgs = st.messages || {};
-  b.innerHTML =
+  const limitMib = S.maxMediaBytes ? (S.maxMediaBytes / 1048576) : 50;
+  let html =
+    "<div class=\"card\" style=\"margin-bottom:16px\"><div class=\"card-h\"><h2>媒体大小上限</h2><div class=\"spacer\"></div><span class=\"hint\">storage.max_media_bytes</span></div><div class=\"card-b\">" +
+      "<p class=\"small muted\" style=\"margin-top:0\">限制 base64/URL/本地媒体解码后的实际大小。与节点设置里的“最大 WS 消息”（WS 原始帧）是两个独立限制；base64 约为原始媒体的 4/3。</p>" +
+      "<div class=\"toolbar\"><label class=\"field\" style=\"max-width:180px\"><span>上限（MiB）</span><input class=\"input\" id=\"mediaLimitMib\" type=\"number\" min=\"1\" max=\"1024\" step=\"1\" value=\"" + esc(Math.round(limitMib)) + "\"></label>" +
+      "<button class=\"btn primary\" data-act=\"sto-save-limit\"" + (S.mediaLimitBusy ? " disabled" : "") + ">保存上限</button>" +
+      "<span class=\"small muted\">范围 1–1024 MiB；当前 " + esc(fmtBytes(S.maxMediaBytes)) + "</span></div></div></div>";
+  html +=
     "<div class=\"grid metrics\">" +
-      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">消息记录</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-msg\"/></svg></span></div><div class=\"m-value\">" + esc(msgs.message_count ?? 0) + "</div><div class=\"m-sub\">SQLite 持久化</div></div>" +
-      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">媒体文件</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-db\"/></svg></span></div><div class=\"m-value\">" + esc(st.mediaFileCount ?? 0) + "</div><div class=\"m-sub\">账号隔离目录</div></div>" +
-      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">媒体占用</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-db\"/></svg></span></div><div class=\"m-value\">" + esc(fmtBytes(st.mediaBytes)) + "</div><div class=\"m-sub\">上限由配置控制</div></div>" +
+      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">消息记录</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-msg\"/></svg></span></div><div class=\"m-value\">" + esc(msgs.message_count ?? "—") + "</div><div class=\"m-sub\">SQLite 持久化</div></div>" +
+      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">媒体文件</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-db\"/></svg></span></div><div class=\"m-value\">" + esc(st.mediaFileCount ?? "—") + "</div><div class=\"m-sub\">账号隔离目录</div></div>" +
+      "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">媒体占用</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-db\"/></svg></span></div><div class=\"m-value\">" + esc(st.mediaBytes !== undefined ? fmtBytes(st.mediaBytes) : "—") + "</div><div class=\"m-sub\">上限由上方配置控制</div></div>" +
       "<div class=\"card metric\"><div class=\"m-top\"><span class=\"m-label\">账号 Runtime</span><span class=\"m-icon\"><svg class=\"i\"><use href=\"#i-cpu\"/></svg></span></div><div class=\"m-value\" style=\"font-size:15px\">" + esc(S.runtime && S.runtime.pid ? "PID " + S.runtime.pid : "未运行") + "</div><div class=\"m-sub\">" + esc(S.account || "—") + "</div></div>" +
-    "</div>" +
-    "<div class=\"card\"><div class=\"card-h\"><h2>落盘路径</h2><div class=\"spacer\"></div><button class=\"btn ghost sm\" data-act=\"sto-refresh\"><svg class=\"i\"><use href=\"#i-refresh\"/></svg>刷新</button></div>" +
+    "</div>";
+  if (st.accountDir || st.mediaDir) {
+    html += "<div class=\"card\"><div class=\"card-h\"><h2>落盘路径</h2><div class=\"spacer\"></div><button class=\"btn ghost sm\" data-act=\"sto-refresh\"><svg class=\"i\"><use href=\"#i-refresh\"/></svg>刷新</button></div>" +
       "<div class=\"rows\"><div class=\"row\"><span class=\"dot ok\"></span><div class=\"r-main\"><div class=\"r-title\">账号目录</div><div class=\"r-sub\">" + esc(st.accountDir || "—") + "</div></div><button class=\"icon-btn\" data-act=\"sto-copy\" data-path=\"" + esc(st.accountDir || "") + "\"><svg class=\"i\"><use href=\"#i-copy\"/></svg></button></div>" +
-      "<div class=\"row\"><span class=\"dot ok\"></span><div class=\"r-main\"><div class=\"r-title\">媒体目录</div><div class=\"r-sub\">" + esc(st.mediaDir || "—") + "</div></div><button class=\"icon-btn\" data-act=\"sto-copy\" data-path=\"" + esc(st.mediaDir || "") + "\"><svg class=\"i\"><use href=\"#i-copy\"/></svg></button></div></div></div>" +
-    "<div class=\"card\"><div class=\"card-h\"><h2>消息统计</h2></div><div class=\"card-b\"><div class=\"kv\">" +
+      "<div class=\"row\"><span class=\"dot ok\"></span><div class=\"r-main\"><div class=\"r-title\">媒体目录</div><div class=\"r-sub\">" + esc(st.mediaDir || "—") + "</div></div><button class=\"icon-btn\" data-act=\"sto-copy\" data-path=\"" + esc(st.mediaDir || "") + "\"><svg class=\"i\"><use href=\"#i-copy\"/></svg></button></div></div></div>";
+  } else {
+    html += "<div class=\"card\"><div class=\"card-b\">" + emptyState("账号 Runtime 未启动，暂无法读取存储统计；上方媒体上限仍可保存", "i-db") + "</div></div>";
+  }
+  if (Object.keys(msgs).length) {
+    html += "<div class=\"card\"><div class=\"card-h\"><h2>消息统计</h2></div><div class=\"card-b\"><div class=\"kv\">" +
       Object.entries(msgs).map(([k, v]) => "<div><div class=\"k\">" + esc(k) + "</div><div class=\"v\">" + esc(v) + "</div></div>").join("") +
     "</div></div></div>";
+  }
+  b.innerHTML = html;
 }
 
 /* ================= 设置 ================= */
@@ -2102,6 +2122,24 @@ document.getElementById("view").addEventListener("click", async (event) => {
     }
     if (act === "dbg-copy") { if (S.actionResult) await copyText(JSON.stringify(S.actionResult, null, 2)); return; }
     if (act === "dbg-reload") { S.catalog = null; S.catalogError = ""; render(); return; }
+    if (act === "sto-save-limit") {
+      const input = $("#mediaLimitMib");
+      const mib = Number(input ? input.value : NaN);
+      if (!Number.isInteger(mib) || mib < 1 || mib > 1024) {
+        toast("媒体大小上限必须是 1–1024 的整数 MiB", "bad"); return;
+      }
+      const restore = busyButton(el, "保存中…");
+      try {
+        const result = await api("/api/storage", {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ maxMediaBytes: mib * 1024 * 1024 })
+        });
+        S.maxMediaBytes = result.maxMediaBytes;
+        toast("媒体大小上限已保存", "ok");
+        await loadStorage();
+      } finally { restore(); }
+      return;
+    }
     if (act === "sto-refresh") { S.storage = null; render(); return; }
     if (act === "sto-copy") { await copyText(el.dataset.path || ""); return; }
     if (act === "change-password") {

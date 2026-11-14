@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from dataclasses import replace
 
-from ..config import AppConfig, account_directories, update_account
+from ..config import AppConfig, account_directories, update_account, update_storage
 from ..onebot.network import AccountNetworkConfig, load_or_create_account_network_config
 from ..core.runtime import RuntimeManager, account_media_key
 from ..bridge import discover_logged_accounts, discover_sdk_accounts
@@ -520,6 +520,43 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
                 group_id, user_id)}
         except Exception as error:
             return JSONResponse({"ok": False, "error": str(error)}, status_code=400)
+
+    @app.get("/api/storage")
+    async def storage_settings(request: Request):
+        if not authorized(request):
+            return Response("未登录", status_code=401)
+        return {"maxMediaBytes": config.storage.max_media_bytes}
+
+    @app.put("/api/storage")
+    async def storage_settings_update(request: Request):
+        nonlocal config
+        if not authorized(request):
+            return Response("未登录", status_code=401)
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"ok": False, "error": "请求体必须是 JSON"},
+                                status_code=400)
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "请求体必须是 JSON 对象"},
+                                status_code=400)
+        value = body.get("maxMediaBytes")
+        if type(value) is not int or not 1024 <= value <= 1024 * 1024 * 1024:
+            return JSONResponse(
+                {"ok": False, "error": "maxMediaBytes 必须是 1 KiB–1 GiB 的整数"},
+                status_code=400)
+        try:
+            update_storage(config.path, max_media_bytes=value)
+        except Exception as error:
+            return JSONResponse({"ok": False, "error": f"保存配置失败: {error}"},
+                                status_code=500)
+        config = replace(config, storage=replace(config.storage, max_media_bytes=value))
+        manager.config = config
+        for row in manager.snapshot():
+            runtime = manager.get(str(row["account"]))
+            if runtime is not None:
+                runtime.media.max_bytes = value
+        return {"ok": True, "maxMediaBytes": value}
 
     @app.post("/api/accounts/{account}/action")
     async def account_action(account: str, request: Request):

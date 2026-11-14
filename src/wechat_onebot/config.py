@@ -320,3 +320,17 @@ def update_account(path: str | Path, *, account: str, pid: int | None, nickname:
     if driver_type is not None:
         driver["type"] = driver_type
     _atomic_write_json(target, raw)
+
+
+def update_storage(path: str | Path, *, max_media_bytes: int) -> None:
+    target = Path(path).resolve()
+    raw = json.loads(target.read_text(encoding="utf-8-sig"))
+    if not isinstance(raw, dict):
+        raise ConfigError("配置文件根节点必须是 JSON 对象")
+    if type(max_media_bytes) is not int or not 1024 <= max_media_bytes <= 1024 * 1024 * 1024:
+        raise ConfigError("storage.max_media_bytes 必须在 1 KiB–1 GiB 之间")
+    storage = raw.setdefault("storage", {})
+    if not isinstance(storage, dict):
+        raise ConfigError("storage 必须是 JSON 对象")
+    storage["max_media_bytes"] = max_media_bytes
+    _atomic_write_json(target, raw)
