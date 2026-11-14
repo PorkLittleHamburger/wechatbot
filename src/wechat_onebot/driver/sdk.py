@@ -615,7 +615,9 @@ class SdkDriver(Driver):
         try:
             result = await asyncio.to_thread(call, *args, timeout=60, **kwargs)
         except Exception as error:
-            raise DriverError(f"发送失败: {_code(error)}") from error
+            detail = str(error).strip()
+            suffix = f": {detail}" if detail else ""
+            raise DriverError(f"发送失败: {_code(error)}{suffix}") from error
         state_value = getattr(result, "state", "")
         state = getattr(state_value, "value", str(state_value))
         if state == "completed":

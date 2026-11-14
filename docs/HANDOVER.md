@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.6（Launcher 配套 v0.8.12、框架 dev14）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-14** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.6（Launcher 配套 v0.8.12、框架 dev14）；源码 v0.11.7 已加入群 @ 降级兜底但尚未发布；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -323,3 +323,16 @@ AstrBot 点歌仍报 `Local voice send failed: WebSocket API call timeout`；bot
 边界：如果成员名称确实不在微信缓存中，改用缓存名称也会失败；此时需刷新群成员缓存或临时开启 `driver.sdk_allow_unverified`。helper 驱动不校验显示名，wxid 兜底能发送但 @ 文本显示 wxid。
 
 发布结果（2026-11-14）：用户确认发布 **WeChatBot v0.11.6**。annotated tag `v0.11.6` → `4b836ac`；[Bot checks #43550001552](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43550001552) 成功；附件 `wechat-onebot-0.11.6-windows-x64.zip` 60,409,171 B，SHA-256 `b159cc7ac1af50243561f06eac87cae0fb1d638f919879fc494e3411746131f8`，与同名 `.sha256` 一同设为 Latest；公网重新下载摘要一致；Launcher `VersionStore.import_archive` 导入 1,586 个文件、状态 compatible。框架与 Launcher 无需改动。
+
+## v0.11.7 群 @ 降级兜底（2026-11-14，未发布）
+
+v0.11.6 修复后，用户再次发送群消息仍失败，错误从 `NOT_VERIFIED` 变为 `INVALID_ARGUMENT`，且 sender 昵称为空。原因是该成员的昵称确实不在微信本地缓存中：SDK 原生 `group.mention` 在 `display_names=None` 时也无法解析出可验证名称，直接拒绝；网关此前把整个消息链失败。
+
+修复：
+1. `SdkDriver._send` 捕获 SDK 异常时保留原始 message（此前只返回错误码，`INVALID_ARGUMENT` 没有细节）。
+2. `_send_prepared_message` 在 `send_at_text` 因 `NOT_VERIFIED`/`INVALID_ARGUMENT`/无缓存名称失败时，记录警告并降级为 `send_text`：保留可见的 `@昵称` 前缀（昵称未知时用 wxid），正文照常发送；不再返回 1500 让整条回复失败。
+3. 该降级只针对原生 @ 校验失败；其他发送错误仍照常失败。
+
+验证：新增“@ 校验失败降级为可见文本”和“SDK 异常细节透传”测试；全量 **533 passed / 1 skipped**。未在真实群聊复测该成员。
+
+边界：降级后消息能发出，但**原生 @ 语义丢失**（只是文本里的 `@昵称`）；要真正原生 @，需要该成员昵称进入微信缓存，或在可信环境设置 `driver.sdk_allow_unverified=true`。helper 驱动本身不校验昵称，wxid 兜底可发原生 @ 但显示 wxid。

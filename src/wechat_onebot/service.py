@@ -632,7 +632,21 @@ class OneBotService:
             chunks = list(_split_utf8(text or " ", 900 if at_ids else 1023))
             for index, chunk in enumerate(chunks):
                 if at_ids and index == 0:
-                    accepted = await self.driver.send_at_text(chat_id, chunk, at_ids, names)
+                    try:
+                        accepted = await self.driver.send_at_text(chat_id, chunk, at_ids, names)
+                    except DriverError as error:
+                        if not _mention_validation_error(error):
+                            raise
+                        # SDK native mentions require a cached member name. When
+                        # the cache has no verified name, keep the reply usable
+                        # by sending visible text instead of failing the chain.
+                        logger.warning("原生 @ 发送失败，降级为普通文本: %s", error)
+                        prefix = " ".join(f"@{name}" for name in (names or ())) + " "
+                        for piece in _split_utf8(prefix + chunk, 1023):
+                            if not await self.driver.send_text(chat_id, piece):
+                                raise OneBotActionError(1500, "微信原生发送返回失败", {"sent_segments": sent})
+                            sent += 1
+                        continue
                 else:
                     accepted = await self.driver.send_text(chat_id, chunk)
                 if not accepted:
@@ -1077,3 +1091,9 @@ def _split_utf8(text: str, max_bytes: int) -> Sequence[str]:
     if current:
         chunks.append("".join(current))
     return tuple(chunks)
+
+
+def _mention_validation_error(error: BaseException) -> bool:
+    message = str(error)
+    return ("NOT_VERIFIED" in message or "No verified name" in message
+            or "INVALID_ARGUMENT" in message)

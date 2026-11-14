@@ -417,6 +417,21 @@ async def test_emoticon_send_is_unsupported(monkeypatch, tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_send_exception_surfaces_sdk_detail(monkeypatch, tmp_path: Path):
+    driver, client, _, _ = await started_driver(monkeypatch, tmp_path)
+
+    def fail_send(chat_id, text, timeout=30):
+        raise ValueError("native detail")
+
+    client.session_obj.send_text = fail_send
+    try:
+        with pytest.raises(DriverError, match="native detail"):
+            await driver.send_text("wxid_friend", "hi")
+    finally:
+        await driver.stop()
+
+
+@pytest.mark.asyncio
 async def test_at_text_passes_members_and_display_names(monkeypatch, tmp_path: Path):
     driver, client, _, _ = await started_driver(monkeypatch, tmp_path)
     try:

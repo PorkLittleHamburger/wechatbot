@@ -65,6 +65,8 @@ v0.11.5 桥接重启等待：未停止桥接就关闭实例后，旧 Bot 进程�
 
 v0.11.6 群 @ 名称校验修复：AstrBot 的 `At` 段不带昵称时，网关曾用 wxid 兜底，SDK 原生层按缓存校验会报 `NOT_VERIFIED`（retcode 1500，`sent_segments=0`）。现在 sdk 驱动检测到 wxid/空/过期昵称后改用 SDK 缓存名称；若仍被原生拒绝，会在发送前校验失败（不会重复发送）时用缓存名称重试一次。
 
+v0.11.7 群 @ 发送兜底：如果微信本地缓存里确实没有该成员的昵称，SDK 原生 @ 仍会返回 `INVALID_ARGUMENT`/`NOT_VERIFIED`。此版本不再让整条回复失败，而是记录警告并降级为普通文本（保留可见的 `@昵称` 文字）；原生 @ 语义会丢失，但 bot 能正常回复。
+
 ## 下载与升级
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。

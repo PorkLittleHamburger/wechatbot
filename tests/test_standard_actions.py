@@ -5,6 +5,7 @@ import asyncio
 import pytest
 
 from test_service import make_service
+from wechat_onebot.driver.base import DriverError
 from wechat_onebot.models import NoticeEvent
 from wechat_onebot.models import IncomingMessage, Segment
 
@@ -101,6 +102,33 @@ async def test_recall_reuses_original_message_id_and_drops_unknown(tmp_path):
         await service._on_driver_event(NoticeEvent("friend_recall", "wxid_alice", "wxid_alice",
             raw={"recall": {"message_id": "9002"}}))
         assert len(events) == count
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_unverifiable_native_mention_falls_back_to_visible_text(tmp_path, monkeypatch):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    group = mapper.get_or_create("group", "1@chatroom")
+    alice = mapper.get_or_create("user", "wxid_alice")
+
+    async def fail_mention(*args, **kwargs):
+        raise DriverError("发送失败: INVALID_ARGUMENT No verified name is cached")
+
+    monkeypatch.setattr(driver, "send_at_text", fail_mention)
+    try:
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group,
+            "message": [
+                {"type": "at", "data": {"qq": str(alice)}},
+                {"type": "text", "data": {"text": " hello"}},
+            ],
+        })
+        assert response["status"] == "ok", response
+        assert driver.sent[-1].kind == "text"
+        assert driver.sent[-1].payload["text"].startswith("@wxid_alice ")
+        assert "hello" in driver.sent[-1].payload["text"]
     finally:
         await service.stop()
         mapper.close()
