@@ -567,17 +567,15 @@ class SdkDriver(Driver):
         if not members:
             raise DriverError("群聊 @ 消息缺少目标成员")
         names = [str(item) for item in display_names] if display_names else None
-        if names is not None:
-            invalid = (len(names) != len(members)
-                       or any(not name.strip() for name in names))
-            if invalid:
-                names = None
-            elif (not self.config.driver.sdk_allow_unverified
-                  and any(name == member for name, member in zip(names, members))):
-                # Gateway falls back to the wxid when no display name is cached.
-                # wxid is not a native-verifiable mention label; let the SDK
-                # resolve the exact cached group nickname/wechat_name instead.
-                names = None
+        if names is not None and (
+                len(names) != len(members)
+                or any(not name.strip() or name == member
+                       for name, member in zip(names, members))):
+            # Gateway falls back to the wxid when no display name is cached.
+            # wxid is not a valid display label even when verification is
+            # relaxed; let the SDK resolve a cached name or let the caller
+            # degrade to visible text.
+            names = None
         try:
             return await self._send("send_at_text", chat_id, text,
                                     members=members, display_names=names)
