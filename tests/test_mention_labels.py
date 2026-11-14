@@ -129,6 +129,28 @@ async def test_mention_label_validation_rejects_wxid_and_blank(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_current_cache_name_wins_over_stale_manual_binding(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = mapper.get_or_create("group", "10001@chatroom")
+        user = mapper.get_or_create("user", "wxid_alice")
+        service.set_mention_label(group, user, "手工旧名")
+        driver.resolve_mention_label = AsyncMock(return_value="缓存当前名")
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group,
+            "message": [{"type": "at", "data": {"qq": user}},
+                        {"type": "text", "data": {"text": "hi"}}],
+        })
+        assert response["status"] == "ok"
+        payload = driver.sent[-1].payload
+        assert payload["display_names"] == ["缓存当前名"]
+        assert payload["labels_verified"] is True
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
 async def test_stale_profile_falls_back_to_visible_text_without_duplicate(tmp_path: Path):
     service, driver, mapper, _ = await make_service(tmp_path)
     try:

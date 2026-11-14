@@ -629,13 +629,6 @@ class OneBotService:
             sources: list[str] = []
             fallback_labels: list[str] = []
             for external, supplied in zip(at_ids, display):
-                manual = self.message_store.mention_label(
-                    self.account, external, chat_id)
-                if manual:
-                    names.append(manual)
-                    sources.append("manual")
-                    fallback_labels.append(manual)
-                    continue
                 cached = ""
                 try:
                     cached = await self.driver.resolve_mention_label(chat_id, external) or ""
@@ -645,6 +638,13 @@ class OneBotService:
                     names.append(cached)
                     sources.append("cache")
                     fallback_labels.append(cached)
+                    continue
+                manual = self.message_store.mention_label(
+                    self.account, external, chat_id)
+                if manual:
+                    names.append(manual)
+                    sources.append("manual")
+                    fallback_labels.append(manual)
                     continue
                 profile = self._display_name(external, chat_id)
                 if profile:

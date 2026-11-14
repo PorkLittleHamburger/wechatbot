@@ -35,10 +35,10 @@ sdk 驱动还要求 `wechatbot_api` 包与包内 `wca_bridge.dll` 的版本、�
   mp3/amr/wma/m4a/spx/ogg/wav/flac）、私聊引用文本/引用原图与两层嵌套转发、
   只读联系人/群/群成员缓存查询。
 - 群 `@` 名称：dev15 新增按次 `labels_verified=False` 和只读
-  `mention_label(room, wxid)`。网关优先使用实例 WebUI 手工绑定的真实显示名
-  （按次未验证提交），其次 `mention_label`/历史资料（verified）。任意标签即使
+  `mention_label(room, wxid)`。网关优先使用当前 SDK 缓存名（verified）；
+  缓存查不到时才用手工绑定的真实显示名（按次未验证提交）。任意标签即使
   原生 `completed` 也不会被接收端识别为真实 @；没有真实名时保持可见文本降级。
-  手工绑定的名称必须与群内实际显示名一致。
+  手工绑定名必须与群内实际显示名一致，且不会覆盖缓存已有的当前名。
 - 不支持：表情包发送、撤回、好友申请、群管理、原生合并转发卡片、出站原生引用。
   网关对这些保持明确失败，不返回假成功。
 - 群富图片的 `request_media` 在框架内仍为开发 opt-in；网关默认只在私聊场景解析
