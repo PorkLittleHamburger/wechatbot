@@ -339,3 +339,5 @@ v0.11.6 修复后，用户再次发送群消息仍失败，错误从 `NOT_VERIFI
 边界：降级后消息能发出，但**原生 @ 语义丢失**（只是文本里的 `@昵称`）。框架明确：当前 bridge10/SDK 没有“无缓存名称仍能产出已验证原生 @”的路径；`sdk_allow_unverified` 只能配合显式非 wxid 标签做未验证尝试，不能保证接收端出现可点击 @。要真正原生 @，需要该成员昵称进入微信缓存；helper 驱动本身不校验昵称，wxid 兜底可发原生 @ 但显示 wxid。
 
 核实补充：OneBot v11 入站 `at` 段只有 `qq`，没有昵称字段；AstrBot 的 aiocqhttp 适配器会在入站时额外调用 `get_group_member_info` / `get_stranger_info` 补昵称，并从 `sender.card/nickname` 取发送者名称。SDK 事件本身不提供发送者昵称，网关 `_convert_message` 的 `sender_name/card` 为空；如果微信缓存也没有该成员名称，AstrBot 只能得到 `At(name='')` 和空发送者名。此外 AstrBot 出站 `At.toDict` 只序列化 `qq`，即使组件里带 `name` 也不会传给网关。因此原生 @ 只能依赖微信缓存名称；缓存没有时只能降级为可见文本。
+
+历史关联：v0.6.1（`fab26e1`）曾修复 AstrBot `reply + at + text` 回复链，但走 helper 原生 @，测试中的 `at` 带显式 `name`；helper 不校验缓存名称。`87fe123` 为 helper 补过非好友昵称缓存，并明确“微信尚未缓存昵称时仍可能显示用户 ID，不编造名称”。v0.10.0 引入 SDK 时能力边界只声明“1–2 人真实缓存名称群 @”，群 @ 尚未实机验收。因此“缓存无昵称时无法原生 @”的限制早已存在，但 SDK 路径下由 AstrBot 空标签触发的整条 1500 失败与降级处理是本轮新发现。
