@@ -126,3 +126,97 @@ async def test_mention_label_validation_rejects_wxid_and_blank(tmp_path: Path):
     finally:
         await service.stop()
         mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_stale_profile_falls_back_to_visible_text_without_duplicate(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = mapper.get_or_create("group", "10001@chatroom")
+        user = mapper.get_or_create("user", "wxid_alice")
+        service.message_store.remember_profiles("wxid_robot", [
+            ("wxid_alice", "", "旧资料名", "", "message")])
+        driver.members["10001@chatroom"] = ()
+        calls = 0
+
+        async def reject(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            raise DriverError("发送失败: NOT_VERIFIED stale profile label")
+
+        driver.send_at_text = reject
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group,
+            "message": [{"type": "at", "data": {"qq": user}},
+                        {"type": "text", "data": {"text": "fallback"}}],
+        })
+        assert response["status"] == "ok"
+        assert calls == 1
+        assert driver.sent[-1].kind == "text"
+        assert "@旧资料名" in driver.sent[-1].payload["text"]
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_mixed_manual_and_cached_labels_use_unverified_native(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = mapper.get_or_create("group", "10001@chatroom")
+        alice = mapper.get_or_create("user", "wxid_alice")
+        bob = mapper.get_or_create("user", "wxid_bob")
+        service.set_mention_label(group, alice, "绑定真名")
+        driver.resolve_mention_label = AsyncMock(
+            side_effect=lambda _chat, user: "缓存真名" if user == "wxid_bob" else None)
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group,
+            "message": [{"type": "at", "data": {"qq": alice}},
+                        {"type": "text", "data": {"text": " "}},
+                        {"type": "at", "data": {"qq": bob}},
+                        {"type": "text", "data": {"text": "hi"}}],
+        })
+        assert response["status"] == "ok"
+        payload = driver.sent[-1].payload
+        assert payload["display_names"] == ["绑定真名", "缓存真名"]
+        assert payload["labels_verified"] is False
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_mixed_manual_and_profile_labels_degrade_without_native_attempt(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = mapper.get_or_create("group", "10001@chatroom")
+        alice = mapper.get_or_create("user", "wxid_alice")
+        bob = mapper.get_or_create("user", "wxid_bob")
+        service.set_mention_label(group, alice, "绑定真名")
+        service.message_store.remember_profiles("wxid_robot", [
+            ("wxid_bob", "", "旧资料名", "", "message")])
+        driver.members["10001@chatroom"] = ()
+        driver.resolve_mention_label = AsyncMock(return_value=None)
+        at_calls = 0
+
+        async def reject(*args, **kwargs):
+            nonlocal at_calls
+            at_calls += 1
+            raise AssertionError("native @ must not be attempted")
+
+        driver.send_at_text = reject
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group,
+            "message": [{"type": "at", "data": {"qq": alice}},
+                        {"type": "text", "data": {"text": " "}},
+                        {"type": "at", "data": {"qq": bob}},
+                        {"type": "text", "data": {"text": "hi"}}],
+        })
+        assert response["status"] == "ok"
+        assert at_calls == 0
+        assert driver.sent[-1].kind == "text"
+        assert "@绑定真名" in driver.sent[-1].payload["text"]
+        assert "@旧资料名" in driver.sent[-1].payload["text"]
+    finally:
+        await service.stop()
+        mapper.close()

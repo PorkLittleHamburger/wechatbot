@@ -356,12 +356,13 @@ v0.11.6 修复后，用户再次发送群消息仍失败，错误从 `NOT_VERIFI
 1. 升级 `vendor/wechatbot_api` 到 `0.1.0.dev15`（wheel SHA-256 `8dc28458…b951`，构建提交 `7157c44`，bridge10/ABI1 不变）；`VENDORED.json`、`THIRD_PARTY_NOTICES.md` 同步。
 2. `Driver.send_at_text` 增加关键字参数 `labels_verified=True`；`Driver.resolve_mention_label` 默认返回 `None`。SDK 驱动透传 dev15 参数，并调用 `Client.mention_label`；helper/mock 接受该参数但不使用。
 3. `MessageStore` 新增 `mention_labels(account,group_id,user_id,label,updated_at)` 表及持久化方法；按账号/群隔离，空值不覆盖，删除显式生效。
-4. `OneBotService` 解析 @ 名称优先级：手工绑定真实名 → `mention_label` 缓存名 → Bot 历史资料；有手工绑定时按次 `labels_verified=False`，缓存/资料名保持 verified。没有完整真实名时传 `display_names=None` 让 SDK 缓存解析；仍失败则沿用可见文本降级，绝不把 wxid 或任意标签当 native label。
+4. `OneBotService` 解析 @ 名称优先级：手工绑定真实名 → `mention_label` 缓存名 → Bot 历史资料；有手工绑定时按次 `labels_verified=False`，缓存/资料名保持 verified。多目标时仅当所有标签都来自“手工真实名或当前缓存名”才使用未验证模式；混入历史 profile、未知或缺失标签时整批降级为可见文本，避免 D 组“completed 但无真实 @”的情况。没有完整真实名时传 `display_names=None` 让 SDK 缓存解析；仍失败则沿用可见文本降级，绝不把 wxid 或任意标签当 native label。
 5. WebUI 账号页新增“成员 @ 显示名”卡片，可绑定/列出/删除 `(group_id,user_id)→真实显示名`；对应 API `GET/PUT/DELETE /api/accounts/{account}/mention-labels`，仅本机已登录 WebUI 可用。输入使用 OneBot 数字 ID，名称限制 1–64 个单行可见字符，拒绝 wxid/空白。
 
-验证：新增存储、发送优先级/降级、SDK 参数/`mention_label`、WebUI 绑定 CRUD 测试；全量 **543 passed / 1 skipped**。本地 dev15 隔离安装与公共 API 签名通过；未发布 Release、未替换运行实例。
+验证：新增存储、发送优先级/降级、SDK 参数/`mention_label`、WebUI 绑定 CRUD 测试；另覆盖 stale profile 的 `NOT_VERIFIED` 一次缓存重试后仍失败→可见文本、多目标手工+缓存、多目标手工+历史名降级，以及 SDK 重试耗尽只调用两次不重复发送。全量 **547 passed / 1 skipped**。本地 dev15 隔离安装与公共 API 签名通过；未发布 Release、未替换运行实例。
 
 边界：
 - 手工绑定名必须与成员在群里的实际显示名完全一致；D 组证明任意标签不会产生真实 @。
+- 多目标混合标签已按保守策略处理：任一目标只有历史 profile/未知名时，整条消息不做原生 @，直接可见文本降级；只有全部为手工真实名或当前缓存名才按次未验证发送。
 - 残余风险：**“真实名来自手工绑定、但原生缓存没有该名”** 尚未单独实机验证；当前按真实名 + 按次未验证语义实现，并保留可见文本兜底。
 - 无真实名、未绑定且缓存无名称的成员仍无法原生 @；这是客户端显示名约束，不是网关可伪造的字段。

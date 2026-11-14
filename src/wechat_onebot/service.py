@@ -626,15 +626,15 @@ class OneBotService:
                 if rows is not None:
                     self._remember_members(chat_id, rows)
             names: list[str] = []
+            sources: list[str] = []
             fallback_labels: list[str] = []
-            manual_label = False
             for external, supplied in zip(at_ids, display):
                 manual = self.message_store.mention_label(
                     self.account, external, chat_id)
                 if manual:
                     names.append(manual)
+                    sources.append("manual")
                     fallback_labels.append(manual)
-                    manual_label = True
                     continue
                 cached = ""
                 try:
@@ -643,46 +643,68 @@ class OneBotService:
                     cached = ""
                 if cached:
                     names.append(cached)
+                    sources.append("cache")
                     fallback_labels.append(cached)
                     continue
                 profile = self._display_name(external, chat_id)
                 if profile:
                     names.append(profile)
+                    sources.append("profile")
                     fallback_labels.append(profile)
                     continue
                 names.append("")
+                sources.append("none")
                 fallback_labels.append(supplied or external)
+            has_manual = "manual" in sources
+            attempt_native = False
             display_names: tuple[str, ...] | None = None
             labels_verified = True
-            if at_ids and all(names):
-                # Manual bindings are the only labels allowed to bypass the
-                # native cache check; cache/profile names stay verified.
-                display_names = tuple(names)
-                labels_verified = not manual_label
+            if at_ids:
+                if not all(names):
+                    # Without a manual label the SDK may still resolve all
+                    # targets from its cache; with a manual label an incomplete
+                    # set must not turn the other names into unverified labels.
+                    attempt_native = not has_manual
+                elif not has_manual:
+                    attempt_native = True
+                    display_names = tuple(names)
+                elif all(source in ("manual", "cache") for source in sources):
+                    attempt_native = True
+                    display_names = tuple(names)
+                    labels_verified = False
+                else:
+                    # A profile/history name is not proof of the current
+                    # display name. Mixing it with manual labels under
+                    # labels_verified=False would look like D组: native
+                    # completed but no real @. Degrade the whole batch.
+                    logger.warning("多目标 @ 名称来源混合，降级为普通文本")
             chunks = list(_split_utf8(text or " ", 900 if at_ids else 1023))
             for index, chunk in enumerate(chunks):
                 if at_ids and index == 0:
-                    try:
-                        accepted = await self.driver.send_at_text(
-                            chat_id, chunk, at_ids, display_names,
-                            labels_verified=labels_verified)
-                    except DriverError as error:
-                        if not _mention_validation_error(error):
-                            raise
-                        # SDK native mentions require a verified/real display
-                        # name. When neither the cache nor a manual binding has
-                        # one, keep the reply usable by sending visible text
-                        # instead of failing the chain.
-                        logger.warning("原生 @ 发送失败，降级为普通文本: %s", error)
-                        prefix = " ".join(f"@{name}" for name in fallback_labels) + " "
-                        for piece in _split_utf8(prefix + chunk, 1023):
-                            if not await self.driver.send_text(chat_id, piece):
-                                raise OneBotActionError(1500, "微信原生发送返回失败", {"sent_segments": sent})
-                            sent += 1
+                    accepted = False
+                    if attempt_native:
+                        try:
+                            accepted = await self.driver.send_at_text(
+                                chat_id, chunk, at_ids, display_names,
+                                labels_verified=labels_verified)
+                        except DriverError as error:
+                            if not _mention_validation_error(error):
+                                raise
+                            # SDK native mentions require a verified/real
+                            # display name. When neither the cache nor a manual
+                            # binding has one, keep the reply usable by sending
+                            # visible text instead of failing the chain.
+                            logger.warning("原生 @ 发送失败，降级为普通文本: %s", error)
+                    if accepted:
+                        sent += 1
                         continue
-                else:
-                    accepted = await self.driver.send_text(chat_id, chunk)
-                if not accepted:
+                    prefix = " ".join(f"@{name}" for name in fallback_labels) + " "
+                    for piece in _split_utf8(prefix + chunk, 1023):
+                        if not await self.driver.send_text(chat_id, piece):
+                            raise OneBotActionError(1500, "微信原生发送返回失败", {"sent_segments": sent})
+                        sent += 1
+                    continue
+                if not await self.driver.send_text(chat_id, chunk):
                     raise OneBotActionError(1500, "微信原生发送返回失败", {"sent_segments": sent})
                 sent += 1
 

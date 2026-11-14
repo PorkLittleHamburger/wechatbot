@@ -537,6 +537,30 @@ async def test_at_text_retries_with_cache_names_after_not_verified(monkeypatch, 
         await driver.stop()
 
 
+@pytest.mark.asyncio
+async def test_at_text_retry_exhausted_raises_without_third_attempt(monkeypatch, tmp_path: Path):
+    driver, client, _, _ = await started_driver(monkeypatch, tmp_path)
+    session = client.session_obj
+    calls: list[list[str] | None] = []
+
+    def send_at_text(chat_id, text, members, display_names=None, *,
+                     labels_verified=True, timeout=30):
+        calls.append(display_names)
+        return SimpleNamespace(
+            state=SimpleNamespace(value="failed"),
+            error=SimpleNamespace(code=SimpleNamespace(value="NOT_VERIFIED")),
+            detail="no cached label", operation_id="op-1",
+        )
+
+    session.send_at_text = send_at_text
+    try:
+        with pytest.raises(DriverError, match="NOT_VERIFIED"):
+            await driver.send_at_text("1@chatroom", "hi", ["wxid_a"], ["旧昵称"])
+        assert calls == [["旧昵称"], None]
+    finally:
+        await driver.stop()
+
+
 # ------------------------------------------------------------------ reads
 @pytest.mark.asyncio
 async def test_login_info_falls_back_to_the_cached_account_name(tmp_path: Path):
