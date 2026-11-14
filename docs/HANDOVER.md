@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.5（Launcher 配套 v0.8.12、框架 dev14）；源码 v0.11.6 已加入群 @ 名称校验修复但尚未发布；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-13** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.6（Launcher 配套 v0.8.12、框架 dev14）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -310,7 +310,7 @@ AstrBot 点歌仍报 `Local voice send failed: WebSocket API call timeout`；bot
 
 发布结果（2026-11-13）：用户确认发布 **WeChatBot v0.11.5**。annotated tag `v0.11.5` → `6b66516`；[Bot checks #43419495096](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43419495096) 成功；附件 `wechat-onebot-0.11.5-windows-x64.zip` 60,407,721 B，SHA-256 `db0a8a4ba4f6863989b842b8c85761d088f7894336a2ec2f2f0bc945997393e6`，与同名 `.sha256` 一同设为 Latest；公网重新下载摘要一致；Launcher `VersionStore.import_archive` 导入 1,586 个文件、状态 compatible。框架与 Launcher 无需改动。
 
-## v0.11.6 群 @ 名称校验（2026-11-14，未发布）
+## v0.11.6 群 @ 名称校验（2026-11-14，发布基线）
 
 用户报告群友消息后 bot 回复失败：AstrBot 日志 `ActionFailed status=failed retcode=1500 data={'sent_segments': 0} message='发送失败: NOT_VERIFIED'`，消息链是 `At(qq=发送者)` + 文本。
 
@@ -321,3 +321,5 @@ AstrBot 点歌仍报 `Local voice send failed: WebSocket API call timeout`；bot
 验证：新增“wxid 兜底时传 None”“NOT_VERIFIED 后用缓存名称重试”两项测试；全量 **531 passed / 1 skipped**。未在真实群聊复测 AstrBot @ 回复。
 
 边界：如果成员名称确实不在微信缓存中，改用缓存名称也会失败；此时需刷新群成员缓存或临时开启 `driver.sdk_allow_unverified`。helper 驱动不校验显示名，wxid 兜底能发送但 @ 文本显示 wxid。
+
+发布结果（2026-11-14）：用户确认发布 **WeChatBot v0.11.6**。annotated tag `v0.11.6` → `4b836ac`；[Bot checks #43550001552](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43550001552) 成功；附件 `wechat-onebot-0.11.6-windows-x64.zip` 60,409,171 B，SHA-256 `b159cc7ac1af50243561f06eac87cae0fb1d638f919879fc494e3411746131f8`，与同名 `.sha256` 一同设为 Latest；公网重新下载摘要一致；Launcher `VersionStore.import_archive` 导入 1,586 个文件、状态 compatible。框架与 Launcher 无需改动。
