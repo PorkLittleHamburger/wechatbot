@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from dataclasses import replace
 
@@ -448,6 +448,78 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             "mediaFileCount": len(media_files),
             "mediaBytes": sum(path.stat().st_size for path in media_files),
         }
+
+    @app.get("/api/accounts/{account}/mention-labels")
+    async def mention_labels(account: str, request: Request):
+        if not authorized(request):
+            return Response("未登录", status_code=401)
+        runtime = manager.get(account)
+        if runtime is None:
+            return Response("账号 Runtime 不存在", status_code=404)
+        group_value = request.query_params.get("group_id")
+        try:
+            group_id = int(group_value) if group_value not in (None, "") else None
+        except ValueError:
+            return JSONResponse({"ok": False, "error": "group_id 必须是 OneBot 数字 ID"},
+                                status_code=400)
+        try:
+            return {"labels": runtime.service.mention_labels(group_id)}
+        except Exception as error:
+            return JSONResponse({"ok": False, "error": str(error)}, status_code=400)
+
+    @app.put("/api/accounts/{account}/mention-labels")
+    async def set_mention_label(account: str, request: Request):
+        if not authorized(request):
+            return Response("未登录", status_code=401)
+        runtime = manager.get(account)
+        if runtime is None:
+            return Response("账号 Runtime 不存在", status_code=404)
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"ok": False, "error": "请求体必须是 JSON"},
+                                status_code=400)
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "请求体必须是 JSON 对象"},
+                                status_code=400)
+        try:
+            group_id = int(body.get("group_id"))
+            user_id = int(body.get("user_id"))
+        except (TypeError, ValueError):
+            return JSONResponse({"ok": False, "error": "group_id/user_id 必须是 OneBot 数字 ID"},
+                                status_code=400)
+        try:
+            return {"ok": True, "label": runtime.service.set_mention_label(
+                group_id, user_id, body.get("label"))}
+        except Exception as error:
+            return JSONResponse({"ok": False, "error": str(error)}, status_code=400)
+
+    @app.delete("/api/accounts/{account}/mention-labels")
+    async def delete_mention_label(account: str, request: Request):
+        if not authorized(request):
+            return Response("未登录", status_code=401)
+        runtime = manager.get(account)
+        if runtime is None:
+            return Response("账号 Runtime 不存在", status_code=404)
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"ok": False, "error": "请求体必须是 JSON"},
+                                status_code=400)
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "请求体必须是 JSON 对象"},
+                                status_code=400)
+        try:
+            group_id = int(body.get("group_id"))
+            user_id = int(body.get("user_id"))
+        except (TypeError, ValueError):
+            return JSONResponse({"ok": False, "error": "group_id/user_id 必须是 OneBot 数字 ID"},
+                                status_code=400)
+        try:
+            return {"ok": True, "deleted": runtime.service.remove_mention_label(
+                group_id, user_id)}
+        except Exception as error:
+            return JSONResponse({"ok": False, "error": str(error)}, status_code=400)
 
     @app.post("/api/accounts/{account}/action")
     async def account_action(account: str, request: Request):

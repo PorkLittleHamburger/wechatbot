@@ -86,6 +86,13 @@ class MessageStore:
                 PRIMARY KEY (account, group_id, user_id)
             )
         """)
+        self._db.execute("""
+            CREATE TABLE IF NOT EXISTS mention_labels (
+                account TEXT NOT NULL, group_id TEXT NOT NULL, user_id TEXT NOT NULL,
+                label TEXT NOT NULL, updated_at INTEGER NOT NULL,
+                PRIMARY KEY (account, group_id, user_id)
+            )
+        """)
         self._db.commit()
 
     def remember_profiles(self, account: str, rows: list[tuple[str, str, str, str, str]]) -> None:
@@ -128,6 +135,39 @@ class MessageStore:
             return self._db.execute(
                 "SELECT 1 FROM group_memberships WHERE account=? AND user_id=? AND group_id=?",
                 (account, user, group)).fetchone() is not None
+
+    def mention_label(self, account: str, user: str, group: str) -> str:
+        with self._lock:
+            row = self._db.execute(
+                "SELECT label FROM mention_labels WHERE account=? AND user_id=? AND group_id=?",
+                (account, user, group)).fetchone()
+            return str(row[0]) if row else ""
+
+    def set_mention_label(self, account: str, user: str, group: str, label: str) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                "INSERT INTO mention_labels VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(account, group_id, user_id) DO UPDATE SET "
+                "label=excluded.label, updated_at=excluded.updated_at",
+                (account, group, user, label, int(time.time())),
+            )
+
+    def delete_mention_label(self, account: str, user: str, group: str) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                "DELETE FROM mention_labels WHERE account=? AND group_id=? AND user_id=?",
+                (account, group, user),
+            )
+
+    def list_mention_labels(self, account: str, group: str = "") -> list[dict[str, str]]:
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT group_id, user_id, label FROM mention_labels "
+                "WHERE account=? AND (?='' OR group_id=?) ORDER BY group_id, user_id",
+                (account, group, group),
+            ).fetchall()
+        return [{"group": str(row[0]), "user": str(row[1]), "label": str(row[2])}
+                for row in rows]
 
     def forget_membership(self, account: str, user: str, group: str) -> None:
         with self._lock, self._db:

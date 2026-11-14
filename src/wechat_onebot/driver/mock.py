@@ -65,9 +65,12 @@ class MockDriver(Driver):
         self.sent.append(SendRecord("text", chat_id, {"text": text}))
         return True
 
-    async def send_at_text(self, chat_id: str, text: str, user_ids: Sequence[str], display_names: Sequence[str] | None = None) -> bool:
+    async def send_at_text(self, chat_id: str, text: str, user_ids: Sequence[str],
+                           display_names: Sequence[str] | None = None, *,
+                           labels_verified: bool = True) -> bool:
         self.sent.append(SendRecord("at_text", chat_id, {
             "text": text, "user_ids": list(user_ids), "display_names": list(display_names or ()),
+            "labels_verified": labels_verified,
         }))
         return True
 

@@ -62,12 +62,13 @@ Profile APIs provide standard fields with unknown defaults (`sex=unknown`, age/t
 
 ## Native build and driver differences
 
-v0.10.0 adds a second real driver. `helper` supports fingerprint-locked 4.1.15.13, 4.1.15.56, 4.2.0.11 and 4.2.0.12; `sdk` supports fingerprint-locked 4.2.0.52 through `wechatbot-api 0.1.0.dev14`. The active `driver.type` is exclusive; a build is never accepted because its version string matches.
+v0.10.0 adds a second real driver. `helper` supports fingerprint-locked 4.1.15.13, 4.1.15.56, 4.2.0.11 and 4.2.0.12; `sdk` supports fingerprint-locked 4.2.0.52 through `wechatbot-api 0.1.0.dev15`. The active `driver.type` is exclusive; a build is never accepted because its version string matches.
 
 Capabilities are queried from the running driver, not assumed:
 
 - `helper`: text, native group `at`, image, ordinary file, voice send, emoticon send, contacts/members, inbound rich quotes and forwarded records. Ready inbound voice/video downloaded by the helper are reported as standard `record`/`video` segments; pending or failed downloads remain explicit text placeholders. Private message recall is emitted from a cached original; group recall, native forward cards and native outbound quotes remain unavailable; forward sending still converts to ordinary messages.
-- `sdk`: text, native group `at` (1–2 real cached names by default), PNG image, ordinary file, WAV/SILK voice and H.264 silent video send; image/file/voice/video receive; private quoted text/image and nested forwarded media; read-only contacts, groups and members from the WeChat cache. **No** emoticon send, recall, friend request, group management, native outbound quote or native forward card. Group rich images stay behind the framework's development opt-in and are not a gateway-promised capability.
+- `sdk`: text, native group `at` (1–2 real cached names by default; dev15 per-call `labels_verified=False` for manually bound real names), PNG image, ordinary file, WAV/SILK voice and H.264 silent video send; image/file/voice/video receive; private quoted text/image and nested forwarded media; read-only contacts, groups and members from the WeChat cache. **No** emoticon send, recall, friend request, group management, native outbound quote or native forward card. Group rich images stay behind the framework's development opt-in and are not a gateway-promised capability.
+- `sdk` group mention labels: the instance WebUI can bind `(group_id, user_id)` to a real group display name. The gateway sends bound names with per-call `labels_verified=False`; cached/profiled names stay verified. Arbitrary labels can complete natively but are **not** a real @, so without a known real name the gateway degrades to visible text instead of claiming a native mention.
 - `sdk` inbound voice is delivered as decoded WAV, not original SILK. Video/voice reception requires the framework's optional `video`/`voice` extras; `DEPENDENCY_MISSING` is reported, never silently downgraded.
 - `sdk` directory reads are `source=wechat_cache`, `complete=False`; `LAYOUT_NOT_READY` means the cache was not readable at that moment, not that the account has no contacts.
 

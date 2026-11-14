@@ -5,10 +5,10 @@
 
 | 项 | 值 |
 | --- | --- |
-| 版本 | `0.1.0.dev14` |
-| 构建提交 | `ae575aea4d85de7818be21b14ee8887b3e0f96a0` |
-| wheel | `wechatbot_api-0.1.0.dev14-py3-none-win_amd64.whl` |
-| SHA-256 | `408a04302156a5fa4988ff5e5c1a732529826f7dc834d03a312222261566b523` |
+| 版本 | `0.1.0.dev15` |
+| 构建提交 | `7157c44f04b40fa51945b42e4d8486709be48422` |
+| wheel | `wechatbot_api-0.1.0.dev15-py3-none-win_amd64.whl` |
+| SHA-256 | `8dc2845866487138307e1bbf0840e98ae37c868b8a6feb43edee10ccd167b951` |
 | 原生 bridge | `wca_bridge.dll`（bridge 10 / ABI 1），SHA-256 `5af4026cd8a5b8940c11b451df77ca78b2addaeb64e66e383322449be08a6c0b` |
 | 许可 | helper 非商业使用许可协议 1.0（见 `LICENSE`） |
 | 目标微信构建 | 4.2.0.52（`Weixin.dll` 204168240 字节，SHA-256 `d733489e…f8d84`） |
@@ -21,7 +21,7 @@
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install --no-index --no-deps `
-  .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev14-py3-none-win_amd64.whl
+  .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev15-py3-none-win_amd64.whl
 ```
 
 便携包由 `scripts/build_portable.py` 自动安装该 wheel。安装时不要使用

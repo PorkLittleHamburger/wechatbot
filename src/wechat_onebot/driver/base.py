@@ -64,8 +64,14 @@ class Driver(ABC):
         text: str,
         user_ids: Sequence[str],
         display_names: Sequence[str] | None = None,
+        *,
+        labels_verified: bool = True,
     ) -> bool:
         raise NotImplementedError
+
+    async def resolve_mention_label(self, chat_id: str, user_id: str) -> str | None:
+        """Return the best native-cached display name, if the driver can read it."""
+        return None
 
     @abstractmethod
     async def send_image(self, chat_id: str, path: str) -> bool:

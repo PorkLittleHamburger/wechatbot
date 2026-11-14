@@ -124,9 +124,11 @@ class FakeSession:
     def send_text(self, chat_id, text, timeout=30):
         return self._record("send_text", chat_id, text, timeout=timeout)
 
-    def send_at_text(self, chat_id, text, members, display_names=None, timeout=30):
+    def send_at_text(self, chat_id, text, members, display_names=None, *,
+                     labels_verified=True, timeout=30):
         return self._record("send_at_text", chat_id, text, members=members,
-                            display_names=display_names, timeout=timeout)
+                            display_names=display_names,
+                            labels_verified=labels_verified, timeout=timeout)
 
     def send_image(self, chat_id, path, timeout=30):
         return self._record("send_image", chat_id, path, timeout=timeout)
@@ -173,6 +175,11 @@ class FakeClient:
             wxid="wxid_a", group_nickname="群昵称", wechat_name="甲",
             remark=None, role="admin"),))
 
+    def mention_label(self, room, wxid, pid=None, account_id=None):
+        if wxid == "wxid_a":
+            return "群昵称"
+        return None
+
 
 def discovery_result(pid=123, wxid="wxid_robot", version="4.2.0.52", error=None, bridge=True,
                      wechat_name="机器人"):
@@ -193,7 +200,7 @@ def install_fake_sdk(monkeypatch, client=None) -> FakeClient:
 
     module = types.ModuleType("wechatbot_api")
     module.Client = Holder()
-    module.__version__ = "0.1.0.dev14"
+    module.__version__ = "0.1.0.dev15"
     monkeypatch.setitem(sys.modules, "wechatbot_api", module)
     return holder
 
@@ -468,12 +475,48 @@ async def test_at_text_never_treats_wxid_as_a_display_label(monkeypatch, tmp_pat
 
 
 @pytest.mark.asyncio
+async def test_at_text_unverified_requires_explicit_names(monkeypatch, tmp_path: Path):
+    driver, _, _, _ = await started_driver(monkeypatch, tmp_path)
+    try:
+        with pytest.raises(DriverError, match="INVALID_ARGUMENT"):
+            await driver.send_at_text("1@chatroom", "hi", ["wxid_a"],
+                                      labels_verified=False)
+    finally:
+        await driver.stop()
+
+
+@pytest.mark.asyncio
+async def test_at_text_unverified_forwards_real_label(monkeypatch, tmp_path: Path):
+    driver, client, _, _ = await started_driver(monkeypatch, tmp_path)
+    try:
+        assert await driver.send_at_text(
+            "1@chatroom", "hi", ["wxid_a"], ["真实名"],
+            labels_verified=False) is True
+        _, _, kwargs = client.session_obj.sent[0]
+        assert kwargs["display_names"] == ["真实名"]
+        assert kwargs["labels_verified"] is False
+    finally:
+        await driver.stop()
+
+
+@pytest.mark.asyncio
+async def test_resolve_mention_label_uses_sdk_cache(monkeypatch, tmp_path: Path):
+    driver, _, _, _ = await started_driver(monkeypatch, tmp_path)
+    try:
+        assert await driver.resolve_mention_label("1@chatroom", "wxid_a") == "群昵称"
+        assert await driver.resolve_mention_label("1@chatroom", "wxid_unknown") is None
+    finally:
+        await driver.stop()
+
+
+@pytest.mark.asyncio
 async def test_at_text_retries_with_cache_names_after_not_verified(monkeypatch, tmp_path: Path):
     driver, client, _, _ = await started_driver(monkeypatch, tmp_path)
     session = client.session_obj
     calls: list[list[str] | None] = []
 
-    def send_at_text(chat_id, text, members, display_names=None, timeout=30):
+    def send_at_text(chat_id, text, members, display_names=None, *,
+                     labels_verified=True, timeout=30):
         calls.append(display_names)
         if display_names is not None:
             return SimpleNamespace(
@@ -689,7 +732,7 @@ def test_sdk_discovery_fills_missing_nickname_from_contact_cache(monkeypatch, tm
 
     module = types.ModuleType("wechatbot_api")
     module.Client = Client
-    module.__version__ = "0.1.0.dev14"
+    module.__version__ = "0.1.0.dev15"
     monkeypatch.setitem(sys.modules, "wechatbot_api", module)
     rows = discover_sdk_accounts(make_config(tmp_path))
     assert rows[0].wxid == "wxid_a"
@@ -710,7 +753,7 @@ def test_sdk_discovery_filters_unverified_rows(monkeypatch):
     module = types.ModuleType("wechatbot_api")
     module.Client = Client
     module.ErrorCode = ErrorCode
-    module.__version__ = "0.1.0.dev14"
+    module.__version__ = "0.1.0.dev15"
     monkeypatch.setitem(sys.modules, "wechatbot_api", module)
     rows = discover_sdk_accounts(make_config(Path(".")))
     assert [row.wxid for row in rows] == ["wxid_a", "wxid_b"]

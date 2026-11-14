@@ -30,7 +30,7 @@ Do not add unrelated application code to this repository.
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-runtime.lock
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
-.\.venv\Scripts\python.exe -m pip install --no-index --no-deps .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev14-py3-none-win_amd64.whl
+.\.venv\Scripts\python.exe -m pip install --no-index --no-deps .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev15-py3-none-win_amd64.whl
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe -m compileall -q src
 .\scripts\run_mock.ps1

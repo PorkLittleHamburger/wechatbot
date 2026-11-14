@@ -12,6 +12,7 @@ Windows 11 x64 个人微信 OneBot v11 网关。本项目包含协议转换、�
 
 - OneBot v11 HTTP API、HTTP 事件上报、正向 WebSocket 与反向 WebSocket。
 - 私聊与群聊文本、图片、微信原生群 `@`；收到的文件以标准文本下载链接交付，微信贴图以图片交付。语音、文件及贴图发送能力与可选扩展的区别见协议兼容说明。
+- 群成员 `@` 显示名绑定：当微信缓存查不到某成员昵称时，可在实例 WebUI 为该成员录入真实群显示名，用 `labels_verified=False` 发出真实原生 @；没有真实名时仍降级为可见文本，任意标签不会伪造 @。
 - 稳定且持久化的 OneBot 用户、群与消息 ID。
 - 本地 WebUI 管理账号扫描、桥接、OneBot 端点、日志和媒体存储。
 - Mock 驱动用于离线测试；`helper` 驱动通过固定版本原生桥接读写真实微信消息；`sdk` 驱动通过 `wechatbot-api` 公开 SDK 支持微信 4.2.0.52。
@@ -22,12 +23,12 @@ Windows 11 x64 个人微信 OneBot v11 网关。本项目包含协议转换、�
 - 当前验证平台为 Windows 11 x64。
 - 源码要求 Python 3.11+ x64，建议使用与 CI 一致的 Python 3.13；便携包内置解释器。
 - `helper` 驱动适配 PC 微信 **4.1.15.13 / 4.1.15.56 / 4.2.0.11 / 4.2.0.12** 的指定构建，还会核对核心 DLL 指纹；相同版本号不保证兼容。
-- `sdk` 驱动适配 PC 微信 **4.2.0.52**（`Weixin.dll` 204168240 字节，SHA-256 `d733489e…f8d84`），依赖包内 `wechatbot_api 0.1.0.dev14` 与其 bridge 10；其他 4.2 构建不在本次范围。
+- `sdk` 驱动适配 PC 微信 **4.2.0.52**（`Weixin.dll` 204168240 字节，SHA-256 `d733489e…f8d84`），依赖包内 `wechatbot_api 0.1.0.dev15` 与其 bridge 10；其他 4.2 构建不在本次范围。
 - 原生桥接需要管理员权限；Mock 模式不需要微信登录。
 
 `helper` 驱动固定要求管理员权限；`sdk` 驱动按微信进程的完整性决定，同级或更高权限即可，权限不足时连接返回 `ACCESS_DENIED`。
 
-v0.10.0 新增 `sdk` 驱动并固定 `wechatbot_api 0.1.0.dev14`；**4.2.0.52 只能用 `sdk` 驱动，4.1.15.x 与 4.2.0.11/0.12 只能用 `helper` 驱动**，不能靠修改版本号放行。两者能力边界不同，详见 [微信版本与能力](docs/wechat-versions.md)。
+v0.10.0 新增 `sdk` 驱动并固定 `wechatbot_api 0.1.0.dev14`（后续升级到 dev15）；**4.2.0.52 只能用 `sdk` 驱动，4.1.15.x 与 4.2.0.11/0.12 只能用 `helper` 驱动**，不能靠修改版本号放行。两者能力边界不同，详见 [微信版本与能力](docs/wechat-versions.md)。
 
 PC 微信登录必须由用户在微信客户端中完成。WebUI 不提供扫码登录接口。
 
@@ -67,6 +68,8 @@ v0.11.6 群 @ 名称校验修复：AstrBot 的 `At` 段不带昵称时，网关�
 
 v0.11.7 群 @ 发送兜底：如果微信本地缓存里确实没有该成员的昵称，SDK 原生 @ 仍会返回 `INVALID_ARGUMENT`/`NOT_VERIFIED`。此版本不再让整条回复失败，而是记录警告并降级为普通文本（保留可见的 `@昵称` 文字）；原生 @ 语义会丢失，但 bot 能正常回复。
 
+v0.11.8 群 @ 真实显示名与 dev15：升级 `wechatbot_api 0.1.0.dev15`（bridge 10 不变），新增群成员 `@` 显示名绑定和实例 WebUI 管理入口。实测确认任意标签即使 `labels_verified=False` 且原生 `completed`，接收端也不会出现真实 @；只有真实显示名才会。网关现在优先使用手工绑定的真实名（按次 `labels_verified=False`），其次 SDK 缓存名和历史资料（verified），都没有时继续 v0.11.7 的可见文本降级。手工绑定名称必须与群内实际显示名一致。
+
 ## 下载与升级
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。
@@ -85,7 +88,7 @@ v0.9.3 新增明确的桥接恢复状态与手动停止持久化。自动恢复�
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements-runtime.lock
 .venv\Scripts\python.exe -m pip install -e ".[dev]"
-.venv\Scripts\python.exe -m pip install --no-index --no-deps .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev14-py3-none-win_amd64.whl
+.venv\Scripts\python.exe -m pip install --no-index --no-deps .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev15-py3-none-win_amd64.whl
 .venv\Scripts\python.exe -m pytest -q
 ```
 

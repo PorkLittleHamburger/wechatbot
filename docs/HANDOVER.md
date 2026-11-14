@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-14** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 v0.11.6（Launcher 配套 v0.8.12、框架 dev14）；源码 v0.11.7 已加入群 @ 降级兜底但尚未发布；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-14** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前已发布基线为 v0.11.6（Launcher 配套 v0.8.12、框架 dev14 时发布）；源码 v0.11.8 已升级 `wechatbot_api 0.1.0.dev15` 并加入群成员显示名绑定，尚未发布；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -341,3 +341,27 @@ v0.11.6 修复后，用户再次发送群消息仍失败，错误从 `NOT_VERIFI
 核实补充：OneBot v11 入站 `at` 段只有 `qq`，没有昵称字段；AstrBot 的 aiocqhttp 适配器会在入站时额外调用 `get_group_member_info` / `get_stranger_info` 补昵称，并从 `sender.card/nickname` 取发送者名称。SDK 事件本身不提供发送者昵称，网关 `_convert_message` 的 `sender_name/card` 为空；如果微信缓存也没有该成员名称，AstrBot 只能得到 `At(name='')` 和空发送者名。此外 AstrBot 出站 `At.toDict` 只序列化 `qq`，即使组件里带 `name` 也不会传给网关。因此原生 @ 只能依赖微信缓存名称；缓存没有时只能降级为可见文本。
 
 历史关联：v0.6.1（`fab26e1`）曾修复 AstrBot `reply + at + text` 回复链，但走 helper 原生 @，测试中的 `at` 带显式 `name`；helper 不校验缓存名称。`87fe123` 为 helper 补过非好友昵称缓存，并明确“微信尚未缓存昵称时仍可能显示用户 ID，不编造名称”。v0.10.0 引入 SDK 时能力边界只声明“1–2 人真实缓存名称群 @”，群 @ 尚未实机验收。因此“缓存无昵称时无法原生 @”的限制早已存在，但 SDK 路径下由 AstrBot 空标签触发的整条 1500 失败与降级处理是本轮新发现。
+
+## v0.11.8 群成员显示名绑定与 dev15（2026-11-14，未发布）
+
+背景：v0.11.7 只能保证缓存无名时消息发得出去，不能恢复真实 @。框架侧 dev15 新增按次 `send_at_text(..., labels_verified=False)` 与只读 `Client.mention_label(room, wxid)`；bridge10 / ABI 1 不变。双方用同一 test 群、同一无缓存名成员做受控实验：
+
+- C 控制组：真实缓存名 + `labels_verified=True` → 接收端真实 @；
+- D 解耦组：任意标签 `标签测试A` + `labels_verified=False` → native completed，但接收端**没有真实 @**；
+- M 目录组：`mention_label` 真实名 + `labels_verified=False` → 接收端真实 @。
+
+结论：`labels_verified=False` 只跳过缓存校验，不保证真实 @；标签必须等于接收端真实显示名。实验由框架直连执行，Bot 侧未发送；实验后 B 桥接已正常停止并确认 `wca_bridge.dll` 卸载。
+
+实现：
+1. 升级 `vendor/wechatbot_api` 到 `0.1.0.dev15`（wheel SHA-256 `8dc28458…b951`，构建提交 `7157c44`，bridge10/ABI1 不变）；`VENDORED.json`、`THIRD_PARTY_NOTICES.md` 同步。
+2. `Driver.send_at_text` 增加关键字参数 `labels_verified=True`；`Driver.resolve_mention_label` 默认返回 `None`。SDK 驱动透传 dev15 参数，并调用 `Client.mention_label`；helper/mock 接受该参数但不使用。
+3. `MessageStore` 新增 `mention_labels(account,group_id,user_id,label,updated_at)` 表及持久化方法；按账号/群隔离，空值不覆盖，删除显式生效。
+4. `OneBotService` 解析 @ 名称优先级：手工绑定真实名 → `mention_label` 缓存名 → Bot 历史资料；有手工绑定时按次 `labels_verified=False`，缓存/资料名保持 verified。没有完整真实名时传 `display_names=None` 让 SDK 缓存解析；仍失败则沿用可见文本降级，绝不把 wxid 或任意标签当 native label。
+5. WebUI 账号页新增“成员 @ 显示名”卡片，可绑定/列出/删除 `(group_id,user_id)→真实显示名`；对应 API `GET/PUT/DELETE /api/accounts/{account}/mention-labels`，仅本机已登录 WebUI 可用。输入使用 OneBot 数字 ID，名称限制 1–64 个单行可见字符，拒绝 wxid/空白。
+
+验证：新增存储、发送优先级/降级、SDK 参数/`mention_label`、WebUI 绑定 CRUD 测试；全量 **543 passed / 1 skipped**。本地 dev15 隔离安装与公共 API 签名通过；未发布 Release、未替换运行实例。
+
+边界：
+- 手工绑定名必须与成员在群里的实际显示名完全一致；D 组证明任意标签不会产生真实 @。
+- 残余风险：**“真实名来自手工绑定、但原生缓存没有该名”** 尚未单独实机验证；当前按真实名 + 按次未验证语义实现，并保留可见文本兜底。
+- 无真实名、未绑定且缓存无名称的成员仍无法原生 @；这是客户端显示名约束，不是网关可伪造的字段。

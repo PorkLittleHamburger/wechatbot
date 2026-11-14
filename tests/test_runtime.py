@@ -35,7 +35,7 @@ class FakeDriver(Driver):
     async def send_text(self, chat_id, text):
         return True
 
-    async def send_at_text(self, chat_id, text, user_ids, display_names=None):
+    async def send_at_text(self, chat_id, text, user_ids, display_names=None, *, labels_verified=True):
         return True
 
     async def send_image(self, chat_id, path):

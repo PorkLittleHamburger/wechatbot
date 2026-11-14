@@ -625,23 +625,56 @@ class OneBotService:
                     rows = None
                 if rows is not None:
                     self._remember_members(chat_id, rows)
-            names = tuple(
-                supplied or self._display_name(external, chat_id) or external
-                for external, supplied in zip(at_ids, display)
-            ) if at_ids else None
+            names: list[str] = []
+            fallback_labels: list[str] = []
+            manual_label = False
+            for external, supplied in zip(at_ids, display):
+                manual = self.message_store.mention_label(
+                    self.account, external, chat_id)
+                if manual:
+                    names.append(manual)
+                    fallback_labels.append(manual)
+                    manual_label = True
+                    continue
+                cached = ""
+                try:
+                    cached = await self.driver.resolve_mention_label(chat_id, external) or ""
+                except DriverError:
+                    cached = ""
+                if cached:
+                    names.append(cached)
+                    fallback_labels.append(cached)
+                    continue
+                profile = self._display_name(external, chat_id)
+                if profile:
+                    names.append(profile)
+                    fallback_labels.append(profile)
+                    continue
+                names.append("")
+                fallback_labels.append(supplied or external)
+            display_names: tuple[str, ...] | None = None
+            labels_verified = True
+            if at_ids and all(names):
+                # Manual bindings are the only labels allowed to bypass the
+                # native cache check; cache/profile names stay verified.
+                display_names = tuple(names)
+                labels_verified = not manual_label
             chunks = list(_split_utf8(text or " ", 900 if at_ids else 1023))
             for index, chunk in enumerate(chunks):
                 if at_ids and index == 0:
                     try:
-                        accepted = await self.driver.send_at_text(chat_id, chunk, at_ids, names)
+                        accepted = await self.driver.send_at_text(
+                            chat_id, chunk, at_ids, display_names,
+                            labels_verified=labels_verified)
                     except DriverError as error:
                         if not _mention_validation_error(error):
                             raise
-                        # SDK native mentions require a cached member name. When
-                        # the cache has no verified name, keep the reply usable
-                        # by sending visible text instead of failing the chain.
+                        # SDK native mentions require a verified/real display
+                        # name. When neither the cache nor a manual binding has
+                        # one, keep the reply usable by sending visible text
+                        # instead of failing the chain.
                         logger.warning("原生 @ 发送失败，降级为普通文本: %s", error)
-                        prefix = " ".join(f"@{name}" for name in (names or ())) + " "
+                        prefix = " ".join(f"@{name}" for name in fallback_labels) + " "
                         for piece in _split_utf8(prefix + chunk, 1023):
                             if not await self.driver.send_text(chat_id, piece):
                                 raise OneBotActionError(1500, "微信原生发送返回失败", {"sent_segments": sent})
@@ -960,6 +993,47 @@ class OneBotService:
         profile = self.message_store.profile(self.account, user, group)
         name = (profile["card"] or profile["nickname"]) if profile else ""
         return "".join(" " if ord(ch) < 32 else ch for ch in name).strip()[:64]
+
+    @staticmethod
+    def _mention_label_value(value: Any) -> str:
+        if not isinstance(value, str):
+            raise OneBotActionError(1400, "显示名必须是字符串")
+        label = "".join(" " if ord(ch) < 32 else ch for ch in value).strip()
+        if not 1 <= len(label) <= 64:
+            raise OneBotActionError(1400, "显示名必须为 1–64 个可见字符")
+        return label
+
+    def set_mention_label(self, group_number: int, user_number: int,
+                          label: Any) -> dict[str, Any]:
+        external_group = self._external_group(group_number)
+        external_user = self._external_user(user_number)
+        value = self._mention_label_value(label)
+        if value == external_user:
+            raise OneBotActionError(1400, "显示名不能是 wxid；请填写群内真实显示名")
+        self.message_store.set_mention_label(
+            self.account, external_user, external_group, value)
+        return {"group_id": group_number, "user_id": user_number, "label": value}
+
+    def remove_mention_label(self, group_number: int, user_number: int) -> dict[str, Any]:
+        external_group = self._external_group(group_number)
+        external_user = self._external_user(user_number)
+        self.message_store.delete_mention_label(
+            self.account, external_user, external_group)
+        return {"group_id": group_number, "user_id": user_number, "deleted": True}
+
+    def mention_labels(self, group_number: int | None = None) -> list[dict[str, Any]]:
+        external_group = (self._external_group(group_number)
+                          if group_number is not None else "")
+        rows = self.message_store.list_mention_labels(self.account, external_group)
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            try:
+                group = self.mapper.get_or_create("group", row["group"])
+                user = self.mapper.get_or_create("user", row["user"])
+            except ValueError:
+                continue
+            result.append({"group_id": group, "user_id": user, "label": row["label"]})
+        return result
 
     async def _get_stranger_info(self, params: dict[str, Any]) -> dict[str, Any]:
         number = self._required_int(params, "user_id")

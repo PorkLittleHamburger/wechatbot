@@ -21,7 +21,7 @@
 - 恢复备份报“备份缺少有效的实例配置”：备份里的 `config.json` 若包含启动器尚不认识的 `driver.type=sdk`，恢复校验会失败。使用更新后的 Launcher，或改用仍为 `helper` 配置的备份。
 - `LAYOUT_NOT_READY` / “Core module has not loaded”：微信仍在启动或核心模块未加载；等待登录完成再扫描，枚举到的其他进程也会以该代码出现。
 - `ACCESS_DENIED`：Bot 进程权限低于微信；用与微信同级或更高权限的终端启动。
-- 群消息回复报 `发送失败: NOT_VERIFIED` / `INVALID_ARGUMENT`（retcode 1500、`sent_segments=0`）：sdk 原生层要求 @ 的显示名称来自微信缓存；AstrBot 的 `At` 段只有 qq、没有昵称，网关曾拿 wxid 兜底，原生校验失败。v0.11.6 起 sdk 驱动会检测 wxid/空/过期昵称并改用 SDK 缓存名称；v0.11.7 起如果缓存中确实没有该成员昵称，会自动降级为普通文本（保留可见 `@昵称` 文字）并记录警告，不再让整条回复失败。框架确认没有“无缓存名称仍能产出已验证原生 @”的路径；`sdk_allow_unverified=true` 只对显式非 wxid 标签做未验证尝试，不能保证接收端识别 @，也不能修复 AstrBot 的空标签。
+- 群消息回复报 `发送失败: NOT_VERIFIED` / `INVALID_ARGUMENT`（retcode 1500、`sent_segments=0`）：sdk 原生层要求 @ 的显示名称来自微信缓存；AstrBot 的 `At` 段只有 qq、没有昵称，网关曾拿 wxid 兜底，原生校验失败。v0.11.6 起 sdk 驱动会检测 wxid/空/过期昵称并改用 SDK 缓存名称；v0.11.7 起如果缓存中确实没有该成员昵称，会自动降级为普通文本（保留可见 `@昵称` 文字）并记录警告，不再让整条回复失败。框架确认没有“无缓存名称仍能产出已验证原生 @”的路径；`sdk_allow_unverified=true` 只对显式非 wxid 标签做未验证尝试，不能保证接收端识别 @，也不能修复 AstrBot 的空标签。v0.11.8 起可在实例 WebUI“成员 @ 显示名”中为成员绑定真实群显示名（group_id/user_id 用 OneBot 数字 ID）；绑定后按次 `labels_verified=False` 发原生 @。绑定名必须与群内实际显示名一致；任意标签不会产生真实 @。
 - 关闭实例时未停止桥接，重启后报 `SESSION_BUSY`：旧 Bot 进程被结束后，SDK 的 watchdog 需要一点时间才能从微信进程卸载原生 bridge；v0.11.5 起 sdk 驱动启动时会自动等待并重试最多 20 秒。若仍报错，说明旧 Bot 进程或旧桥接仍存活（不是简单的卸载延迟）：先结束旧实例/旧桥接进程，或重启 PC 微信后再启动。启动器侧应在关闭实例前先停止桥接。
 - `SHUTDOWN_PENDING` / `MEDIA_CLEANUP_PENDING`：原生任务或私有文件清理尚未完成。保留会话并等待，不要强制卸载或结束微信进程。
 - 发送返回“结果未知”：原生可能已发送。不要自动重发；用返回的 `operation` 或状态页确认，禁止把 `accepted` 当成功。

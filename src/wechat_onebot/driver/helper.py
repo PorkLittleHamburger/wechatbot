@@ -516,7 +516,9 @@ class HelperDriver(Driver):
         except Exception as error:
             raise DriverError(f"文本发送失败: {error}") from error
 
-    async def send_at_text(self, chat_id: str, text: str, user_ids: Sequence[str], display_names: Sequence[str] | None = None) -> bool:
+    async def send_at_text(self, chat_id: str, text: str, user_ids: Sequence[str],
+                           display_names: Sequence[str] | None = None, *,
+                           labels_verified: bool = True) -> bool:
         import asyncio
         self._require_service()
         try:

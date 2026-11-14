@@ -525,6 +525,7 @@ const S = {
   logTab: "runtime", logs: null, logQuery: "", logLevel: "all", logAuto: true,
   processes: null, processError: "", processSort: "status", processLoading: false, processRequest: 0, bridgeBusy: false,
   friends: null, groups: null, friendQuery: "", groupQuery: "",
+  mentionLabels: null, mentionGroup: "", mentionUser: "", mentionLabel: "",
   storage: null,
   action: null, actionParams: {}, actionJsonMode: false, actionResult: null, actionBusy: false, confirmWrite: false, actionQuery: "", debugTab: "tester", apiQuery: "",
   composeType: "private", composeTarget: "", composeMessage: "", composeResult: null,
@@ -1122,7 +1123,16 @@ function renderAccount(root) {
         "<div class=\"card-b\" style=\"padding-bottom:8px\"><div class=\"search\"><svg class=\"i\"><use href=\"#i-search\"/></svg>" +
         "<input class=\"input\" id=\"groupSearch\" placeholder=\"搜索群名 / group_id\"></div></div>" +
         "<div class=\"rows scroll\" id=\"groupList\">" + emptyState("点击“读取”获取群列表", "i-msg") + "</div></div>" +
-    "</div>";
+    "</div>" +
+    "<div class=\"card\" style=\"margin-top:16px\"><div class=\"card-h\"><h2>成员 @ 显示名</h2><div class=\"spacer\"></div>" +
+      "<span class=\"hint\">原生 @ 必须使用群内真实显示名</span><button class=\"btn ghost sm\" data-act=\"mention-refresh\"><svg class=\"i\"><use href=\"#i-refresh\"/></svg>刷新</button></div>" +
+      "<div class=\"card-b\"><div class=\"toolbar\">" +
+        "<label class=\"field\" style=\"min-width:150px\"><span>群 group_id</span><input class=\"input\" id=\"mentionGroup\" type=\"number\" min=\"1\" placeholder=\"OneBot 数字 ID\" value=\"" + esc(S.mentionGroup) + "\"></label>" +
+        "<label class=\"field\" style=\"min-width:150px\"><span>成员 user_id</span><input class=\"input\" id=\"mentionUser\" type=\"number\" min=\"1\" placeholder=\"OneBot 数字 ID\" value=\"" + esc(S.mentionUser) + "\"></label>" +
+        "<label class=\"field\" style=\"flex:1;min-width:180px\"><span>真实显示名</span><input class=\"input\" id=\"mentionName\" maxlength=\"64\" placeholder=\"群内 @ 时显示的名字\" value=\"" + esc(S.mentionLabel) + "\"></label>" +
+        "<button class=\"btn primary\" data-act=\"mention-save\">保存绑定</button></div>" +
+        "<p class=\"hint\" style=\"margin:8px 0 0\">仅对“缓存中查不到昵称”的成员生效；名称必须与该成员在微信群里的实际显示名一致，任意标签不会产生真实 @。group_id/user_id 可在本页群列表和 OneBot 事件中查看。</p>" +
+        "<div class=\"rows scroll\" id=\"mentionList\" style=\"max-height:240px;margin-top:10px\">" + emptyState("尚未绑定成员显示名", "i-user") + "</div></div></div>";
   const fs = $("#friendSearch");
   if (fs) fs.addEventListener("input", () => { S.friendQuery = fs.value; renderFriendList(); });
   const gs = $("#groupSearch");
@@ -1130,6 +1140,7 @@ function renderAccount(root) {
   if (S.friends) renderFriendList(); else maybeLoadFriends();
   if (S.groups) renderGroupList(); else maybeLoadGroups();
   if (!S.loginInfo) loadLoginInfo();
+  loadMentionLabels().catch((e) => { const box = $("#mentionList"); if (box) box.innerHTML = emptyState(e.message || "读取显示名绑定失败", "i-alert"); });
   loadVersionInfo();
 }
 
@@ -1195,6 +1206,22 @@ function renderGroupList() {
     "<div class=\"r-main\"><div class=\"r-title\">" + esc(g.group_name || "未命名群") + "</div>" +
     "<div class=\"r-sub\">" + esc(g.group_id) + "</div></div>" +
     "<div class=\"r-right\">" + (g.member_count ? esc(g.member_count) + " 人" : "") + "</div></div>").join("") : emptyState(q ? "没有匹配的群" : "群列表为空", "i-msg");
+}
+async function loadMentionLabels() {
+  if (!S.account) return;
+  const body = await api("/api/accounts/" + encodeURIComponent(S.account) + "/mention-labels");
+  S.mentionLabels = body.labels || [];
+  renderMentionLabels();
+}
+function renderMentionLabels() {
+  const box = $("#mentionList"); if (!box) return;
+  const rows = S.mentionLabels || [];
+  box.innerHTML = rows.length ? rows.map((row) =>
+    "<div class=\"row\"><div class=\"avatar sm\"><svg class=\"i\"><use href=\"#i-user\"/></svg></div>" +
+    "<div class=\"r-main\"><div class=\"r-title\">" + esc(row.label) + "</div>" +
+    "<div class=\"r-sub\">group " + esc(row.group_id) + " · user " + esc(row.user_id) + "</div></div>" +
+    "<button class=\"icon-btn\" data-act=\"mention-delete\" data-group=\"" + esc(row.group_id) + "\" data-user=\"" + esc(row.user_id) + "\" title=\"删除绑定\"><svg class=\"i\"><use href=\"#i-trash\"/></svg></button></div>").join("") :
+    emptyState("尚未绑定成员显示名", "i-user");
 }
 async function loadVersionInfo() {
   if (S.versionInfo || !S.account) return;
@@ -1935,6 +1962,45 @@ document.getElementById("view").addEventListener("click", async (event) => {
     }
     if (act === "acct-friends") { el.disabled = true; await loadFriends(); toast("好友列表已更新", "ok"); el.disabled = false; return; }
     if (act === "acct-groups") { el.disabled = true; await loadGroups(); toast("群列表已更新", "ok"); el.disabled = false; return; }
+    if (act === "mention-refresh") { await loadMentionLabels(); toast("显示名绑定已刷新", "ok"); return; }
+    if (act === "mention-save") {
+      if (!S.account) return;
+      const groupId = Number($("#mentionGroup") ? $("#mentionGroup").value : 0);
+      const userId = Number($("#mentionUser") ? $("#mentionUser").value : 0);
+      const label = ($("#mentionName") ? $("#mentionName").value : "").trim();
+      S.mentionGroup = groupId ? String(groupId) : "";
+      S.mentionUser = userId ? String(userId) : "";
+      S.mentionLabel = label;
+      if (!Number.isSafeInteger(groupId) || groupId <= 0 || !Number.isSafeInteger(userId) || userId <= 0) {
+        toast("请填写有效的群 group_id 和成员 user_id", "bad"); return;
+      }
+      if (!label) { toast("请填写该成员的真实显示名", "bad"); return; }
+      const restore = busyButton(el, "保存中…");
+      try {
+        await api("/api/accounts/" + encodeURIComponent(S.account) + "/mention-labels", {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ group_id: groupId, user_id: userId, label })
+        });
+        toast("成员显示名已绑定", "ok");
+        await loadMentionLabels();
+      } finally { restore(); }
+      return;
+    }
+    if (act === "mention-delete") {
+      if (!S.account) return;
+      const groupId = Number(el.dataset.group), userId = Number(el.dataset.user);
+      if (!confirm("删除 group " + groupId + " / user " + userId + " 的显示名绑定？")) return;
+      const restore = busyButton(el, "删除中…");
+      try {
+        await api("/api/accounts/" + encodeURIComponent(S.account) + "/mention-labels", {
+          method: "DELETE", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ group_id: groupId, user_id: userId })
+        });
+        toast("显示名绑定已删除", "ok");
+        await loadMentionLabels();
+      } finally { restore(); }
+      return;
+    }
     if (act === "proc-refresh" || act === "proc-scan") {
       const restore = busyButton(el, act === "proc-scan" ? "扫描中…" : "刷新中…");
       const feedback = $("#procFeedback"); if (feedback) feedback.textContent = act === "proc-scan" ? "正在扫描已登录账号…" : "正在刷新实例状态…";

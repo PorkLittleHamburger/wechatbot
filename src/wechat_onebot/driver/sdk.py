@@ -562,7 +562,8 @@ class SdkDriver(Driver):
         return await self._send("send_text", chat_id, text)
 
     async def send_at_text(self, chat_id: str, text: str, user_ids: Sequence[str],
-                           display_names: Sequence[str] | None = None) -> bool:
+                           display_names: Sequence[str] | None = None, *,
+                           labels_verified: bool = True) -> bool:
         members = [str(item) for item in user_ids if item]
         if not members:
             raise DriverError("群聊 @ 消息缺少目标成员")
@@ -576,11 +577,15 @@ class SdkDriver(Driver):
             # relaxed; let the SDK resolve a cached name or let the caller
             # degrade to visible text.
             names = None
+        if not labels_verified and names is None:
+            raise DriverError(
+                "发送失败: INVALID_ARGUMENT 未验证标签必须提供真实显示名")
         try:
             return await self._send("send_at_text", chat_id, text,
-                                    members=members, display_names=names)
+                                    members=members, display_names=names,
+                                    labels_verified=labels_verified)
         except DriverError as error:
-            if names is None or "NOT_VERIFIED" not in str(error):
+            if names is None or not labels_verified or "NOT_VERIFIED" not in str(error):
                 raise
             # A stale/custom label can fail the native cache check even though a
             # valid cached label exists. NOT_VERIFIED is a pre-send rejection, so
@@ -588,6 +593,21 @@ class SdkDriver(Driver):
             logger.warning("原生 @ 名称校验失败，改用 SDK 缓存名称重试: %s", error)
             return await self._send("send_at_text", chat_id, text,
                                     members=members, display_names=None)
+
+    async def resolve_mention_label(self, chat_id: str, user_id: str) -> str | None:
+        import asyncio
+
+        client = self._client
+        if client is None or not hasattr(client, "mention_label"):
+            return None
+        try:
+            value = await asyncio.to_thread(
+                client.mention_label, chat_id, str(user_id),
+                pid=self._pid, account_id=self._self_id)
+        except Exception as error:
+            logger.debug("读取 @ 缓存名称失败: %s", _code(error), exc_info=True)
+            return None
+        return _text(value, 64) or None
 
     async def send_image(self, chat_id: str, path: str) -> bool:
         return await self._send("send_image", chat_id, str(path))

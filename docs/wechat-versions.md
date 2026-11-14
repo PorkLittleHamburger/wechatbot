@@ -7,7 +7,7 @@
 | 驱动 | 固定来源 | 支持的 Windows x64 微信构建 |
 | --- | --- | --- |
 | `helper` | [helper `119acdf`](https://github.com/Prometheus-first/helper/tree/119acdf9d74654c6ebb8cded2c6841b85af75867) + 本项目补丁 | 4.1.15.13、4.1.15.56、4.2.0.11、4.2.0.12 |
-| `sdk` | `wechatbot-api 0.1.0.dev14`（bridge 10 / ABI 1，见 [vendor/wechatbot_api](../vendor/wechatbot_api/README.md)） | 4.2.0.52 |
+| `sdk` | `wechatbot-api 0.1.0.dev15`（bridge 10 / ABI 1，见 [vendor/wechatbot_api](../vendor/wechatbot_api/README.md)） | 4.2.0.52 |
 
 helper 驱动的指纹以 `vendor/helper/native/compatibility.json` 为准；sdk 驱动在
 连接前由框架校验 `Weixin.dll` 的完整指纹。**4.2.0.52 只支持 `sdk` 驱动**；
@@ -34,6 +34,11 @@ sdk 驱动还要求 `wechatbot_api` 包与包内 `wca_bridge.dll` 的版本、�
   `request_media` 下载、`get_image`/`get_record` 读取收到的媒体（语音可转
   mp3/amr/wma/m4a/spx/ogg/wav/flac）、私聊引用文本/引用原图与两层嵌套转发、
   只读联系人/群/群成员缓存查询。
+- 群 `@` 名称：dev15 新增按次 `labels_verified=False` 和只读
+  `mention_label(room, wxid)`。网关优先使用实例 WebUI 手工绑定的真实显示名
+  （按次未验证提交），其次 `mention_label`/历史资料（verified）。任意标签即使
+  原生 `completed` 也不会被接收端识别为真实 @；没有真实名时保持可见文本降级。
+  手工绑定的名称必须与群内实际显示名一致。
 - 不支持：表情包发送、撤回、好友申请、群管理、原生合并转发卡片、出站原生引用。
   网关对这些保持明确失败，不返回假成功。
 - 群富图片的 `request_media` 在框架内仍为开发 opt-in；网关默认只在私聊场景解析
@@ -99,3 +104,9 @@ v0.10.3 起，自动回退**不再改写 `driver.type`**：实例模式由 Launc
 `NORMAL_STOP`；完整 Bot 服务的 WebUI 扫描 → 启动 → `online=true` → 停止同样通过。
 **没有发送真实消息、没有修改运行实例配置**；群 `@`、媒体与引用收发仍需真实消息
 （入站事件与发送链路尚未验证）。
+
+v0.11.8 将 sdk 框架固定版本升级到 `0.1.0.dev15`（bridge 10 / ABI 1 不变），
+并新增实例 WebUI 成员 `@` 显示名绑定。实机对照确认：任意标签即使
+`labels_verified=False` 且 native completed，接收端也没有真实 @；真实显示名才有效。
+缓存无名称时，手工绑定真实名走按次未验证提交；没有真实名则保持可见文本降级。
+**手工绑定名必须与群内实际显示名一致，不能填 wxid 或占位标签。**
