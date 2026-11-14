@@ -456,6 +456,18 @@ async def test_at_text_uses_sdk_names_when_gateway_only_has_wxid(monkeypatch, tm
 
 
 @pytest.mark.asyncio
+async def test_at_text_keeps_explicit_labels_when_unverified_allowed(monkeypatch, tmp_path: Path):
+    driver, client, _, _ = await started_driver(
+        monkeypatch, tmp_path, sdk_allow_unverified=True)
+    try:
+        await driver.send_at_text("1@chatroom", "hi", ["wxid_a"], ["wxid_a"])
+        _, _, kwargs = client.session_obj.sent[0]
+        assert kwargs["display_names"] == ["wxid_a"]
+    finally:
+        await driver.stop()
+
+
+@pytest.mark.asyncio
 async def test_at_text_retries_with_cache_names_after_not_verified(monkeypatch, tmp_path: Path):
     driver, client, _, _ = await started_driver(monkeypatch, tmp_path)
     session = client.session_obj

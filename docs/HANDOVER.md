@@ -331,8 +331,8 @@ v0.11.6 修复后，用户再次发送群消息仍失败，错误从 `NOT_VERIFI
 修复：
 1. `SdkDriver._send` 捕获 SDK 异常时保留原始 message（此前只返回错误码，`INVALID_ARGUMENT` 没有细节）。
 2. `_send_prepared_message` 在 `send_at_text` 因 `NOT_VERIFIED`/`INVALID_ARGUMENT`/无缓存名称失败时，记录警告并降级为 `send_text`：保留可见的 `@昵称` 前缀（昵称未知时用 wxid），正文照常发送；不再返回 1500 让整条回复失败。
-3. 该降级只针对原生 @ 校验失败；其他发送错误仍照常失败。
+3. 该降级只针对原生 @ 校验失败；其他发送错误仍照常失败。\n4. `sdk_allow_unverified=true` 时保留调用方显式标签（例如 wxid）供原生 @ 使用，因为 SDK 在该模式下跳过缓存名称校验。
 
-验证：新增“@ 校验失败降级为可见文本”和“SDK 异常细节透传”测试；全量 **533 passed / 1 skipped**。未在真实群聊复测该成员。
+验证：新增“@ 校验失败降级为可见文本”和“SDK 异常细节透传”测试；全量 **534 passed / 1 skipped**。未在真实群聊复测该成员。
 
 边界：降级后消息能发出，但**原生 @ 语义丢失**（只是文本里的 `@昵称`）；要真正原生 @，需要该成员昵称进入微信缓存，或在可信环境设置 `driver.sdk_allow_unverified=true`。helper 驱动本身不校验昵称，wxid 兜底可发原生 @ 但显示 wxid。
