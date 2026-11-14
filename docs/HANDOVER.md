@@ -336,3 +336,5 @@ v0.11.6 修复后，用户再次发送群消息仍失败，错误从 `NOT_VERIFI
 验证：新增“@ 校验失败降级为可见文本”和“SDK 异常细节透传”测试；全量 **534 passed / 1 skipped**。未在真实群聊复测该成员。
 
 边界：降级后消息能发出，但**原生 @ 语义丢失**（只是文本里的 `@昵称`）；要真正原生 @，需要该成员昵称进入微信缓存，或在可信环境设置 `driver.sdk_allow_unverified=true`。helper 驱动本身不校验昵称，wxid 兜底可发原生 @ 但显示 wxid。
+
+核实补充：OneBot v11 入站 `at` 段只有 `qq`，没有昵称字段；AstrBot 的 aiocqhttp 适配器会在入站时额外调用 `get_group_member_info` / `get_stranger_info` 补昵称，并从 `sender.card/nickname` 取发送者名称。SDK 事件本身不提供发送者昵称，网关 `_convert_message` 的 `sender_name/card` 为空；如果微信缓存也没有该成员名称，AstrBot 只能得到 `At(name='')` 和空发送者名。此外 AstrBot 出站 `At.toDict` 只序列化 `qq`，即使组件里带 `name` 也不会传给网关。因此原生 @ 只能依赖微信缓存名称；缓存没有时只能降级为可见文本。
