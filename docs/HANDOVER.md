@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-14** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前已发布基线为 **WeChatBot v0.11.9**（Launcher 配套 v0.8.12、框架 dev15）；源码 v0.11.10 已加入 WebUI 媒体大小上限调整，尚未发布；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-14** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前已发布基线为 **WeChatBot v0.11.10**（Launcher 配套 v0.8.12、框架 dev15）；源码 v0.11.10 已加入 WebUI 媒体大小上限调整；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -387,7 +387,7 @@ v0.11.6 修复后，用户再次发送群消息仍失败，错误从 `NOT_VERIFI
 
 发布结果（2026-11-14）：用户实测确认问题解决并确认发布 **WeChatBot v0.11.9**。annotated tag `v0.11.9` → `d3c50c5`；GitHub Release ID `445142573`，非 draft/prerelease，Latest；[Bot checks #43568730578](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43568730578) 成功。附件 `wechat-onebot-0.11.9-windows-x64.zip` 60,419,977 B，SHA-256 `4c1556c00801bb243b0778d9257642fcdf3d86fddc86379fae870a2eaabded12`，同名 `.sha256` 一并上传；公网下载后重新计算大小/摘要一致。实际 Launcher `VersionStore.import_archive` 临时工作区导入 1,587 个文件、状态 `compatible`；未替换当前运行实例。
 
-## v0.11.10 媒体大小上限可调（2026-11-14，未发布）
+## v0.11.10 媒体大小上限可调（2026-11-14，已发布）
 
 背景：AstrBot 点歌插件发送本地语音持续报 `base64 媒体数据超过大小限制`（retcode 1400）。通过 AstrBot 官方 OpenAPI 复现：12,223,725 B MP3 经 AstrBot `Record.convert_to_base64()` 转成 58,663,226 B WAV（约 55.95 MiB），base64 约 78,217,636 字符（约 74.59 MiB）；Bot 默认 `storage.max_media_bytes` 50 MiB 在解码后拒绝。WS 端点 `maxMessageBytes`（截图 512 MiB）已足够，问题在媒体层而非 WS 帧层。
 
@@ -398,3 +398,5 @@ v0.11.6 修复后，用户再次发送群消息仍失败，错误从 `NOT_VERIFI
 4. 文档补充：`maxMessageBytes` 限制收到的 WS 原始帧；`storage.max_media_bytes` 限制 base64/URL/本地媒体解码后的实际大小；base64 约 4/3 膨胀，二者需同时满足。AstrBot 的 WAV base64 场景即使 WS 帧通过，也可能被媒体上限拒绝。
 
 验证：新增 `/api/storage` 读取/修改、配置文件落盘、运行中 `MediaStore.max_bytes` 热更新、非法范围拒绝测试；全量 **554 passed / 1 skipped**。未发布 Release。
+
+发布结果（2026-11-14）：用户确认发布 **WeChatBot v0.11.10**。annotated tag `v0.11.10` → `1ca8439`；GitHub Release ID `445170739`，非 draft/prerelease，Latest；[Bot checks #43578648262](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43578648262) 成功。附件 `wechat-onebot-0.11.10-windows-x64.zip` 60,425,566 B，SHA-256 `82b99657d0b969577edd55d2f84efd1d106ee8ce5a1420b2a6d54a958a7fdfc4`，同名 `.sha256` 一并上传；公网下载后重新计算大小/摘要一致。实际 Launcher `VersionStore.import_archive` 临时工作区导入 1,587 个文件、状态 `compatible`；未替换当前运行实例。
