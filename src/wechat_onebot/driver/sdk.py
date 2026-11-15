@@ -42,7 +42,7 @@ logger = logging.getLogger("wechat-onebot.sdk")
 _CAPABILITIES = frozenset({
     "text.receive", "text.send", "group.text.mention",
     "image.receive", "image.send", "file.receive", "file.send",
-    "voice.receive", "voice.send", "video.receive",
+    "voice.receive", "voice.send", "video.receive", "video.send",
     "contact.read", "group.members.read", "forwarded.receive",
 })
 
@@ -722,6 +722,11 @@ class SdkDriver(Driver):
 
     async def send_voice(self, chat_id: str, path: str) -> bool:
         return await self._send("send_voice", chat_id, str(path))
+
+    async def send_video(self, chat_id: str, path: str) -> bool:
+        # Fixed wheel: verified for H.264 silent MP4 (filehelper/private/group);
+        # other codecs/audio tracks are framework-pending, failures stay explicit.
+        return await self._send("send_video", chat_id, str(path))
 
     async def send_emoticon(self, chat_id: str, path: str) -> bool:
         raise DriverUnsupported("wechatbot_api 驱动不支持发送表情")

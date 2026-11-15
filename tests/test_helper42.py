@@ -44,9 +44,10 @@ def test_42_capabilities_do_not_advertise_unavailable_native_features(helper, tm
             'file.send', 'group.members.read', 'request.friend', 'forwarded.receive'} <= driver.capabilities
     assert 'contact.read' not in driver.capabilities
     assert 'emoticon.send' not in driver.capabilities
+    # Native video send is declared only by the 4.2.0.12 backend.
+    assert ('video.send' in driver.capabilities) is (version == '4.2.0.12')
     # New upstream primitives have no gateway OneBot mapping in this update.
     assert 'text.quote.send' not in driver.capabilities
-    assert 'video.send' not in driver.capabilities
 
 
 @pytest.mark.parametrize('kind,key', [(34, 'voice_status'), (43, 'video_status')])

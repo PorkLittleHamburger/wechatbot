@@ -424,6 +424,55 @@ async def test_emoticon_send_is_unsupported(monkeypatch, tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_video_capability_and_completed_send_registers_native_id(monkeypatch, tmp_path: Path):
+    from types import SimpleNamespace
+
+    driver, client, _, _ = await started_driver(monkeypatch, tmp_path)
+    assert "video.send" in driver.capabilities
+
+    def send_video(chat_id, path, timeout=30):
+        client.session_obj.sent.append(("send_video", (chat_id, path), {"timeout": timeout}))
+        return SimpleNamespace(state=SimpleNamespace(value="completed"), error=None,
+                               detail="", native_message_id="9001", operation_id="op-1")
+
+    client.session_obj.send_video = send_video
+    try:
+        assert await driver.send_video("wxid_friend", str(tmp_path / "clip.mp4")) is True
+        assert client.session_obj.sent[-1][0] == "send_video"
+        assert client.session_obj.sent[-1][1] == (
+            "wxid_friend", str(tmp_path / "clip.mp4"))
+        assert driver.take_native_message_ids() == ("9001",)
+    finally:
+        await driver.stop()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("state", ["accepted", "unknown"])
+async def test_video_unknown_results_are_never_retried(monkeypatch, tmp_path: Path, state):
+    driver, client, _, _ = await started_driver(monkeypatch, tmp_path)
+    client.session_obj.send_state = state
+    try:
+        with pytest.raises(DriverError, match="未知"):
+            await driver.send_video("wxid_friend", str(tmp_path / "clip.mp4"))
+        assert len(client.session_obj.sent) == 1
+        assert client.session_obj.sent[0][0] == "send_video"
+    finally:
+        await driver.stop()
+
+
+@pytest.mark.asyncio
+async def test_video_failed_result_surfaces_error(monkeypatch, tmp_path: Path):
+    driver, client, _, _ = await started_driver(monkeypatch, tmp_path)
+    client.session_obj.send_state = "failed"
+    try:
+        with pytest.raises(DriverError):
+            await driver.send_video("wxid_friend", str(tmp_path / "clip.mp4"))
+        assert len(client.session_obj.sent) == 1
+    finally:
+        await driver.stop()
+
+
+@pytest.mark.asyncio
 async def test_send_exception_surfaces_sdk_detail(monkeypatch, tmp_path: Path):
     driver, client, _, _ = await started_driver(monkeypatch, tmp_path)
 

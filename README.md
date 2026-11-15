@@ -75,6 +75,8 @@ v0.11.9 跨账号名称补全：某些成员的名称只存在于另一台已登
 
 v0.11.10 媒体上限可调：实例 WebUI 的“系统设置 → 存储管理”新增 `storage.max_media_bytes` 输入（默认 50 MiB，范围 1 KiB–1 GiB），保存后写入 `config.json` 并热更新当前账号的媒体存储，无需重启。页面同时说明它与 OneBot 端点 `maxMessageBytes` 的区别：前者限制解码后的媒体大小，后者限制 WS 原始帧大小。
 
+C 批 U-02（工作区，未提交/未发布）：出站 `video` 发送按驱动与微信构建映射——`sdk` 4.2.0.52 支持 H.264 静音 MP4（Q-3 私聊短样本已验证；其他编码/带音轨仍为框架 pending），`helper` 4.2.0.12 映射但私聊待 Q-4（上游仅声明 filehelper/群已验证），其他构建与 `send_group_forward_msg`/`send_private_forward_msg` 链内视频仍返回 1404。
+
 ## 下载与升级
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。

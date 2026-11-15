@@ -4,7 +4,9 @@
 >
 > **本仓库基线（WechatBot）**：v0.11.10，HEAD `9f689fa`（Windows x64 个人微信 OneBot v11 网关）。
 >
-> **B 批基线变化（2026-11-15，未提交）**：A 批（`1b19502`/`04ab900`）之后的工作区新增 U-07 动作目录/元素四向单一真源、U-06 文件日志与级别热切换、U-05a 暴露面加固、U-04 `bot_offline`、U-08a 好友申请只读列表（新增可选扩展动作 `get_friend_requests`）；注册动作 23→24、测试 557→645、测试文件 43→49。正文的现状判断与优先级仍以 A 批为基线，不据 B 批改写；B 批落地与验证入口见 `docs/HANDOVER.md`，引用行号已按当前工作区核对。
+> **B 批基线变化（2026-11-15，已提交 `5a3a360`）**：A 批（`1b19502`/`04ab900`）之后的工作区新增 U-07 动作目录/元素四向单一真源、U-06 文件日志与级别热切换、U-05a 暴露面加固、U-04 `bot_offline`、U-08a 好友申请只读列表（新增可选扩展动作 `get_friend_requests`）；注册动作 23→24、测试 557→645、测试文件 43→49。正文的现状判断与优先级仍以 A 批为基线，不据 B 批改写；B 批落地与验证入口见 `docs/HANDOVER.md`，引用行号已按当前工作区核对。
+>
+> **C 批 U-02（2026-11-15，未提交）**：出站 `video` 发送已按驱动/构建映射（SDK 4.2.0.52 H.264 静音 MP4：Q-3 私聊短样本已验证，其他编码/带音轨 pending；helper 4.2.0.12：网关已映射但私聊/本机待 Q-4，上游仅声明 filehelper/群已验证；其他构建与转发发送扩展链仍 1404）。当前 `pytest --collect-only` 为 657 项 / 50 个测试文件，动作仍 24、WebUI 路由仍 33；U-02 状态按本批更新，其他条目与 A/B 历史注记不变。
 >
 > **方法**：只读比对。SnowLuma 侧逐文件阅读镜像源码与文档；本仓库侧逐文件阅读 `src/`、`tests/`、`docs/` 与 `vendor/` 的固定依赖，结论以代码为准、文档为辅。证据格式：本仓库写 `路径:行号`；SnowLuma 镜像写 `SnowLuma v2.4.2: 镜像相对路径:行号`。所有引用在成稿前重新核对到具体行内容（不只校验行号存在）。
 >
@@ -16,9 +18,9 @@
 
 ## 一、结论摘要（10 条）
 
-1. **差距的主因是原生桥接边界，不是网关代码量。** 事实：本仓库能力 = 原生后端已有能力 ∩ 网关已映射动作（`src/wechat_onebot/driver/helper.py:99-117`、`src/wechat_onebot/driver/base.py:29-128`）；SnowLuma 在 QQ 协议层自行实现 222 个声明动作（`SnowLuma v2.4.2: packages/onebot/src/actions/index.ts:288-313`）。判断：多数"缺动作"要落成"原生得先开门"，而不是协议层补字段。
-2. **唯一 P0：出站引用（`reply` 段）当前整链失败。** 事实：任何出站 `reply` 直接 `1404`（`src/wechat_onebot/service.py:877-878`），驱动契约无引用发送方法；原生侧仅微信 **4.2.0.12** 的 helper 后端声明 `text.quote.send`（`vendor/helper/wxbot_framework/backend.py:35-43`、`:132-133`），且 helper 发送不回传 native ID（`src/wechat_onebot/driver/base.py:32-34`），因此只能引用**入站**消息。判断：属"受限可迁移 + 产品决策"（`docs/HANDOVER.md:134` 记录为有意未映射），不是回归或遗漏。
-3. **视频发送未映射，但原生路径比通常预期更明确。** 事实：`video` 段直接 `1404`（`src/wechat_onebot/service.py:879-883`），`Driver` 无 `send_video`、`get_capabilities` 无 `video.send`（`src/wechat_onebot/driver/sdk.py:42-47`）；helper 4.2.0.12 原生有 `send_video`（`vendor/helper/native/text_service.py:991-999`），SDK 框架亦已有 `send_video` 与 `video.send` 支持声明（`vendor/wechatbot_api/` 的 wheel 内 `wechatbot_api/session.py` 与 `_native.py`，本仓库以 vendored wheel 固定）。判断：只差网关映射与实机验证；现有文档把"框架能力"写成"网关能力"，属口径问题。**本批已修正**：7 项纠偏中的第 1 项（视频口径）已统一 README、PORTABLE_README、HANDOVER、wechat-versions、onebot-compatibility 的相关表述为"底层框架有 `send_video`，但网关未映射 `video` 段（出站 1404）"；上述判断与 U-02 结论不变。
+1. **差距的主因是原生桥接边界，不是网关代码量。** 事实：本仓库能力 = 原生后端已有能力 ∩ 网关已映射动作（`src/wechat_onebot/driver/helper.py:99-117`、`src/wechat_onebot/driver/base.py:29-135`）；SnowLuma 在 QQ 协议层自行实现 222 个声明动作（`SnowLuma v2.4.2: packages/onebot/src/actions/index.ts:288-313`）。判断：多数"缺动作"要落成"原生得先开门"，而不是协议层补字段。
+2. **唯一 P0：出站引用（`reply` 段）当前整链失败。** 事实：任何出站 `reply` 直接 `1404`（`src/wechat_onebot/service.py:882-883`），驱动契约无引用发送方法；原生侧仅微信 **4.2.0.12** 的 helper 后端声明 `text.quote.send`（`vendor/helper/wxbot_framework/backend.py:35-43`、`:132-133`），且 helper 发送不回传 native ID（`src/wechat_onebot/driver/base.py:32-34`），因此只能引用**入站**消息。判断：属"受限可迁移 + 产品决策"（`docs/HANDOVER.md:134` 记录为有意未映射），不是回归或遗漏。
+3. **视频发送已由 C 批按驱动/构建映射（SDK Q-3 已验证；helper 4.2.0.12 映射、Q-4 待验；其他构建/转发链 1404）。** 事实：`video` 段不再一律 1404；SDK 4.2.0.52 映射 H.264 静音 MP4（Q-3 私聊短样本实测可播放；其他编码/带音轨 pending），helper 4.2.0.12 映射但私聊/本机待 Q-4（上游仅声明 filehelper/群已验证），其他构建与转发发送扩展链仍 1404（`src/wechat_onebot/service.py:812-815`、`:884-888`、`:909-914`；`src/wechat_onebot/driver/base.py:101-104`；`src/wechat_onebot/driver/sdk.py:45,726-729`；`src/wechat_onebot/driver/helper.py:101,652-662`；`src/wechat_onebot/protocol/element_manifest.py:52-54`）。判断：U-02 从“未映射”转为“按能力门控”；原“框架能力≠网关能力”口径修正注记保留。
 4. **官方 OneBot v11 的 38 个标准动作，本仓库注册 18 个、未注册 20 个。** 事实：注册表 24 个动作（`src/wechat_onebot/onebot/actions.py:86-221`）；20 个未注册中 **可迁移 5 个**（撤回、好友申请审批、踢人、退群、改群名[待确认]）、**平台不可迁移 13 个**、**明确排除 2 个**（`set_restart`、`clean_cache`）。
 5. **传输层已对齐，缺 6 项协议增强。** 已覆盖：HTTP API、HTTP 上报（含签名/快速操作）、正向/反向 WS、三角色、`echo`、`_async`/`_rate_limited`、心跳与生命周期。缺：SSE 事件流、单端口复用、出站 CQ 字符串模式、自身消息事件上报、离线事件、`Authorization: <token>` 裸 token 形态（均协议层可补，见第四节）。
 6. **管理面闭环完整，缺运维增强而非核心功能。** 事实：33 条 WebUI 路由（`@app` 装饰器；`src/wechat_onebot/webui/server.py:179-730`）覆盖登录、状态、调试台、日志、端点、账号/桥接、@ 显示名绑定；相对 SnowLuma 缺文件日志与级别热切换、管理密码强度、TOTP、TLS、通知渠道、多账号批量操作。
@@ -57,7 +59,7 @@
 
 **真实实现差异（可补，见第四节）**
 
-1. **已有原生能力未映射**：出站引用（仅 4.2.0.12）、视频发送（helper 4.2.0.12 / SDK 4.2.0.52）、好友申请（列表 + 审批）、群邀请/建群、主动好友申请（4.2.0.12）、表情导出（4.1.15.x）、朋友圈/防撤回——`docs/HANDOVER.md:134` 已记录"未新增 OneBot 映射"。
+1. **已有原生能力未映射**：出站引用（仅 4.2.0.12）、好友申请（列表 + 审批）、群邀请/建群、主动好友申请（4.2.0.12）、表情导出（4.1.15.x）、朋友圈/防撤回——`docs/HANDOVER.md:134` 已记录"未新增 OneBot 映射"。视频发送已由 C 批 U-02 按驱动/构建映射（见 §4.2），不再列为本项。
 2. **协议层缺项**：SSE、单端口复用、出站 CQ 字符串、自身消息上报、离线事件、裸 token。
 3. **管理面缺项**：文件日志/轮转/级别热切换、密码强度、TOTP、TLS、通知渠道、多账号批量。
 4. **工程质量**：动作目录与元素四向清单没有"单一真源 + 防漂移"；CI 无 lint/类型/覆盖率。
@@ -92,7 +94,7 @@
 | 3 | 单端口复用 HTTP + WS（+SSE） | 未覆盖-可迁移 | U-10 | 有 | 同 host:port 被拒绝：`src/wechat_onebot/onebot/network/config.py:219-226` / `SnowLuma v2.4.2: packages/onebot/src/types.ts:47-70` |
 | 4 | SSE 事件流（含 Last-Event-ID 重放） | 未覆盖-可迁移 | U-09 | 有 | 本仓库 SSE 仅管理面：`src/wechat_onebot/webui/server.py:494-508` / `SnowLuma v2.4.2: packages/onebot/HTTP_SSE.md:51-84` |
 | 5 | 出站消息格式双模（`array` / CQ 字符串） | 部分覆盖 | U-11 | 有 | 入站两模均接受、出站固定段数组：`src/wechat_onebot/protocol/codec.py:60-108` / `SnowLuma v2.4.2: packages/onebot/src/config.ts:841-846` |
-| 6 | 自身消息事件上报（`reportSelfMessage`） | 未覆盖-可迁移 | U-03 | 有 | 发送快照只落库不广播：`src/wechat_onebot/service.py:838-854`（`:845` 注释） / `SnowLuma v2.4.2: packages/onebot/src/self-sent-event.ts:3-41`、`SnowLuma v2.4.2: packages/onebot/src/types.ts:26` |
+| 6 | 自身消息事件上报（`reportSelfMessage`） | 未覆盖-可迁移 | U-03 | 有 | 发送快照只落库不广播：`src/wechat_onebot/service.py:843-859`（`:845` 注释） / `SnowLuma v2.4.2: packages/onebot/src/self-sent-event.ts:3-41`、`SnowLuma v2.4.2: packages/onebot/src/types.ts:26` |
 | 7 | 桥接离线事件（`bot_offline`） | 未覆盖-可迁移 | U-04 | 有 | 仅状态快照，无事件：`src/wechat_onebot/core/runtime.py:124-135` / `SnowLuma v2.4.2: packages/onebot/src/event-converter/to-notice.ts:212-219` |
 | 8 | 群成员增减事件（`group_increase/decrease`） | 未覆盖-可迁移（受限） | U-15 | 有 | 转换器需标准 `sub_type`，驱动未提供即抑制：`src/wechat_onebot/protocol/converters.py:153-166` / `SnowLuma v2.4.2: packages/onebot/src/event-converter/to-notice.ts:29-61` |
 | 9 | 好友撤回、好友申请事件 | 已覆盖（仅 helper 驱动） | — | 有 | `src/wechat_onebot/driver/helper.py:350-389`；sdk 不产生（`docs/onebot-compatibility.md:57`） / `SnowLuma v2.4.2: packages/onebot/src/event-converter/to-notice.ts:102`、`.../to-request.ts:11` |
@@ -110,20 +112,20 @@
 | 13 | 20 个未注册标准动作的分类 | 部分覆盖 | — | 混合 | 下表 3.2.1；本仓库统一失败语义：`src/wechat_onebot/service.py:393-395`、`src/wechat_onebot/onebot/network/http_server.py:93-96` |
 | 14 | 撤回 `delete_msg` | 未覆盖-可迁移（受限） | U-14 | 有 | 仅"本机防撤回"、无主动撤回：`vendor/helper/native/local_recall_transport.py:18-34`；文档声明：`docs/roadmap.md:14` / `SnowLuma v2.4.2: packages/onebot/src/actions/message.ts:251` |
 | 15 | 好友申请：列表 + 审批 | 未覆盖-可迁移（受限） | U-08 | 有 | helper 已有 `friend_requests()/accept_friend()`（`vendor/helper/wxbot_framework/backend.py:150-157`；`vendor/helper/native/text_service.py:720-745`），网关仅映射入站事件（`src/wechat_onebot/driver/helper.py:350-361`） / `SnowLuma v2.4.2: packages/onebot/src/actions/request.ts:6`、`SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:3215-3276` |
-| 16 | 群管理可迁移子集：踢人/退群/改群名 | 未覆盖-可迁移（受限） | U-16 | 有（群名待确认） | 网关无动作、驱动无方法（`src/wechat_onebot/driver/base.py:29-128`）；文档声明：`docs/roadmap.md:14` / `SnowLuma v2.4.2: packages/onebot/src/actions/group-admin.ts:6,614,638` |
+| 16 | 群管理可迁移子集：踢人/退群/改群名 | 未覆盖-可迁移（受限） | U-16 | 有（群名待确认） | 网关无动作、驱动无方法（`src/wechat_onebot/driver/base.py:29-135`）；文档声明：`docs/roadmap.md:14` / `SnowLuma v2.4.2: packages/onebot/src/actions/group-admin.ts:6,614,638` |
 | 17 | 群公告读写 | 未覆盖-可迁移（受限） | U-17 | 有 | 同上 / `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:1209` |
 | 18 | 群管理平台项：禁言/全员禁言/管理员/匿名/群名片/群头衔/加群设置等 | 未覆盖-平台不可迁移 | — | 无（群名片仅 self 昵称） | `docs/onebot-compatibility.md:36` / `SnowLuma v2.4.2: packages/onebot/src/actions/group-admin.ts:67,92,445,589,660,690,707` |
 | 19 | QQ 专有动作簇：空间/群文件/群相册/群精华/群资料扩展+标记已读/群待办签到/闪传收藏/系统表情 | 未覆盖-平台不可迁移 | — | 无 / 无接口 | 本仓库无同类动作：`src/wechat_onebot/onebot/actions.py:86-221` / `SnowLuma v2.4.2: packages/onebot/src/actions/qzone.ts:357`、`SnowLuma v2.4.2: packages/onebot/src/actions/group-file.ts:22`、`SnowLuma v2.4.2: packages/onebot/src/actions/group-album.ts:153`、`SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:670,3544,3571,2211,4967,5034,3334`、`SnowLuma v2.4.2: packages/onebot/src/actions/system-face.ts:64` |
 | 20 | 收藏/商城表情（只读本地缓存） | 部分覆盖 | U-21 | 无接口（4.1.15.x 可只读本地缓存） | helper 有 `emoticon.extract`/`export_emoticons`（仅 4.1.15.x）：`vendor/helper/wxbot_framework/backend.py:23,187-188`、`vendor/helper/wxbot_framework/emoticons.py:483-489`；网关未映射 / `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:2402`、`SnowLuma v2.4.2: packages/onebot/src/actions/message.ts:30` |
 | 21 | 协议直通/凭据/密钥（`send_packet`、`request_decrypt_key`、rkey/clientkey） | 未覆盖-平台不可迁移 | — | 无 | 无 SSO/凭据概念：`docs/architecture.md:43-50` / `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:4808,3915` |
-| 22 | 机器人卡片（Ark/内联按钮） | 未覆盖-平台不可迁移 | — | 无 | 出站拒绝未知/卡片段：`src/wechat_onebot/service.py:879-883` / `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:3057,4725` |
-| 23 | 小程序/链接卡片发送 | 明确排除 | — | 无接口 | 文档声明不支持：`docs/onebot-compatibility.md:46`；`src/wechat_onebot/service.py:879-883` |
-| 24 | 消息表情回应（reaction） | 未覆盖-平台不可迁移 | — | 无 | 未知段拒绝：`src/wechat_onebot/service.py:960-961` / `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:1874` |
+| 22 | 机器人卡片（Ark/内联按钮） | 未覆盖-平台不可迁移 | — | 无 | 出站拒绝未知/卡片段：`src/wechat_onebot/service.py:884-888` / `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:3057,4725` |
+| 23 | 小程序/链接卡片发送 | 明确排除 | — | 无接口 | 文档声明不支持：`docs/onebot-compatibility.md:46`；`src/wechat_onebot/service.py:884-888` |
+| 24 | 消息表情回应（reaction） | 未覆盖-平台不可迁移 | — | 无 | 未知段拒绝：`src/wechat_onebot/service.py:976-977` / `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:1874` |
 | 25 | 状态侧信道：已读/输入状态/在线设备 | 未覆盖-平台不可迁移 | — | 已读、在线设备无；输入状态有产品无接口 | 无同类动作或事件：`src/wechat_onebot/protocol/converters.py:175-176` / `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:1164,2762,3515` |
 | 26 | 资料/装扮/在线状态/好友分组 | 未覆盖-平台不可迁移 | — | 无（QQ 装扮/分组）；微信资料有产品无接口 | 无同类动作：`src/wechat_onebot/onebot/actions.py:86-221` / `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:1990,5397` |
 | 27 | 修改资料/头像/签名 | 明确排除 | — | 无接口 | 安全红线与定位：`docs/architecture.md:43-50` / 上游同类：`SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:1990` |
 | 28 | OCR/翻译/AI 语音/语音转文字 | 明确排除 | — | — | 内容处理不属网关：`docs/architecture.md:43-50` / `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:4076` |
-| 29 | 拍一拍（动作 + 通知事件） | 未覆盖-可迁移（受限） | U-18 | 有 | 未知段拒绝、无通知分支：`src/wechat_onebot/service.py:960-961`、`src/wechat_onebot/protocol/converters.py:175-176` / `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:637`、`SnowLuma v2.4.2: packages/onebot/src/event-converter/to-notice.ts:128-152` |
+| 29 | 拍一拍（动作 + 通知事件） | 未覆盖-可迁移（受限） | U-18 | 有 | 未知段拒绝、无通知分支：`src/wechat_onebot/service.py:976-977`、`src/wechat_onebot/protocol/converters.py:175-176` / `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:637`、`SnowLuma v2.4.2: packages/onebot/src/event-converter/to-notice.ts:128-152` |
 | 30 | 历史查询与检索（`get_*_msg_history`） | 已覆盖 | — | 有 | `src/wechat_onebot/onebot/actions.py:185-206` / `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:971`；双方均无全文检索 |
 | 31 | 文件信息/媒体下载动作 | 部分覆盖 | — | 有 | 已有 `get_image/get_record` + `/media` 发布，无"按 URL 落盘"动作：`src/wechat_onebot/onebot/actions.py:209-219`、`src/wechat_onebot/onebot/network/http_server.py:112-117` / `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:4509`（`download_file`）；`get_file` 与其为两个动作 |
 | 32 | 好友/群信息查询 | 已覆盖 | — | 有 | `src/wechat_onebot/onebot/actions.py:152-179`；字段更窄处用 `unavailable_fields` 标注（`docs/onebot-compatibility.md:59`） / `SnowLuma v2.4.2: packages/onebot/src/actions/index.ts:292-293`。注：`delete_friend` 原生无接口、价值低，未单列（§4.4）；`get_group_share_link`/`get_group_system_msg` 见 #33 |
@@ -146,24 +148,24 @@
 
 | # | 能力 | 判定 | 清单 | 微信侧 | 证据 |
 | --- | --- | --- | --- | --- | --- |
-| 37 | `text` / `at` 基础段 | 已覆盖 | — | 有 | `src/wechat_onebot/protocol/converters.py:34-40`、`src/wechat_onebot/service.py:892-903` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:134-144` |
-| 38 | 群 @全体成员（`at qq="all"`） | 未覆盖-可迁移（受限） | U-19 | 有（群主/管理员） | 本仓库显式拒绝：`src/wechat_onebot/service.py:895-897`；文档声明：`docs/onebot-compatibility.md:41` / `SnowLuma v2.4.2: packages/onebot/src/event-converter/element-codecs.ts:254-263`、`SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:2905` |
+| 37 | `text` / `at` 基础段 | 已覆盖 | — | 有 | `src/wechat_onebot/protocol/converters.py:34-40`、`src/wechat_onebot/service.py:897-908` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:134-144` |
+| 38 | 群 @全体成员（`at qq="all"`） | 未覆盖-可迁移（受限） | U-19 | 有（群主/管理员） | 本仓库显式拒绝：`src/wechat_onebot/service.py:900-902`；文档声明：`docs/onebot-compatibility.md:41` / `SnowLuma v2.4.2: packages/onebot/src/event-converter/element-codecs.ts:254-263`、`SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:2905` |
 | 39 | `image` / `record` | 部分覆盖 | — | 有 | 字段更窄（无闪照/哈希/时长等原生不提供的字段）：`src/wechat_onebot/protocol/converters.py:60-72`、`src/wechat_onebot/driver/helper.py:413-424` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:185-223` |
 | 40 | `video` 入站 | 部分覆盖 | — | 有 | 仅 helper 下载完成时出段；sdk 依赖框架 extra：`src/wechat_onebot/driver/helper.py:419-424`、`src/wechat_onebot/driver/sdk.py:485-501` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:224-244` |
-| 41 | `video` 出站 | 未覆盖-可迁移（受限） | U-02 | 有 | 段直接 1404、驱动无方法、能力名缺失：`src/wechat_onebot/service.py:879-883`、`src/wechat_onebot/driver/base.py:29-128`、`src/wechat_onebot/driver/sdk.py:42-47`；原生：`vendor/helper/native/text_service.py:991-999`（4.2.0.12）、`vendor/helper/wxbot_framework/backend.py:41` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:224-244` |
-| 42 | `face` | 部分覆盖 | — | 无接口（QQ 表情 ID） | 只支持 `face.file`：`src/wechat_onebot/protocol/converters.py:41-46`、`src/wechat_onebot/service.py:904-909` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:145-149` |
+| 41 | `video` 出站 | 已覆盖（C 批；按驱动/构建） | U-02 | 有（SDK Q-3 已验；helper Q-4 待验） | SDK 4.2.0.52 映射 H.264 静音 MP4（Q-3 私聊短样本可播放；其他编码/带音轨 pending）；helper 4.2.0.12 映射但私聊/本机待 Q-4；其他构建与转发链仍 1404：`src/wechat_onebot/service.py:812-815`、`src/wechat_onebot/service.py:884-888`、`src/wechat_onebot/service.py:909-914`、`src/wechat_onebot/driver/base.py:101-104`、`src/wechat_onebot/driver/helper.py:101,652-662`、`src/wechat_onebot/driver/sdk.py:45,726-729`、`src/wechat_onebot/protocol/element_manifest.py:52-54`、`docs/onebot-compatibility.md:41` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:224-244` |
+| 42 | `face` | 部分覆盖 | — | 无接口（QQ 表情 ID） | 只支持 `face.file`：`src/wechat_onebot/protocol/converters.py:41-46`、`src/wechat_onebot/service.py:909-921` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:145-149` |
 | 43 | `reply` 入站 | 已覆盖 | — | 有 | 优先级匹配 + 引用快照、不猜 ID：`src/wechat_onebot/service.py:313-359` / `SnowLuma v2.4.2: packages/onebot/REPLIES.md:3-28` |
-| 44 | `reply` 出站 | 未覆盖-可迁移（受限：仅 4.2.0.12 声明） | U-01 | 有 | 整链 1404：`src/wechat_onebot/service.py:877-878`；原生：`vendor/helper/wxbot_framework/backend.py:35-43,132-133`、`vendor/helper/native/text_service.py:827-848`；helper 发送无 native ID：`src/wechat_onebot/driver/base.py:32-34`（sdk 有：`src/wechat_onebot/driver/sdk.py:729-732`）；测试固化不宣称：`tests/test_helper42.py:47-49` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:150-161` |
+| 44 | `reply` 出站 | 未覆盖-可迁移（受限：仅 4.2.0.12 声明） | U-01 | 有 | 整链 1404：`src/wechat_onebot/service.py:882-883`；原生：`vendor/helper/wxbot_framework/backend.py:35-43,132-133`、`vendor/helper/native/text_service.py:827-848`；helper 发送无 native ID：`src/wechat_onebot/driver/base.py:32-34`（sdk 有：`src/wechat_onebot/driver/sdk.py:734-737`）；测试固化不宣称：`tests/test_helper42.py:49-50` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:150-161` |
 | 45 | `node` / `forward` 段（含 `get_forward_msg`） | 部分覆盖 | — | 有 | 入站解析已覆盖、出站仅降级：`src/wechat_onebot/protocol/rich_content.py:41-112`、`src/wechat_onebot/service.py:365-372` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:172-184` |
-| 46 | 卡片类出站：`json`/`xml`/`share`/`location`/`contact` | 明确排除 | — | 无接口 | 文档声明不支持：`docs/onebot-compatibility.md:46`；代码拒绝：`src/wechat_onebot/service.py:879-883` / `SnowLuma v2.4.2: packages/onebot/src/message-parser.ts:427-440` |
-| 47 | `music` | 已覆盖（降级语义明确） | — | 有 | `audio` → 语音条、`url` → 文本：`src/wechat_onebot/service.py:884-886,964-976` / `SnowLuma v2.4.2: packages/onebot/src/message-parser.ts:442-524` |
+| 46 | 卡片类出站：`json`/`xml`/`share`/`location`/`contact` | 明确排除 | — | 无接口 | 文档声明不支持：`docs/onebot-compatibility.md:46`；代码拒绝：`src/wechat_onebot/service.py:884-888` / `SnowLuma v2.4.2: packages/onebot/src/message-parser.ts:427-440` |
+| 47 | `music` | 已覆盖（降级语义明确） | — | 有 | `audio` → 语音条、`url` → 文本：`src/wechat_onebot/service.py:889-891,964-976` / `SnowLuma v2.4.2: packages/onebot/src/message-parser.ts:442-524` |
 | 48 | `file` 段 | 部分覆盖 | — | 有 | 出站支持、入站转文本链接（文档已声明）：`src/wechat_onebot/protocol/converters.py:47-59`、`src/wechat_onebot/service.py:802-806` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:251-264` |
-| 49 | `poke` 段（好友私聊窗口抖动） | 未覆盖-平台不可迁移 | — | 无（与"拍一拍"不同） | 未知段拒绝：`src/wechat_onebot/service.py:960-961` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:265-270` |
-| 50 | `mface`/`markdown`/`inline_keyboard`/`flash_file`/`rps`/`dice` | 未覆盖-平台不可迁移 | — | 无 | 未知段拒绝：`src/wechat_onebot/service.py:960-961` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:245-287` |
+| 49 | `poke` 段（好友私聊窗口抖动） | 未覆盖-平台不可迁移 | — | 无（与"拍一拍"不同） | 未知段拒绝：`src/wechat_onebot/service.py:976-977` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:265-270` |
+| 50 | `mface`/`markdown`/`inline_keyboard`/`flash_file`/`rps`/`dice` | 未覆盖-平台不可迁移 | — | 无 | 未知段拒绝：`src/wechat_onebot/service.py:976-977` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:245-287` |
 | 51 | CQ 编解码与 `raw_message` | 已覆盖 | — | 有 | `src/wechat_onebot/protocol/codec.py:11-108` / `SnowLuma v2.4.2: packages/onebot/src/helper/cq.ts` |
-| 52 | 发送策略硬校验（发前拒绝而非静默降级） | 已覆盖 | — | 有 | `src/wechat_onebot/service.py:904-913` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:44-96` |
+| 52 | 发送策略硬校验（发前拒绝而非静默降级） | 已覆盖 | — | 有 | `src/wechat_onebot/service.py:909-923` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:44-96` |
 
-**小结**：入站段（文本、引用、转发、媒体降级）与上游相当；**出站只有 `reply` 与 `video` 两处会打断真实客户端**，其余差异是"微信原生不提供的字段"或平台的媒体形态。`poke` 段（窗口抖动）与"拍一拍"是两件事，本文分开判定。
+**小结**：入站段（文本、引用、转发、媒体降级）与上游相当；**出站 `reply` 仍会打断真实客户端；`video` 已由 C 批按驱动/构建映射（SDK Q-3 已验；helper 4.2.0.12 映射、Q-4 待验；转发链内仍 1404）**，其余差异是"微信原生不提供的字段"或平台的媒体形态。`poke` 段（窗口抖动）与"拍一拍"是两件事，本文分开判定。
 
 ### 3.4 富消息与文件传输
 
@@ -172,7 +174,7 @@
 | 53 | 合并转发发送动作族 | 部分覆盖 | U-13 | 有 | 仅 2 个扩展动作且**降级为普通消息链**（`forward_mode=normal_messages`、`native_forward=false`、不伪造 `forward_id`）：`src/wechat_onebot/onebot/actions.py:87-96`、`src/wechat_onebot/service.py:570-642`、`src/wechat_onebot/protocol/outbound_forward.py:10-16` / `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:4185` |
 | 54 | 转发节点内联引用 | 部分覆盖 | —（依赖 4.1 出站引用） | 有 | 节点内 `reply` 同样被拒：`docs/onebot-compatibility.md:89`、`src/wechat_onebot/protocol/outbound_forward.py:10-16` / `SnowLuma v2.4.2: packages/sdk/README.md:330-356` |
 | 55 | 引用解析（有状态匹配） | 已覆盖 | — | 有 | `src/wechat_onebot/service.py:313-359` / `SnowLuma v2.4.2: packages/onebot/REPLIES.md:3-28` |
-| 56 | 图片引用刷新与历史修复 | 已覆盖 | — | 有 | 只做本地索引重算、不回源：`src/wechat_onebot/media.py:197-302`、`src/wechat_onebot/service.py:1200-1211` / `SnowLuma v2.4.2: packages/onebot/REPLIES.md:30-42` |
+| 56 | 图片引用刷新与历史修复 | 已覆盖 | — | 有 | 只做本地索引重算、不回源：`src/wechat_onebot/media.py:197-302`、`src/wechat_onebot/service.py:1216-1227` / `SnowLuma v2.4.2: packages/onebot/REPLIES.md:30-42` |
 | 57 | 媒体来源与体积限制 | 部分覆盖 | — | 有 | 多来源 + 三层限制；无"单文件总预算/节点选择"：`src/wechat_onebot/media.py:304-352`、`src/wechat_onebot/media.py:401`（下载默认 30 s）、`src/wechat_onebot/config.py:64-68`、`src/wechat_onebot/audio.py:23` / `SnowLuma v2.4.2: packages/protocol/HIGHWAY_UPLOADS.md:89-110` |
 | 58 | Highway 上传并发/节点选择 | 未覆盖-平台不可迁移 | — | 无（QQ 专有） | 上传在原生内部完成：`src/wechat_onebot/media.py:304-352` / `SnowLuma v2.4.2: packages/protocol/HIGHWAY_UPLOADS.md:3-87` |
 | 59 | 流式文件传输动作族 | 未覆盖-可迁移 | U-12 | 有 | 只有 WS 帧上限、无分块协议：`src/wechat_onebot/onebot/network/config.py:13-24` / `SnowLuma v2.4.2: packages/onebot/src/actions/stream-file.ts:1-55`、`SnowLuma v2.4.2: packages/onebot/src/actions/stream-download.ts:1-29` |
@@ -245,7 +247,7 @@
 | 91 | 发布流程 | 明确排除 | — | — | 人工发布 + Launcher 复验：`docs/HANDOVER.md:66` / `SnowLuma v2.4.2: .github/workflows/release.yml:119-192` |
 | 92 | CI 治理（lint/类型/覆盖率/矩阵） | 部分覆盖 | — | — | 单作业 windows-x64：`.github/workflows/bot.yml:10-53` / `SnowLuma v2.4.2: .github/workflows/ci.yml:17-106` |
 | 93 | 依赖固定与 vendored 校验 | 已覆盖 | — | — | `.github/workflows/bot.yml:26-35`、`vendor/helper/VENDORED_SHA256.json` / `SnowLuma v2.4.2: LICENSE:32-35` |
-| 94 | 测试规模与分层 | 部分覆盖 | — | — | 49 个测试文件 / 645 项（`pytest --collect-only`）；无真实客户端 e2e：`docs/live-preflight.md:3` / `SnowLuma v2.4.2: AGENTS.md:54-90`；测试文件 518（含 scripts 生成器测试为 519） |
+| 94 | 测试规模与分层 | 部分覆盖 | — | — | 50 个测试文件 / 657 项（`pytest --collect-only`）；无真实客户端 e2e：`docs/live-preflight.md:3` / `SnowLuma v2.4.2: AGENTS.md:54-90`；测试文件 518（含 scripts 生成器测试为 519） |
 | 95 | 动作目录 / 元素四向清单单一真源 | 部分覆盖 | U-07 | — | 运行期目录（`src/wechat_onebot/onebot/actions.py:220-225`），无生成快照/漂移校验 / `SnowLuma v2.4.2: .github/workflows/ci.yml:39-43`、`SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:1-27,134-288` |
 | 96 | 客户端 SDK | 未覆盖-可迁移 | U-25 | — | 对外契约只有 OneBot 协议：`docs/onebot-compatibility.md:3` / `SnowLuma v2.4.2: packages/sdk/README.md:3`、`SnowLuma v2.4.2: packages/sdk/src/actions.ts:5-240` |
 | 97 | MCP 服务器 | 未覆盖-可迁移 | U-26 | — | 本仓库无 MCP / `SnowLuma v2.4.2: packages/mcp/README.md:3-11`、`SnowLuma v2.4.2: packages/mcp/src/tools.ts:57-162` |
@@ -262,7 +264,7 @@
 >
 > **排序维度**：V = 外部 OneBot 客户端价值；F = 微信侧可行性（高 = 纯协议/管理面可做；中 = 原生已有/需实机；低 = 需新写原生或依赖未验证协议）；P = 与"只做网关"定位的契合度。**P0** = V 高 ∧ F 中高 ∧ P 高且当前会使真实客户端失败；**P1** = 至少两项为高且无一项为低，或 P0 条件成立但需产品决策/实机先行；**P2** = 其余。
 >
-> **B 批提示**：B 批（未提交）已落地 U-07/U-06/U-05a/U-04/U-08a 的部分或全部内容（U-08b 审批/备注仍未实现）；以下各条的状态与优先级保留 A 批基线判断，B 批验收见 `docs/HANDOVER.md`。
+> **B 批提示**：B 批（已提交 `5a3a360`）已落地 U-07/U-06/U-05a/U-04/U-08a 的部分或全部内容（U-08b 审批/备注仍未实现）；以下各条的状态与优先级保留 A 批基线判断，B 批验收见 `docs/HANDOVER.md`。
 
 ### 4.1 P0（1 项）
 
@@ -271,20 +273,20 @@
 | 项 | 内容 |
 | --- | --- |
 | 是什么 | 让标准 `reply` 段能映射为原生"引用回复"发送，而不是拒绝整条消息链 |
-| 差异在哪 | SnowLuma 的 `reply` 元素四向全支持（`SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:150-161`）；本仓库任何出站 `reply` 都会让整链失败并返回 `1404`（`src/wechat_onebot/service.py:877-878`），文档已声明该行为（`docs/onebot-compatibility.md:43`） |
+| 差异在哪 | SnowLuma 的 `reply` 元素四向全支持（`SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:150-161`）；本仓库任何出站 `reply` 都会让整链失败并返回 `1404`（`src/wechat_onebot/service.py:882-883`），文档已声明该行为（`docs/onebot-compatibility.md:43`） |
 | 微信侧可行性（F=中） | **受限：仅微信 4.2.0.12 的 helper 后端声明该能力**——`text.quote.send` 只在 `TEXT_42012_CAPABILITIES`（`vendor/helper/wxbot_framework/backend.py:35-43`），后端方法 `send_quote_text`（`backend.py:132-133`）与原生实现（`vendor/helper/native/text_service.py:827-848`）齐备，helper 文档也写明"4.2.0.12 原生后端提供 `text.quote.send`"（`vendor/helper/docs/messages/text.md:18-28`）；4.1.15.x 与 4.2.0.11 的能力集合均不含该名称（`backend.py:10-31`），sdk 驱动无引用发送 |
-| 新增限制 | **helper 发送不回传 native message ID**（默认实现返回空：`src/wechat_onebot/driver/base.py:32-34`；helper 未覆写），因此可引用**入站消息**（入站 native ID 已登记到 `native_message_ids`），但**不能引用机器人自己刚发的消息**；sdk 发送才有 native ID（`src/wechat_onebot/driver/sdk.py:729-732`） |
+| 新增限制 | **helper 发送不回传 native message ID**（默认实现返回空：`src/wechat_onebot/driver/base.py:32-34`；helper 未覆写），因此可引用**入站消息**（入站 native ID 已登记到 `native_message_ids`），但**不能引用机器人自己刚发的消息**；sdk 发送才有 native ID（`src/wechat_onebot/driver/sdk.py:734-737`） |
 | 前置条件 | ① 驱动契约新增引用发送方法（仅 4.2.0.12 暴露）；② `reply.data.id` → native ID 反向查询（当前表只有 native→message 方向：`src/wechat_onebot/onebot/message_store.py:58-60`）；③ 目标为引用快照/跨账号/已删除时的明确策略（可见文本降级或显式失败，不伪造）；④ 按构建声明能力，避免 4.2.0.11 误报可用；⑤ 实机验证 |
-| 风险 | 非 4.2.0.12 构建可能静默失败；引用自己发的消息在 helper 不可行；群聊/私聊的原生参数差异未知；与"本机防撤回"开关交互；**属产品决策**：`docs/HANDOVER.md:134` 记录"原生引用没有新增 OneBot 映射"，`tests/test_helper42.py:47-49` 把"不宣称"固化成测试 |
+| 风险 | 非 4.2.0.12 构建可能静默失败；引用自己发的消息在 helper 不可行；群聊/私聊的原生参数差异未知；与"本机防撤回"开关交互；**属产品决策**：`docs/HANDOVER.md:134` 记录"原生引用没有新增 OneBot 映射"，`tests/test_helper42.py:49-50` 把"不宣称"固化成测试 |
 | 工作量 | M（1 个段语义 + 驱动映射 + 能力声明 + ID 反查 + Mock 测试 + 文档） |
-| 证据 | 本仓库：`src/wechat_onebot/service.py:877-878`、`src/wechat_onebot/driver/base.py:32-34`、`vendor/helper/wxbot_framework/backend.py:35-43,132-133`、`vendor/helper/native/text_service.py:827-848`、`tests/test_helper42.py:47-49`、`docs/HANDOVER.md:134`；SnowLuma：`SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:150-161`、`SnowLuma v2.4.2: packages/onebot/REPLIES.md:3-28` |
+| 证据 | 本仓库：`src/wechat_onebot/service.py:882-883`、`src/wechat_onebot/driver/base.py:32-34`、`vendor/helper/wxbot_framework/backend.py:35-43,132-133`、`vendor/helper/native/text_service.py:827-848`、`tests/test_helper42.py:49-50`、`docs/HANDOVER.md:134`；SnowLuma：`SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:150-161`、`SnowLuma v2.4.2: packages/onebot/REPLIES.md:3-28` |
 
 ### 4.2 P1（7 项）
 
 | ID | 能力 | 差异与影响（V） | 前置条件（F） | 风险 | 证据 |
 | --- | --- | --- | --- | --- | --- |
-| U-02 | 出站视频发送 | 段直接 1404，发视频的真实客户端必然失败（V 高）；上游 `video` 四向全支持 | helper 4.2.0.12 原生 `send_video`（`vendor/helper/native/text_service.py:991-999`），能力名 `video.send`（`vendor/helper/wxbot_framework/backend.py:41`）；**SDK 框架 API 已确认存在**（vendored wheel 的 `wechatbot_api/session.py` 定义 `send_video`，`_native.py` 把 `video.send` 列为已验证能力）——只差网关映射与实机（F 中） | 编码/时长/风控；仅特定构建；文档口径需按"框架能力≠网关能力"表述（`docs/onebot-compatibility.md:46` vs `:70`）；**本批已修正**：7 项纠偏中的第 1 项已统一该口径（HEAD `1b19502`），U-02 仍为未映射、待实机（结论不变） | `src/wechat_onebot/service.py:879-883`、`src/wechat_onebot/driver/sdk.py:42-47`、`src/wechat_onebot/driver/base.py:29-128` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:224-244` |
-| U-03 | 自身消息事件上报（`message_sent`） | 多客户端/日志/自检看不到机器人发出的消息（V 中）；现只有本地历史 | 数据已在本地快照（`src/wechat_onebot/service.py:838-854`），加适配器级开关与去重窗口即可（F 高）；上游 120 秒去重窗口（`SnowLuma v2.4.2: packages/onebot/src/self-sent-event.ts:3-41`） | 重复/回环；需与 `reportSelfMessage` 语义对齐（`SnowLuma v2.4.2: packages/onebot/src/types.ts:26`） | `src/wechat_onebot/service.py:845` / `SnowLuma v2.4.2: packages/onebot/src/self-sent-event.ts:3-41` |
+| U-02 | 出站视频发送 | C 批已按驱动/构建映射：SDK 4.2.0.52 映射 H.264 静音 MP4（Q-3 私聊短样本实测可播放；其他编码/带音轨 pending）；helper 4.2.0.12 已映射但私聊/本机待 Q-4（上游仅声明 filehelper/群已验证）；其他构建与转发发送扩展链仍 1404（V 高，能力不再一律缺失） | `Driver.send_video` 可选（默认 `DriverUnsupported`）；SDK 固定 wheel `video.send`；helper 4.2.0.12 能力门控 + 本地 `inspect_video`；发送前媒体校验，转发链明确拒绝（F 中高） | Q-3 证据为用户/B 方确认，非本轮 agent 实发；Q-4 未做；SDK 仅 H.264 静音 MP4，其他编码/带音轨 pending；转发链 1404；helper 4.2.0.12 上游 filehelper/群已验证、私聊待 Q-4 | `src/wechat_onebot/service.py:812-815`、`src/wechat_onebot/service.py:884-888`、`src/wechat_onebot/service.py:909-914`、`src/wechat_onebot/driver/base.py:101-104`、`src/wechat_onebot/driver/helper.py:101,652-662`、`src/wechat_onebot/driver/sdk.py:45,726-729`、`src/wechat_onebot/protocol/element_manifest.py:52-54`、`tests/test_video_send.py`、`docs/onebot-compatibility.md:41`、`docs/wechat-versions.md:33-38` / `SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:224-244` |
+| U-03 | 自身消息事件上报（`message_sent`） | 多客户端/日志/自检看不到机器人发出的消息（V 中）；现只有本地历史 | 数据已在本地快照（`src/wechat_onebot/service.py:843-859`），加适配器级开关与去重窗口即可（F 高）；上游 120 秒去重窗口（`SnowLuma v2.4.2: packages/onebot/src/self-sent-event.ts:3-41`） | 重复/回环；需与 `reportSelfMessage` 语义对齐（`SnowLuma v2.4.2: packages/onebot/src/types.ts:26`） | `src/wechat_onebot/service.py:850` / `SnowLuma v2.4.2: packages/onebot/src/self-sent-event.ts:3-41` |
 | U-04 | 桥接离线事件（`bot_offline`） | A 批基线：客户端只能靠沉默推断掉线，无人值守排障困难（V 中） | 纯协议层：停止/异常时广播 notice 或扩展 `meta_event`，定义与 `lifecycle.disable` 的边界（F 高） | 格式需与 NapCat/上游习惯一致；避免与重连重复 | `src/wechat_onebot/core/runtime.py:124-135` / `SnowLuma v2.4.2: packages/onebot/src/event-converter/to-notice.ts:212-219` |
 | U-05 | 暴露面加固（token 策略 + 安全头 + 登录限速 + 裸 token） | A 批基线：空 token 会关闭端点鉴权且无护栏；WebUI 无安全头/限速（V 中） | 纯管理面/协议层：非 loopback + 空 token 拒绝保存、token 最短长度/易猜校验、CSP/X-Frame-Options/nosniff、登录限速与请求体上限、`Authorization: <token>` 兼容（F 高） | 不要破坏既有 Cookie/JSON 调用；错误信息避免泄露 | `docs/network-config.md:82`、`src/wechat_onebot/onebot/network/http_server.py:24-28`、`src/wechat_onebot/webui/server.py:210-242` / `SnowLuma v2.4.2: packages/core/src/webui/onebot-token-policy.ts:63-113`、`SnowLuma v2.4.2: packages/common/src/access-token.ts:5-20`、`SnowLuma v2.4.2: packages/core/src/webui/request-security.ts:5-42`、`SnowLuma v2.4.2: packages/onebot/HTTP_SSE.md:22-26` |
 | U-06 | 文件日志 + 级别热切换 | A 批基线：网关只写 stderr，便携包排障只能复现；WebUI 仅内存 200 条（V 中） | 纯工程：rotating file handler（大小/份数可配）、WebUI 改级别端点，保持现有脱敏白名单（F 高） | 磁盘占用/路径权限；脱敏不能回退 | `src/wechat_onebot/logging_setup.py:1-29`、`src/wechat_onebot/webui/server.py:72-90,427-431` / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:1836-1873` |
@@ -302,10 +304,10 @@
 | U-13 | 原生合并转发卡片发送 | 真"聊天记录"卡片而非普通消息链 | **需原生新增**（helper 无转发卡片方法）；上游也是动作层自研 | 卡片协议复杂、风控 | `src/wechat_onebot/service.py:570-642` / `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:4185` |
 | U-14 | 撤回动作 `delete_msg` | 客户端无法撤回已发消息 | **需原生新增**：helper 只有"本机防撤回"（`vendor/helper/native/local_recall_transport.py:18-34`），无主动撤回 | 2 分钟窗口/权限；文档已声明不支持（`docs/roadmap.md:14`） | `vendor/helper/native/local_recall_transport.py:18-34`、`docs/roadmap.md:14` / `SnowLuma v2.4.2: packages/onebot/src/actions/message.ts:251` |
 | U-15 | 群成员增减事件 | 欢迎/退群播报类客户端 | **需原生补 `sub_type`/operator**：helper 已有 `group.events`（`vendor/helper/wxbot_framework/backend.py:21`），转换器缺标准字段即抑制（`src/wechat_onebot/protocol/converters.py:153-166`） | 字段可靠性；不伪造事件 | `src/wechat_onebot/protocol/converters.py:153-166` / `SnowLuma v2.4.2: packages/onebot/src/event-converter/to-notice.ts:29-61` |
-| U-16 | 群管理：踢人/退群/改群名 | 基础群治理缺失 | **需原生新增**（驱动无方法：`src/wechat_onebot/driver/base.py:29-128`）；改群名的权限/可见性待确认 | 高风险写操作，需二次确认 | `src/wechat_onebot/driver/base.py:29-128` / `SnowLuma v2.4.2: packages/onebot/src/actions/group-admin.ts:6,614,638` |
+| U-16 | 群管理：踢人/退群/改群名 | 基础群治理缺失 | **需原生新增**（驱动无方法：`src/wechat_onebot/driver/base.py:29-135`）；改群名的权限/可见性待确认 | 高风险写操作，需二次确认 | `src/wechat_onebot/driver/base.py:29-135` / `SnowLuma v2.4.2: packages/onebot/src/actions/group-admin.ts:6,614,638` |
 | U-17 | 群公告读写 | 群公告同步 | **需原生新增**；权限模型待确认 | 同上 | `docs/roadmap.md:14`（群管理按不支持处理） / `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:1209` |
-| U-18 | 拍一拍（动作 + 事件） | 互动玩法；事件侧也缺 | **需原生新增**（网关未知段拒绝：`src/wechat_onebot/service.py:960-961`；无 poke 通知分支：`src/wechat_onebot/protocol/converters.py:175-176`） | 与 `poke` 段（窗口抖动）不同，勿混 | `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:637`、`SnowLuma v2.4.2: packages/onebot/src/event-converter/to-notice.ts:128-152` |
-| U-19 | 群 @全体成员（`at qq="all"`） | 客户端无法 @所有人 | **需原生新增**：helper `validate_mentions` 仅接受 1–8 个成员 ID、无 @all（`vendor/helper/wxbot_framework/text.py:26-36`）；本仓库显式 1404（`src/wechat_onebot/service.py:895-897`），文档已声明（`docs/onebot-compatibility.md:41`） | 权限（群主/管理员）与风控 | `SnowLuma v2.4.2: packages/onebot/src/event-converter/element-codecs.ts:254-263`、`SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:2905` |
+| U-18 | 拍一拍（动作 + 事件） | 互动玩法；事件侧也缺 | **需原生新增**（网关未知段拒绝：`src/wechat_onebot/service.py:976-977`；无 poke 通知分支：`src/wechat_onebot/protocol/converters.py:175-176`） | 与 `poke` 段（窗口抖动）不同，勿混 | `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:637`、`SnowLuma v2.4.2: packages/onebot/src/event-converter/to-notice.ts:128-152` |
+| U-19 | 群 @全体成员（`at qq="all"`） | 客户端无法 @所有人 | **需原生新增**：helper `validate_mentions` 仅接受 1–8 个成员 ID、无 @all（`vendor/helper/wxbot_framework/text.py:26-36`）；本仓库显式 1404（`src/wechat_onebot/service.py:900-902`），文档已声明（`docs/onebot-compatibility.md:41`） | 权限（群主/管理员）与风控 | `SnowLuma v2.4.2: packages/onebot/src/event-converter/element-codecs.ts:254-263`、`SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:2905` |
 | U-20 | 朋友圈发布/读取 | 社交动态；上游**无**朋友圈能力，属微信侧机会 | **原生代码已有但受 DLL 门禁**（`vendor/helper/wxbot_framework/backend.py:172-188`、`vendor/helper/native/text_service.py:850-906`、`vendor/helper/native/moments_transport.py:106-137`）；`docs/HANDOVER.md:134` 记录未映射 | 高风控、非消息语义；建议不暴露 | `vendor/helper/wxbot_framework/backend.py:172-188`、`docs/HANDOVER.md:134` / 上游仅 QQ 空间可类比（`SnowLuma v2.4.2: packages/onebot/src/actions/qzone.ts:357`） |
 | U-21 | 收藏表情导出（只读本地缓存） | 客户端可读取账号已缓存的自定义表情；无完整 CRUD | **原生已有（仅 4.1.15.x）**：`emoticon.extract`/`export_emoticons`（`vendor/helper/wxbot_framework/backend.py:23,187-188`、`vendor/helper/wxbot_framework/emoticons.py:483-489`）；非权威收藏列表（`vendor/helper/docs/messages/emoticons.md:13-22`） | 受构建限制、数据非权威；写操作不可迁移 | `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:2402` |
 | U-22 | TOTP 两步验证 | 远程管理 WebUI 时提升安全 | 纯管理面（密钥/恢复码/校验） | 恢复码丢失风险 | `src/wechat_onebot/webui/server.py:210-295`（登录流程无 TOTP） / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:978`、`SnowLuma v2.4.2: packages/core/src/webui/totp.ts:1-40` |
@@ -389,24 +391,24 @@
 
 | 现有文档 | 已声明的限制（不重复抄写） | 本报告的处理 |
 | --- | --- | --- |
-| [OneBot 兼容说明](onebot-compatibility.md) | 出站 `reply` 整链 1404（`docs/onebot-compatibility.md:43`）；`video`/`json`/`xml`/`share`/`contact` 等发送不支持（`docs/onebot-compatibility.md:46`）；未注册动作 1404/404（`docs/onebot-compatibility.md:36`）；历史只读本地观测（`docs/onebot-compatibility.md:34`）；通知/请求抑制规则（`docs/onebot-compatibility.md:57`） | 出站引用判 **U-01（受限可迁移）**，只在"产品决策"层面建议重估；`video` 判 **U-02**；卡片类判 **X-2**；未注册动作给出 5/13/2 分类；抑制规则属已声明限制，不计遗漏 |
-| [微信版本与能力](wechat-versions.md) | 指纹锁定 4 个 helper 构建 + 1 个 sdk 构建（`docs/wechat-versions.md:12-25`）；驱动能力按构建不同（`docs/wechat-versions.md:27-63`） | U-01 限定"仅 4.2.0.12 声明"；U-02 分 helper 4.2.0.12 / sdk 4.2.0.52 两条路径；U-08 按构建可用 |
+| [OneBot 兼容说明](onebot-compatibility.md) | 出站 `reply` 整链 1404（`docs/onebot-compatibility.md:43`）；`video` 已按驱动/构建映射（`docs/onebot-compatibility.md:41`：SDK Q-3、helper 4.2.0.12/Q-4 待验，转发链 1404），`json`/`xml`/`share`/`contact` 等仍不支持（`docs/onebot-compatibility.md:46`）；未注册动作 1404/404（`docs/onebot-compatibility.md:36`）；历史只读本地观测（`docs/onebot-compatibility.md:34`）；通知/请求抑制规则（`docs/onebot-compatibility.md:57`） | 出站引用判 **U-01（受限可迁移）**，只在"产品决策"层面建议重估；`video` 判 **U-02**（C 批已实现，Q-3/Q-4 分列）；卡片类判 **X-2**；未注册动作给出 5/13/2 分类；抑制规则属已声明限制，不计遗漏 |
+| [微信版本与能力](wechat-versions.md) | 指纹锁定 4 个 helper 构建 + 1 个 sdk 构建（`docs/wechat-versions.md:12-25`）；驱动能力按构建不同（`docs/wechat-versions.md:27-65`） | U-01 限定"仅 4.2.0.12 声明"；U-02 分 helper 4.2.0.12 / sdk 4.2.0.52 两条路径；U-08 按构建可用 |
 | [后续方向](roadmap.md) | 撤回、原生合并转发卡片、群管理"按原生接口限制，按不支持处理"（`docs/roadmap.md:14`） | 尊重该声明：U-13/U-14/U-16/U-17 均标注"需原生新增"，并注明是**产品决策**而非遗漏 |
 
-**口径提示**：上游"框架/协议层支持"不等于本仓库"网关支持"。视频即典型——SnowLuma 的 `video` 四向支持、helper/SDK 原生有 `send_video`，但本仓库网关没有映射，故按代码判"未覆盖"。现有文档若与代码不一致，不在本报告展开（另行处理）。**本批已修正**：上述视频/能力口径不一致已由纠偏批次（7 项中的第 1、5 项，HEAD `1b19502`）处理，相关文档已统一为"框架能力≠网关能力"；本报告结论不变。
+**口径提示**：上游"框架/协议层支持"不等于本仓库"网关支持"。视频即典型——SnowLuma 的 `video` 四向支持、helper/SDK 原生有 `send_video`；本仓库 C 批已按驱动/构建映射（SDK Q-3 私聊短样本已验证；helper 4.2.0.12 映射但 Q-4 待验；其他构建/转发链 1404），不再按"未覆盖"表述。原 7 项纠偏中的第 1、5 项口径修正注记保留；本报告其他结论不变。
 
 ---
 
 ## 七、待确认问题与建议的验证方式
 
-> 以下均需在装有对应微信构建的机器上实机验证；验证前不写入"已支持"。SnowLuma 侧未做真实 QQ 联调，其结论仅来自 v2.4.2 源码静态阅读。
+> 以下均需在装有对应微信构建的机器上实机验证；已执行项按实测/用户确认记录，未执行项不写入"已支持"。SnowLuma 侧未做真实 QQ 联调，其结论仅来自 v2.4.2 源码静态阅读。
 
 | # | 待确认问题 | 影响 | 建议验证方式 |
 | --- | --- | --- | --- |
 | Q-1 | helper 4.2.0.12 的 `send_quote_text` 在真实微信上是否成功（群聊/私聊、引用他人消息） | U-01 | 管理员终端最小脚本：启动 helper 后端 → 用已缓存的原生消息 ID 调 `send_quote_text` → 观察对端渲染；记录失败码与 `report.stage`（`vendor/helper/native/text_service.py:827-848` 已有阶段判断） |
 | Q-2 | 4.1.15.x / 4.2.0.11 是否也能引用（能力未声明） | 能力矩阵按构建表达 | 逐构建重复 Q-1；原生 DLL 不认 `quote_id` 时记录为"仅 4.2.0.12" |
-| Q-3 | SDK 视频发送的真实行为（编码/时长/风控） | U-02 的 sdk 分支 | 用 vendored wheel 在临时数据目录起会话，发短 MP4 到文件传输助手/自建群；记录 `SendResult` |
-| Q-4 | helper 4.2.0.12 `send_video` 的真实可用性 | U-02 | 短 MP4（`inspect_video` 可识别）实发；记录成功/失败与 `report` |
+| Q-3 | SDK 视频发送的真实行为（编码/时长/风控） | U-02 的 sdk 分支 | **已执行（2026-11-15，用户/B 方确认）**：SDK 4.2.0.52 私聊短静音 H.264 MP4 实测可播放；群聊/其他编码/带音轨/风控仍未覆盖。记录 `SendResult`。 |
+| Q-4 | helper 4.2.0.12 `send_video` 的真实可用性 | U-02 | **未执行**：上游仅声明 filehelper/群已验证；私聊/本机待 Q-4。短 MP4（`inspect_video` 可识别）实发；记录成功/失败与 `report`。 |
 | Q-5 | `accept_friend` 三个构建的实测差异 | U-08 | 测试小号发好友申请 → 入站 request → `accept_friend`；对照 `backend.capabilities`；helper 文档称 4.2.0.11/4.2.0.12 已实测通过（`vendor/helper/README.md:40`、`vendor/helper/native/README.md:7`） |
 | Q-6 | 微信群成员增减的 `sub_type`/operator 是否可得 | U-15 | 测试群拉入/移出小号，抓 `group.events` 原始载荷 |
 | Q-7 | 群公告/群名/踢人/退群是否有可用原生接口 | U-16/U-17 | 先检索 `vendor/helper/native` 与 vendored SDK API；无则确认"需新写原生"，不进入排期 |
@@ -429,13 +431,13 @@
 | 上游占位/降级 | 9 个显式占位（含 4 个标准名）+ 2 个语义降级，实际有效约 211 | catalog 的 summary/notes |
 | SnowLuma 入站事件/消息元素/WebUI/MCP | 23 类事件 / 16 类元素 / 66 处路由 / 14 个 MCP 工具 | 镜像源码统计 |
 | 本仓库注册动作 | 24（18 标准 + 6 扩展） | `src/wechat_onebot/onebot/actions.py:86-221`；AST 复核 |
-| 本仓库 WebUI/测试 | 33 路由；49 个测试文件 / 645 项 | `src/wechat_onebot/webui/server.py:179-730`；`pytest --collect-only` |
+| 本仓库 WebUI/测试 | 33 路由；50 个测试文件 / 657 项 | `src/wechat_onebot/webui/server.py:179-730`；`pytest --collect-only` |
 | 本报告矩阵/清单 | 99 行矩阵；28 个可迁移条目（P0 1 / P1 7 / P2 20） | 本文第三、四节 |
 
 **自检**
 
-- 所有 `路径:行号` 与 `SnowLuma v2.4.2: 路径:行号` 均重新核对到具体行内容（不只校验行号存在），并修正了 3 处行内容不匹配（拍一拍通知行号、媒体下载超时位置、消息编排输入位置）；B 批工作区复核（未提交）刷新了受影响的 `src/`、`docs/` 行号与计数，报告结论未据此改写。
+- 所有 `路径:行号` 与 `SnowLuma v2.4.2: 路径:行号` 均重新核对到具体行内容（不只校验行号存在），并修正了 3 处行内容不匹配（拍一拍通知行号、媒体下载超时位置、消息编排输入位置）；B 批复核（已提交 `5a3a360`）刷新了受影响的 `src/`、`docs/` 行号与计数，报告结论未据此改写。
 - 矩阵每个"未覆盖"行同时给出本仓库与 SnowLuma 两侧证据；28 个可迁移条目与矩阵第三列一一对应，无跨域重复、无同一能力两处不同优先级。
 - `docs/onebot-v11-audit.md:146` 的"本项目注册 19 个动作"是该文档文首声明的 v0.9.0 代码基线（`7b62bdd`）历史快照，不代表当前注册表；当前注册表为 24 个动作（见上表与 `src/wechat_onebot/onebot/actions.py:86-221`），本报告保留该历史基线且不改写该审计文档。
 - 未引用个人路径、账号、代理或任何本地分析目录；未复制上游大段源码。
-- 本轮只改文档：新增本文件与 `docs/README.md` 索引一行；未改代码、未提交/推送/发布。**批次说明**：其后的独立纠偏批次（HEAD `1b19502`）提交了本报告复核出的 7 项一致性修正（5 项文档口径 + 2 项低风险代码文案/参数描述，P1/P0 均未实施）；本报告结论不变，测试计数与文档索引已按该批次刷新。**B 批说明（2026-11-15，未提交）**：工作区新增 U-07/U-06/U-05a/U-04/U-08a 的落地内容；本报告已按 B 批工作区刷新计数与引用行号（动作 24、测试 49 文件/645 项、新增 `get_friend_requests` 计为可选扩展），结论与优先级不变，B 批验收见 `docs/HANDOVER.md`。
+- 本轮只改文档：新增本文件与 `docs/README.md` 索引一行；未改代码、未提交/推送/发布。**批次说明**：其后的独立纠偏批次（HEAD `1b19502`）提交了本报告复核出的 7 项一致性修正（5 项文档口径 + 2 项低风险代码文案/参数描述，P1/P0 均未实施）；本报告结论不变，测试计数与文档索引已按该批次刷新。**B 批说明（2026-11-15，已提交 `5a3a360`）**：工作区新增 U-07/U-06/U-05a/U-04/U-08a 的落地内容；本报告已按 B 批工作区刷新计数与引用行号（动作 24、测试 49 文件/645 项、新增 `get_friend_requests` 计为可选扩展），结论与优先级不变，B 批验收见 `docs/HANDOVER.md`。**C 批说明（2026-11-15，未提交）**：U-02 出站视频已按驱动/构建映射（SDK Q-3 私聊短样本已验证；helper 4.2.0.12 映射但 Q-4 待验；其他构建/转发链 1404）；测试计数更新为 50 文件 / 657 项，动作 24、WebUI 路由 33 不变，其他结论与优先级不变，验收口径见 `docs/HANDOVER.md` C 批节与 Q-3/Q-4。

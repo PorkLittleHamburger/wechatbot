@@ -53,6 +53,7 @@ OUTBOUND_MINIMAL = {
     "file": {"file": "missing-manifest-probe.bin"},
     "record": {"file": "missing-manifest-probe.wav"},
     "face": {"file": "missing-manifest-probe.gif"},
+    "video": {"file": "missing-manifest-probe.mp4"},
     "music": {"url": "https://example.invalid/song"},
 }
 
@@ -63,6 +64,7 @@ SEND_METHODS = {
     "file": "send_file",
     "record": "send_voice",
     "face": "send_emoticon",
+    "video": "send_video",
 }
 
 

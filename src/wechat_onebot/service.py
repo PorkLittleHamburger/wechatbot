@@ -809,6 +809,11 @@ class OneBotService:
                     if not await self.driver.send_voice(chat_id, str(segment.data["path"])):
                         raise OneBotActionError(1500, "语音发送失败", {"sent_segments": sent})
                     sent += 1
+                elif segment.type == "video":
+                    await flush_text()
+                    if not await self.driver.send_video(chat_id, str(segment.data["path"])):
+                        raise OneBotActionError(1500, "视频发送失败", {"sent_segments": sent})
+                    sent += 1
                 elif segment.type == "face":
                     await flush_text()
                     if not await self.driver.send_emoticon(chat_id, str(segment.data["path"])):
@@ -901,12 +906,19 @@ class OneBotService:
                     "qq": external,
                     "name": str(data.get("name") or ""),
                 }))
-            elif segment_type in ("image", "file", "record", "face"):
+            elif segment_type in ("image", "file", "record", "face", "video"):
+                if segment_type == "video" and media_budget is not None:
+                    # v1 policy: video stays out of the forward-send extension.
+                    raise OneBotActionError(1404, "转发发送暂不支持 video 段；请改用普通消息发送")
+                if segment_type == "video" and "video.send" not in self.driver.capabilities:
+                    raise OneBotActionError(1404, "当前驱动或微信构建不支持发送视频")
                 if media_budget is not None and media_budget["count"] >= forwarding.MAX_MEDIA:
                     raise OneBotActionError(1400, "转发发送超出媒体额度")
                 file_value = data.get("file")
                 if not file_value:
-                    raise OneBotActionError(1404, f"{segment_type} 段缺少 file，且当前桥接不支持 QQ 表情 ID 映射")
+                    if segment_type == "face":
+                        raise OneBotActionError(1404, "face 段缺少 file，且当前桥接不支持 QQ 表情 ID 映射")
+                    raise OneBotActionError(1404, f"{segment_type} 段缺少 file")
                 if segment_type == "image" and data.get("type"):
                     raise OneBotActionError(1404, "当前原生桥接不支持闪照")
                 if segment_type == "record" and str(data.get("magic", "0")).lower() not in ("0", "false", "no"):
@@ -954,6 +966,10 @@ class OneBotService:
                         if media_budget["bytes"] > forwarding.MAX_MEDIA_BYTES:
                             raise OneBotActionError(1400, "转发发送超出媒体字节额度")
                         await self.driver.validate_media(segment_type, str(path))
+                    elif segment_type == "video":
+                        # Fail predictable format/duration problems before any
+                        # earlier text/media in the chain is natively sent.
+                        await self.driver.validate_media("video", str(path))
                 except MediaError as error:
                     raise OneBotActionError(1400, str(error)) from error
                 prepared.append(PreparedSegment(segment_type, {"path": str(path)}))

@@ -579,8 +579,8 @@
     "video": {
       "D": "yes",
       "S": "yes",
-      "P": "no",
-      "W": "no"
+      "P": "yes",
+      "W": "yes"
     },
     "xml": {
       "D": "no",
@@ -595,6 +595,7 @@
     "file": "file.send",
     "image": "image.send",
     "record": "voice.send",
-    "text": "text.send"
+    "text": "text.send",
+    "video": "video.send"
   }
 }

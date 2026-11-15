@@ -34,7 +34,10 @@ class Driver(ABC):
         return ()
 
     async def validate_media(self, kind: str, path: str) -> None:
-        """Preflight local input; native drivers additionally check their formats."""
+        """Preflight local input; native drivers additionally check their formats.
+
+        ``kind`` is one of ``image``, ``file``, ``record``, ``face`` or ``video``.
+        """
         def validate():
             source = Path(path)
             if not source.is_file() or source.stat().st_size == 0:
@@ -94,6 +97,10 @@ class Driver(ABC):
     @abstractmethod
     async def send_voice(self, chat_id: str, path: str) -> bool:
         raise NotImplementedError
+
+    async def send_video(self, chat_id: str, path: str) -> bool:
+        """Send one local video where the driver/build maps ``video.send``."""
+        raise DriverUnsupported("当前驱动不支持发送视频")
 
     @abstractmethod
     async def send_emoticon(self, chat_id: str, path: str) -> bool:

@@ -17,9 +17,13 @@ Values follow the SnowLuma element-manifest vocabulary:
 
 - ``yes``: the gateway has a mapping in this direction.
 - ``no``: not implemented here (a recorded gap; adding it needs an explicit
-  table update and tests). This includes video send, which is not mapped yet.
+  table update and tests).
 - ``by-design-no``: intentionally unsupported because WeChat has no equivalent
   or because the gateway must not fake that semantic.
+
+Build-specific availability (for example ``video.send`` only on helper
+4.2.0.12 and the sdk 4.2.0.52 wheel) is enforced by ``Driver.capabilities``;
+this table declares that a gateway mapping exists in that direction.
 
 This table covers gateway mappings only. Build-specific availability (for
 example native emoticon send missing on WeChat 4.2 builds) remains in
@@ -44,9 +48,10 @@ ELEMENT_MANIFEST: dict[str, dict[Direction, DirectionSupport]] = {
     "image": {"D": "yes", "S": "yes", "P": "yes", "W": "yes"},
     "record": {"D": "yes", "S": "yes", "P": "yes", "W": "yes"},
     "file": {"D": "yes", "S": "yes", "P": "yes", "W": "yes"},
-    # Inbound only: helper/sdk report a downloaded video as a ``video`` segment.
-    # Outbound video is not mapped to a native send yet.
-    "video": {"D": "yes", "S": "yes", "P": "no", "W": "no"},
+    # Inbound downloaded videos are reported as a ``video`` segment; outbound
+    # video is mapped only where the driver exposes ``video.send`` (helper
+    # 4.2.0.12, sdk 4.2.0.52 fixed wheel). Forward-chain video stays 1404.
+    "video": {"D": "yes", "S": "yes", "P": "yes", "W": "yes"},
     # Inbound stickers are normalized to text ("[表情]") or image, never a
     # Segment("face"). Outbound accepts only file-based stickers; QQ face IDs
     # are rejected while preparing.
@@ -81,6 +86,7 @@ ELEMENT_SEND_CAPABILITIES: dict[str, str] = {
     "file": "file.send",
     "record": "voice.send",
     "face": "emoticon.send",
+    "video": "video.send",
 }
 
 # Segment types a driver can send directly. ``music`` is absent because

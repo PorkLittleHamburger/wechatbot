@@ -21,7 +21,7 @@ from ..models import (
     RequestEvent,
     Segment,
 )
-from .base import Driver, DriverError, EventCallback
+from .base import Driver, DriverError, DriverUnsupported, EventCallback
 
 
 logger = logging.getLogger("wechat-onebot.driver.helper")
@@ -98,8 +98,8 @@ class HelperDriver(Driver):
 
     _capabilities = frozenset({
         "text.receive", "text.send", "group.text.mention", "image.receive", "image.send",
-        "file.receive", "file.send", "voice.send", "emoticon.send", "contact.read",
-        "group.members.read", "request.friend", "friend.request.list",
+        "file.receive", "file.send", "voice.send", "video.send", "emoticon.send",
+        "contact.read", "group.members.read", "request.friend", "friend.request.list",
         "message.recall", "forwarded.receive",
     })
 
@@ -621,6 +621,9 @@ class HelperDriver(Driver):
                 with Path(path).open("rb") as source:
                     if source.read(4) == b"RIFF":
                         _load_encoder()
+            elif kind == "video":
+                from wxbot_framework.videos import inspect_video
+                inspect_video(path)
             elif kind == "file":
                 from wxbot_framework.files import inspect_file
                 inspect_file(path)
@@ -645,6 +648,17 @@ class HelperDriver(Driver):
             return result is not False
         except Exception as error:
             raise DriverError(f"语音发送失败: {error}") from error
+
+    async def send_video(self, chat_id: str, path: str) -> bool:
+        import asyncio
+        if "video.send" not in self.capabilities:
+            raise DriverUnsupported("当前微信构建的 helper 桥接不支持发送视频")
+        self._require_service()
+        try:
+            result = await asyncio.to_thread(self._service.send_video, chat_id, path)
+            return result is not False
+        except Exception as error:
+            raise DriverError(f"视频发送失败: {error}") from error
 
     async def send_emoticon(self, chat_id: str, path: str) -> bool:
         import asyncio

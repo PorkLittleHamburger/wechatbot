@@ -28,8 +28,8 @@ class SendRecord:
 class MockDriver(Driver):
     capabilities = frozenset({
         "text.receive", "text.send", "group.text.mention", "image.receive", "image.send",
-        "file.receive", "file.send", "voice.send", "emoticon.send", "contact.read",
-        "group.members.read", "request.friend", "friend.request.list",
+        "file.receive", "file.send", "voice.send", "video.send", "emoticon.send",
+        "contact.read", "group.members.read", "request.friend", "friend.request.list",
     })
 
     def __init__(self):
@@ -98,6 +98,10 @@ class MockDriver(Driver):
 
     async def send_voice(self, chat_id: str, path: str) -> bool:
         self.sent.append(SendRecord("voice", chat_id, {"path": path}))
+        return True
+
+    async def send_video(self, chat_id: str, path: str) -> bool:
+        self.sent.append(SendRecord("video", chat_id, {"path": path}))
         return True
 
     async def send_emoticon(self, chat_id: str, path: str) -> bool:

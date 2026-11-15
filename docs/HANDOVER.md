@@ -436,7 +436,7 @@ Q-14 有限结论（2026-11-15 实测）：Bot 侧直连 SDK 时，手动退出�
 
 ## B 批落地与验证入口（2026-11-15）
 
-B 批为 A 批之后的工作区改动，**尚未 commit、未发布、未真机**；范围与入口如下（U-04/U-08a 细节见上两节）：
+B 批为 A 批之后的改动，**已由 `5a3a360` 提交、未发布、未真机**；范围与入口如下（U-04/U-08a 细节见上两节）：
 
 - U-07 动作目录/元素四向单一真源：`scripts/check_action_catalog.py` + `docs/action-catalog.json`（24 动作/15 元素），`src/wechat_onebot/protocol/element_manifest.py` 为元素方向单一真源；CI 执行 `--check` 防漂移。测试：`tests/test_action_catalog.py`、`tests/test_element_manifest.py`。文档入口：`AGENTS.md` 构建/校验命令、`docs/architecture.md:101`、`docs/onebot-compatibility.md:97-109`。
 - U-06 文件日志与级别热切换：`src/wechat_onebot/logging_setup.py`（10 MiB×5、白名单摘要脱敏）、WebUI `/api/logs/level`、`/api/logs/file`、`/api/logs/download`、CLI `--log-level`；测试 `tests/test_logging.py` 与 WebUI 用例。文档入口：`docs/troubleshooting.md`、`README.md`。
@@ -444,4 +444,12 @@ B 批为 A 批之后的工作区改动，**尚未 commit、未发布、未真机
 - U-04 桥接离线事件：见“B 批 U-04”节；测试 `tests/test_offline_event.py`。
 - U-08a 好友申请只读列表：见“B 批 U-08a”节；测试 `tests/test_friend_requests.py`；`get_friend_requests` 为可选扩展，不含 U-08b 审批/备注。
 
-验证入口：`pytest -q`、`python -m compileall -q src`、`python scripts/check_action_catalog.py --check`、内联 JS `node --check`、`git diff --check`；当前 `pytest --collect-only` 为 **645 项 / 49 个测试文件**（t24 W-01 后）。独立 verifier t16 的阻塞项 V-01（默认体上限）与提交前项 V-02/V-04/V-05 已由 t21 修复，W-01/W-02 已由 t24/t25 修复，t26 最终复验 **PASS**；B 批由本轮提交纳入，尚未发布，不得按已发布表述。
+验证入口：`pytest -q`、`python -m compileall -q src`、`python scripts/check_action_catalog.py --check`、内联 JS `node --check`、`git diff --check`；当前 `pytest --collect-only` 为 **657 项 / 50 个测试文件**（C 批 U-02 后）。独立 verifier t16 的阻塞项 V-01（默认体上限）与提交前项 V-02/V-04/V-05 已由 t21 修复，W-01/W-02 已由 t24/t25 修复，t26 最终复验 **PASS**；B 批由本轮提交纳入，尚未发布，不得按已发布表述。
+
+## C 批 U-02 出站视频发送（2026-11-15，未提交）
+
+按能力门控实现 `video` 发送：`Driver` 新增可选 `send_video`（默认 `DriverUnsupported`），helper 仅在 4.2.0.12 声明 `video.send`（经后端能力交集；4.1.15.x/4.2.0.11 返回 1404），SDK 固定 wheel 映射 `video.send`，mock 记录测试发送。Service 接受私聊/群聊 `video` 段，发送前做本地 MP4 校验（helper 使用纯 Python `inspect_video`；SDK 由框架校验），并保留既有媒体大小/异步/部分发送语义；v1 **明确拒绝转发发送扩展链内的 video**（1404，无部分发送）。能力表、架构文档、README/PORTABLE/HANDOVER 按驱动与构建分列；动作目录快照元素清单写入 video D/S/P/W=`yes` 与 `video.send` 映射（动作数量仍 24）。
+
+实机口径：SDK 4.2.0.52 私聊短静音 H.264 MP4 已由 Q-3 实测可播放；框架将 `video.send` 列为 filehelper/私聊/群 verified，但其他编码/带音轨仍 pending。helper 4.2.0.12 仅有上游“文件传输助手/群已验证”的声明，Q-4（私聊/本机）未做，因此文档只写“按构建映射、私聊待 Q-4”，**不宣称 helper 已实机验证**；其他构建与转发链继续 1404。
+
+验证：新增 `tests/test_video_send.py`（mock 私聊/群发送与存入、缺 file/空文件/超限/非 MP4 显式失败、转发链 1404、helper 4.2.0.11 能力门控不调用原生、4.2.0.12 路由调用一次、helper inspect_video 校验）及 `tests/test_sdk_driver.py` 视频发送用例（completed 登记 native ID、accepted/unknown 不重试、failed 显式错误）；同步 `tests/test_helper42.py` 按构建断言与 `tests/test_element_manifest.py` P/W 探针。全量 `pytest -q` **656 passed / 1 skipped**（collect 657），`compileall -q src`、`scripts/check_action_catalog.py --check`、内联 JS `node --check`、`git diff --check` 通过。未提交、未真机。
