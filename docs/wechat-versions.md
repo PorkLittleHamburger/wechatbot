@@ -30,10 +30,10 @@ sdk 驱动还要求 `wechatbot_api` 包与包内 `wca_bridge.dll` 的版本、�
 
 - 支持：私聊/群聊文本收发、1–2 人真实缓存名称的群 `@`、PNG 图片与普通文件
   收发、SILK/WAV/MP3/AAC/M4A/OGG/Opus/AMR-NB/WB/FLAC 语音发送（统一转为
-  腾讯 SILK v3）、H.264 静音视频发送、入站图片/文件/语音/视频的显式
-  `request_media` 下载、`get_image`/`get_record` 读取收到的媒体（语音可转
+  腾讯 SILK v3）、入站图片/文件/语音/视频的显式 `request_media` 下载、
+  `get_image`/`get_record` 读取收到的媒体（语音可转
   mp3/amr/wma/m4a/spx/ogg/wav/flac）、私聊引用文本/引用原图与两层嵌套转发、
-  只读联系人/群/群成员缓存查询。
+  只读联系人/群/群成员缓存查询。框架公开 API 另有 H.264 静音视频发送，但网关未映射 `video` 段（出站返回 1404）。
 - 群 `@` 名称：dev15 新增按次 `labels_verified=False` 和只读
   `mention_label(room, wxid)`。网关优先使用当前 SDK 缓存名（verified）；
   缓存查不到时先用实例 WebUI 手工绑定的真实名（按次未验证提交），仍没有时

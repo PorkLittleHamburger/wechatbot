@@ -159,7 +159,7 @@ ACTION_REGISTRY: dict[str, ActionDefinition] = {
     "get_group_list": ActionDefinition("get_group_list", "_get_group_list", "获取已发现群列表", {}, {"type": "array"}, read_only=True),
     "get_group_info": ActionDefinition(
         "get_group_info", "_get_group_info", "获取群信息",
-        {"group_id": ParamSpec("int", True, "OneBot group_id"), "no_cache": ParamSpec("bool")}, {"type": "object"}, read_only=True,
+        {"group_id": ParamSpec("int", True, "OneBot group_id"), "no_cache": ParamSpec("bool", False, "兼容参数；不触发额外刷新，读取驱动群列表")}, {"type": "object"}, read_only=True,
     ),
     "get_group_member_list": ActionDefinition(
         "get_group_member_list", "_get_group_member_list", "获取群成员列表",
@@ -168,7 +168,7 @@ ACTION_REGISTRY: dict[str, ActionDefinition] = {
     "get_group_member_info": ActionDefinition(
         "get_group_member_info", "_get_group_member_info", "获取群成员信息",
         {"group_id": ParamSpec("int", True, "OneBot group_id"),
-         "user_id": ParamSpec("int", True, "OneBot user_id"), "no_cache": ParamSpec("bool")},
+         "user_id": ParamSpec("int", True, "OneBot user_id"), "no_cache": ParamSpec("bool", False, "兼容参数；不触发额外刷新，读取驱动群成员缓存")},
         {"type": "object"}, read_only=True,
     ),
     "get_msg": ActionDefinition(

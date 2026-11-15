@@ -57,6 +57,23 @@ async def test_unsupported_reply_is_atomic_and_mention_only_is_supported(tmp_pat
 
 
 @pytest.mark.asyncio
+async def test_group_all_mention_rejection_is_driver_agnostic(tmp_path):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = (await service.dispatch("get_group_list"))["data"][0]["group_id"]
+        result = await service.dispatch("send_group_msg", {"group_id": group, "message": [
+            {"type": "at", "data": {"qq": "all"}},
+            {"type": "text", "data": {"text": " must not send"}}]})
+        assert result["status"] == "failed" and result["retcode"] == 1404
+        assert "不支持" in result["message"] and "@全体成员" in result["message"]
+        assert "helper" not in result["message"].lower()
+        assert driver.sent == []
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
 async def test_async_rate_limit_echo_and_shutdown(tmp_path):
     service, driver, mapper, _ = await make_service(tmp_path)
     try:

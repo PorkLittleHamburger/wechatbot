@@ -153,17 +153,17 @@ Launcher 负责明确恢复设置/启动参数、所选 worker 能力握手及�
 代码入口：
 
 - `src/wechat_onebot/driver/sdk.py`：`SdkDriver(Driver)`。`start` 用框架只读 `discover()` 选账号并 `Session.connect(receive=True)`；独立消费线程把不可变 `Event` 转成 `IncomingMessage`（thaw 冻结结构后复用 `protocol/rich_content.py`）；入站 pending 媒体经 `request_media` 下载、从 `MediaHandle` 导出到账号 `media/inbound/` 并 `release()`；`stop` 排空（`SHUTDOWN_PENDING` → `wait_closed`），不强制卸载。
-- 发送只映射文本、原生群 `@`、图片、文件、语音与视频；`completed` 才返回成功，`accepted`/`unknown` 一律抛“结果未知、不要重发”，绝不伪造成功。能力集合不含表情、撤回、好友申请与群管理，对应动作返回 1404。
+- 发送只映射文本、原生群 `@`、图片、文件与语音（`video` 段未映射，出站返回 1404；`wechatbot_api` 的 `send_video` 是框架能力，不等于网关能力）；`completed` 才返回成功，`accepted`/`unknown` 一律抛“结果未知、不要重发”，绝不伪造成功。能力集合不含表情、撤回、好友申请与群管理，对应动作返回 1404。
 - 配置：`driver.type` 新增 `sdk`；`sdk_data_root`（默认账号目录 `sdk/`）、`sdk_allow_unverified`（默认 false）、`sdk_media_timeout`（默认 30 秒）。`bridge.discovery` 新增 `discover_sdk_accounts`/`discover_accounts`，CLI、Runtime、WebUI、桥接恢复控制器按 `driver.type` 分派；helper 路径与既有测试契约不变。
 - 依赖：固定 `vendor/wechatbot_api/wechatbot_api-0.1.0.dev14-py3-none-win_amd64.whl`（sha256 `408a0430…b523`，bridge 10/ABI 1），`VENDORED.json` 记录来源与指纹；`build_portable.py` 安装该 wheel 并导入校验。SDK 要求 Pillow 13.0.0，运行锁与 `pyproject` 已同步到 `Pillow>=13,<14`。
 
-能力边界（来自框架公开契约，不是网关猜测）：支持 4.2.0.52 的文本收发、1–2 人真实缓存名称群 `@`、PNG/普通文件/语音/视频发送、四类私聊媒体与群 PNG/文件/视频/群 CDN 语音接收、私聊引用文本/引用原图/两层嵌套转发、只读联系人/群/成员缓存；不支持表情发送、撤回、好友申请、群管理、原生合并转发卡片与出站原生引用。群富图片在框架内仍为开发 opt-in，网关默认不承诺；入站语音是解码后的 WAV。
+能力边界（来自框架公开契约，不是网关猜测）：支持 4.2.0.52 的文本收发、1–2 人真实缓存名称群 `@`、PNG/普通文件/语音发送、四类私聊媒体与群 PNG/文件/视频/群 CDN 语音接收、私聊引用文本/引用原图/两层嵌套转发、只读联系人/群/成员缓存；框架另有 H.264 视频发送 API，但网关未映射 `video` 段，出站视频返回 1404。不支持表情发送、撤回、好友申请、群管理、原生合并转发卡片与出站原生引用。群富图片在框架内仍为开发 opt-in，网关默认不承诺；入站语音是解码后的 WAV。
 
 验证：496 项 Bot 回归通过、1 项 Windows 符号链接权限测试跳过；`compileall`、便携包构建（含包内 `wechatbot_api` 导入）通过。新增 `tests/test_sdk_driver.py` 覆盖事件/引用/富内容映射、媒体导出与句柄释放、异常媒体占位、发送结果四态、只读查询、目标选择、启停与配置校验；测试用假 SDK，不注入微信。另用打包后的 Python 执行了只读 `discover()`：识别到本机两个已登录的 4.2.0.52 进程（核心指纹 `d733489e…`，`bridge_supported=true`），Bot 的 `discover_sdk_accounts` 也正确映射；该步骤不注入、不发送、不创建会话。
 
 2026-11-13 实机验收（用户授权，仅连接/接收/查询，不发送）：使用**临时配置与临时数据目录**，未读取或修改运行实例的 `config.json`。直接驱动连接耗时 0.87 秒，`get_status` 报 `connected` / `4.2.0.52` / watchdog `ready`，读回好友 87、群 4、首个群成员 9，20 秒窗口内无入站事件，停止 0.50 秒；守护日志为 `WATCHDOG_READY` → `NORMAL_STOP`，微信进程保持存活。随后用完整 Bot 服务（临时 WebUI/OneBot 端口）做端到端：账号扫描命中已配置账号、`/start` 返回 `{"ok":true}`、`/api/status` 显示 `driver=sdk` 且 `online=true`、`/stop` 正常，再次确认 `NORMAL_STOP` 且无残留进程/端口。入站事件与发送链路仍未验证。
 
-未完成/未验证：**入站消息与发送链路尚未用真实微信消息验证**（验收窗口内没有新消息，且未获发送授权）。待实机验收：群 `@`、图片/文件/语音/视频收发、私聊引用（含引用图片）、转发接收；`sdk` 驱动逐条消息串行等待媒体（受 `sdk_media_timeout` 限制），高并发长媒体会延迟后续事件，暂未改为并发流水线；通知类系统消息与撤回尚无 OneBot 映射；`get_stranger_info` 仍依赖事件/缓存观测，非任意陌生人查询。
+未完成/未验证：**入站消息与发送链路尚未用真实微信消息验证**（验收窗口内没有新消息，且未获发送授权）。待实机验收：群 `@`、图片/文件/语音收发与视频接收、私聊引用（含引用图片）、转发接收；`sdk` 驱动逐条消息串行等待媒体（受 `sdk_media_timeout` 限制），高并发长媒体会延迟后续事件，暂未改为并发流水线；通知类系统消息与撤回尚无 OneBot 映射；`get_stranger_info` 仍依赖事件/缓存观测，非任意陌生人查询。
 
 ## v0.10.0 发布结果（2026-11-13）
 
@@ -400,3 +400,17 @@ v0.11.6 修复后，用户再次发送群消息仍失败，错误从 `NOT_VERIFI
 验证：新增 `/api/storage` 读取/修改、配置文件落盘、运行中 `MediaStore.max_bytes` 热更新、非法范围拒绝测试；全量 **554 passed / 1 skipped**。未发布 Release。
 
 发布结果（2026-11-14）：用户确认发布 **WeChatBot v0.11.10**。annotated tag `v0.11.10` → `1ca8439`；GitHub Release ID `445170739`，非 draft/prerelease，Latest；[Bot checks #43578648262](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43578648262) 成功。附件 `wechat-onebot-0.11.10-windows-x64.zip` 60,425,566 B，SHA-256 `82b99657d0b969577edd55d2f84efd1d106ee8ce5a1420b2a6d54a958a7fdfc4`，同名 `.sha256` 一并上传；公网下载后重新计算大小/摘要一致。实际 Launcher `VersionStore.import_archive` 临时工作区导入 1,587 个文件、状态 `compatible`；未替换当前运行实例。
+
+## 一致性纠偏批次（2026-11-15，未发布）
+
+依据 SnowLuma v2.4.2 比对报告复核出的 7 处文档/代码不一致，完成低风险纠偏（P1/P0 **未实施**）：
+
+1. sdk/helper 视频口径改为“底层框架有 `video.send`/`send_video`，但网关未映射 `video` 段（出站 1404）”；同步 README、PORTABLE_README、HANDOVER、wechat-versions、onebot-compatibility。
+2. network-config 反向 WS 重连改为固定 `reconnectSeconds` 间隔，不宣称指数退避。
+3. architecture 动作清单由 19 改为 23，补齐 `get_image`/`get_record`/`send_group_forward_msg`/`send_private_forward_msg`。
+4. onebot-compatibility 明确 reply 在遍历到该段时拒绝；若前序媒体段已处理，下载/转码副作用可能发生，但不会有原生发送。
+5. 文档明确 helper 能力按微信构建取交集（4.2.0.11/4.2.0.12 不宣称 emoticon.send/contact.read）；helper 4.2 `face.file` 在本网关映射下按通用 1500 处理，sdk 为 1404；4.2 原生表情路径未实机验证。
+6. `get_group_info`/`get_group_member_info` 的 `no_cache` 补 ParamSpec 描述，明确为兼容参数、不触发额外刷新；Driver 无刷新原语，未伪造刷新。
+7. `@全体成员` 失败文案改为“当前驱动不支持”，retcode 仍 1404。
+
+验证：`pytest -q` **556 passed / 1 skipped**，`compileall -q src` 通过；纠偏批次由独立 verifier 复核文档/代码一致、无 P1 实现、无 `.env`/`.development`/`.agent-teams` 提交。P1 七项分析与 U-01 出站引用决策包只读产物在 `.development/analysis/`（gitignored，不提交）；范围选择与真机实验待用户裁决。`docs/snowluma-comparison.md` 与 `docs/README.md` 索引作为单独比对交付批次处理，尚未提交。

@@ -108,7 +108,7 @@ resolution; outbound action calls are not restricted. This field is included in 
 | HTTP / WS server `path` | `/` / `/ws` | Starts with `/`, contains no NUL |
 | `accessToken` | Empty string | String |
 | HTTP client `timeoutSeconds` | 10 seconds | 0 for no timeout, otherwise 0.5–120 seconds |
-| WS client `reconnectSeconds` | 5 seconds | 0.5–300 seconds; retries back off after connection failures |
+| WS client `reconnectSeconds` | 5 seconds | 0.5–300 seconds; every retry waits this fixed interval after a failed connection or a clean close (no exponential backoff; a backoff strategy would be a separate planned change) |
 | WS server/client `maxMessageBytes` | 134217728 (128 MiB) | Integer 1–512 MiB; received raw WS frame limit for large base64 media |
 | `storage.max_media_bytes` (main config) | 52428800 (50 MiB) | Integer 1 KiB–1 GiB; decoded media limit, independent of WS frames |
 | Client `url` | Required | HTTP(S) for HTTP clients, WS(S) for WS clients |

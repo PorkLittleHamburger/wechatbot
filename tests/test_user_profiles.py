@@ -98,6 +98,34 @@ async def test_unknown_user_not_fabricated_and_no_cache_refreshes(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_group_no_cache_is_documented_compatibility_parameter(tmp_path):
+    service, _, mapper, _ = await make_service(tmp_path)
+    try:
+        group = (await service.dispatch("get_group_list"))["data"][0]["group_id"]
+        member = (await service.dispatch("get_friend_list"))["data"][0]["user_id"]
+        group_plain = await service.dispatch("get_group_info", {"group_id": group})
+        group_forced = await service.dispatch("get_group_info", {"group_id": group, "no_cache": True})
+        assert group_forced["retcode"] == 0
+        assert group_forced["data"] == group_plain["data"]
+        member_plain = await service.dispatch("get_group_member_info", {
+            "group_id": group, "user_id": member})
+        member_forced = await service.dispatch("get_group_member_info", {
+            "group_id": group, "user_id": member, "no_cache": "true"})
+        assert member_forced["retcode"] == 0
+        assert member_forced["data"] == member_plain["data"]
+        catalog = {row["name"]: row for row in
+                   (await service.dispatch("get_capabilities"))["data"]["action_catalog"]}
+        for name in ("get_group_info", "get_group_member_info"):
+            spec = catalog[name]["params"]["no_cache"]
+            assert spec["kind"] == "bool" and spec["required"] is False
+            assert "兼容参数" in spec["description"]
+            assert "不触发额外刷新" in spec["description"]
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
 async def test_card_only_observation_does_not_block_later_nickname_refresh(tmp_path):
     service, driver, mapper, events = await make_service(tmp_path)
     try:

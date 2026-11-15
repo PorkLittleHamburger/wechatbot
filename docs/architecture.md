@@ -60,15 +60,15 @@ WebUI
 
 `service.py` uses the `Driver` contract from `driver/base.py`; `core/runtime.py` creates `helper`, `sdk` or `mock` implementations. The `bridge` package provides related lifecycle/discovery helpers and compatibility names, rather than a separate transport abstraction used by every caller.
 
-Current helper capabilities include:
+Current helper capabilities are intersected with the running WeChat build (`driver/helper.py` plus the vendored backend):
 
 - private/group text receive and send
 - native group mention
 - image receive/send
 - file receive/send
 - voice send
-- emoticon send
-- friend and group metadata
+- emoticon send (4.1.15.x only; absent from 4.2.0.11/4.2.0.12 capability intersections)
+- contacts/members where the build provides them (full contact scan is 4.1.15.x only)
 - recall notification where the backend provides it
 
 The `sdk` driver maps the framework's public API instead of raw native messages:
@@ -76,9 +76,9 @@ The `sdk` driver maps the framework's public API instead of raw native messages:
 - events are immutable SDK `Event` objects with `kind` (`message`/`media_update`/`diagnostic`), `content_type`, `mentions`, `reference` and bounded rich `content`; the driver thaws them into plain dicts and reuses `protocol/rich_content.py` for OneBot projection;
 - pending media is downloaded with `Session.request_media`, exported from the SDK-owned `MediaHandle` into the account media `inbound/` directory, and released before the OneBot event is emitted; failures stay explicit text placeholders;
 - `Session` calls run on an executor, events are consumed on a dedicated thread and dispatched with `run_coroutine_threadsafe`, and `close()` is drained (`SHUTDOWN_PENDING` → `wait_closed`) rather than forced;
-- capabilities describe only mapped operations; emoticon send, recall, friend requests and group management are absent, so the corresponding actions fail explicitly.
+- capabilities describe only mapped operations; emoticon send, native video send (the framework exposes `send_video`), recall, friend requests and group management are absent, so the corresponding actions fail explicitly (`video` segments return `1404`).
 
-Unavailable capabilities remain visible in the capability matrix.
+Unavailable capabilities remain visible in the capability matrix. On 4.2 helper builds an unsupported emoticon send is currently handled as a generic `1500` by this gateway's mapping (the native 4.2 emoticon path itself has not been live-verified), while the `sdk` driver reports `1404`; outbound `video` is not mapped even where the native backend declares `video.send` (helper 4.2.0.12), and the `sdk` framework's `send_video` is likewise not mapped.
 
 ## Inbound media handoff
 
@@ -98,7 +98,7 @@ account ID. `driver.wechat_data_directory` is an optional explicit override.
 
 ## Protocol
 
-Core action surface:
+Core action surface (23 registered actions):
 
 - `send_private_msg`
 - `send_group_msg`
@@ -116,9 +116,13 @@ Core action surface:
 - `get_group_member_info`
 - `get_msg`
 - `get_forward_msg` (persisted parsed inbound forwards)
+- `get_image`
+- `get_record`
 - `get_friend_msg_history`
 - `get_group_msg_history`
 - `get_capabilities` (extension)
+- `send_group_forward_msg` (extension; nodes are converted to ordinary messages)
+- `send_private_forward_msg` (extension; nodes are converted to ordinary messages)
 
 The authoritative action list and segment limits are in [OneBot compatibility](onebot-compatibility.md). Unsupported methods return `retcode=1404`.
 

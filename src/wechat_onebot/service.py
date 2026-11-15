@@ -825,7 +825,7 @@ class OneBotService:
                     raise OneBotActionError(1400, "私聊消息不能包含 at 段")
                 qq = data.get("qq")
                 if str(qq) == "all":
-                    raise OneBotActionError(1404, "helper 原生桥接不支持 @全体成员")
+                    raise OneBotActionError(1404, "当前驱动不支持 @全体成员")
                 user_number = self._required_int({"qq": qq}, "qq")
                 external = self._external_user(user_number)
                 prepared.append(PreparedSegment("at", {
