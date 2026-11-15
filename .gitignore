@@ -20,6 +20,7 @@ data/*
 .development/
 logs/
 .runtime/
+.agent-teams/
 
 # Local editor
 .vscode/

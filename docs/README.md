@@ -26,6 +26,7 @@
 | [开发交接](HANDOVER.md) | 接手顺序、代码入口、关键决策、发布流程和待办 |
 | [架构](architecture.md) | 当前调用关系、数据所有权和 ID/媒体实现 |
 | [架构参考](snowluma-alignment.md) | 设计来源与运行边界，不表示完整实现了参考项目 |
+| [SnowLuma 能力比对](snowluma-comparison.md) | 与 SnowLuma v2.4.2 的差异矩阵、未覆盖功能与优先级判断 |
 | [后续方向](roadmap.md) | 尚未承诺交付的工作 |
 | [本轮文档审计](documentation-audit.md) | 审计范围、证据和修正记录 |
 | [helper 边界](vendor-helper.md) | 上游独立应用与本项目的区别 |
