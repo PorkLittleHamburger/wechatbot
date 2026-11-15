@@ -16,6 +16,9 @@ class ConfigError(ValueError):
     pass
 
 
+LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+
+
 def _atomic_write_json(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
@@ -63,6 +66,17 @@ def default_config() -> dict[str, Any]:
             "media_dir": "data/media",
             "max_media_bytes": 50 * 1024 * 1024,
         },
+        "logging": default_logging_config(),
+    }
+
+
+def default_logging_config() -> dict[str, Any]:
+    return {
+        "file": True,
+        "level": "INFO",
+        "max_bytes": 10 * 1024 * 1024,
+        "backup_count": 5,
+        "dir": None,
     }
 
 
@@ -252,6 +266,40 @@ class WebUiConfig:
 
 
 @dataclass(frozen=True)
+class LoggingConfig:
+    file: bool = True
+    level: str = "INFO"
+    max_bytes: int = 10 * 1024 * 1024
+    backup_count: int = 5
+    directory: Path | None = None
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any], *, base_dir: Path) -> "LoggingConfig":
+        enabled = value.get("file", True)
+        level = value.get("level", "INFO")
+        max_bytes = value.get("max_bytes", 10 * 1024 * 1024)
+        backup_count = value.get("backup_count", 5)
+        directory_raw = value.get("dir")
+        if type(enabled) is not bool:
+            raise ConfigError("logging.file 必须是布尔值")
+        if not isinstance(level, str) or level.upper() not in LOG_LEVELS:
+            raise ConfigError("logging.level 必须是 " + "/".join(LOG_LEVELS) + " 之一")
+        if type(max_bytes) is not int or not 1024 * 1024 <= max_bytes <= 1024 * 1024 * 1024:
+            raise ConfigError("logging.max_bytes 必须在 1 MiB–1 GiB 之间")
+        if type(backup_count) is not int or not 1 <= backup_count <= 20:
+            raise ConfigError("logging.backup_count 必须在 1–20 之间")
+        directory = None
+        if directory_raw is not None:
+            if not isinstance(directory_raw, str) or not directory_raw.strip():
+                raise ConfigError("logging.dir 必须是非空路径或 null")
+            directory = Path(directory_raw)
+            if not directory.is_absolute():
+                directory = (base_dir / directory).resolve()
+        return cls(file=enabled, level=level.upper(), max_bytes=max_bytes,
+                   backup_count=backup_count, directory=directory)
+
+
+@dataclass(frozen=True)
 class AppConfig:
     path: Path
     onebot: OneBotConfig
@@ -259,6 +307,7 @@ class AppConfig:
     driver: DriverConfig
     storage: StorageConfig
     webui: WebUiConfig = field(default_factory=WebUiConfig)
+    logging: LoggingConfig = field(default_factory=LoggingConfig)
     app_name: str = APP_NAME
     version: str = __version__
 
@@ -289,6 +338,12 @@ class AppConfig:
                     changed = True
             if changed:
                 raw["webui"] = webui_raw
+        logging_raw = raw.get("logging")
+        if logging_raw is None:
+            logging_raw = default_logging_config()
+            raw["logging"] = logging_raw
+        elif not isinstance(logging_raw, dict):
+            raise ConfigError("logging 必须是 JSON 对象")
         _atomic_write_json(target, raw)
         if not isinstance(onebot_raw, dict) or not isinstance(driver_raw, dict) or not isinstance(storage_raw, dict):
             raise ConfigError("onebot、driver、storage 必须是 JSON 对象")
@@ -302,6 +357,7 @@ class AppConfig:
             driver=DriverConfig.from_dict(driver_raw, base_dir=base),
             storage=StorageConfig.from_dict(storage_raw, base_dir=base),
             webui=WebUiConfig.from_dict(webui_raw),
+            logging=LoggingConfig.from_dict(logging_raw, base_dir=base),
         )
 
 

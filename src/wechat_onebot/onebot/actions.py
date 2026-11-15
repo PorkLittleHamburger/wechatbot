@@ -150,6 +150,12 @@ ACTION_REGISTRY: dict[str, ActionDefinition] = {
     "get_status": ActionDefinition("get_status", "_get_status", "获取运行状态", {}, {"type": "object"}, read_only=True),
     "get_version_info": ActionDefinition("get_version_info", "_get_version_info", "获取协议端版本", {}, {"type": "object"}, read_only=True),
     "get_friend_list": ActionDefinition("get_friend_list", "_get_friend_list", "获取好友列表", {}, {"type": "array"}, read_only=True),
+    "get_friend_requests": ActionDefinition(
+        "get_friend_requests", "_get_friend_requests",
+        "读取当前账号的只读好友申请扩展列表（本机内存目录，非上游 pending 等价）",
+        {"count": ParamSpec("int", False, "返回条数，默认 50，最大 100")},
+        {"type": "object"}, read_only=True,
+    ),
     "get_stranger_info": ActionDefinition(
         "get_stranger_info", "_get_stranger_info", "获取已观测的用户资料",
         {"user_id": ParamSpec("int", True, "OneBot user_id"),

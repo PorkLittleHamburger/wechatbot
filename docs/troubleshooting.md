@@ -2,9 +2,15 @@
 
 先记录实际 Bot 版本、配置文件位置、`driver.helper_root`、微信核心构建及错误时间。发布版本、源码版本和实例正在使用的版本可能不同；不要仅根据下载了新包判断实例已升级。公开报告前移除 Token、个人账号和聊天内容。
 
+## 网关自身日志
+
+网关进程的日志默认写入当前实例 `storage.data_dir` 下的 `logs/gateway.log`（便携包默认 `data/logs/gateway.log`；可用 `logging.dir` 指定其他目录）。`logging.file=false` 可关闭文件日志；默认单文件 10 MiB、保留 5 份，分别由 `logging.max_bytes`（1 MiB–1 GiB）和 `logging.backup_count`（1–20）配置。文件只写受控诊断摘要（与 WebUI“日志”页相同白名单），不写完整 `record.args`、Token、密码或 `base64://` 媒体内容；日志仍可能包含账号标识，公开前请移除。
+
+WebUI“日志 → 运行日志”显示当前网关级别（`GET /api/logs/level`）并可在本次运行内切换（`POST /api/logs/level`）；切换不写回 `config.json`，重启后回到 `logging.level` 或 `run --log-level`。`GET /api/logs/file?tail=N` 读取最后 N 行（最多 2000），`GET /api/logs/download` 下载 `gateway.log`；两者都要求管理登录，且只服务配置的日志目录内文件。`/api/status` 的 `logFile`、`logLevel` 便于定位；这与下方 helper 守护日志是两个不同位置。
+
 ## 守护启动失败与日志
 
-桥接错误会区分提前退出（含退出码）与等待就绪超时，并给出日志绝对路径。实际位置是当前实例的 `<driver.helper_root>/logs/`：
+helper 守护日志的错误会区分提前退出（含退出码）与等待就绪超时，并给出日志绝对路径。实际位置是当前实例的 `<driver.helper_root>/logs/`：
 
 - `bridge_watchdog_startup.log`：启动输出及日志初始化前的导入错误。
 - `bridge_watchdog.log`：守护运行日志，提前退出时可能尚未生成。

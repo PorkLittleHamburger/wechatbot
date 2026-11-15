@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import hmac
 import json
 import logging
 from typing import Any
@@ -9,29 +8,24 @@ from urllib.parse import parse_qsl
 
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from ...protocol import failure
+from ...security import install_body_limit, install_security_headers
 from ..actions import ACTION_REGISTRY
 from ...service import OneBotService
+from .auth import bearer_token, token_matches
 from .config import HttpServerEndpoint
 
 
 logger = logging.getLogger("wechat-onebot.network.http-server")
 
 
-def _bearer(header: str | None) -> str:
-    if not header:
-        return ""
-    scheme, _, token = header.partition(" ")
-    return token.strip() if scheme.lower() == "bearer" else ""
-
-
 def _authorized(endpoint: HttpServerEndpoint, request: Request) -> bool:
     if not endpoint.access_token:
         return True
-    presented = _bearer(request.headers.get("authorization")) or request.query_params.get("access_token", "")
-    return hmac.compare_digest(presented.encode("utf-8"), endpoint.access_token.encode("utf-8"))
+    presented = bearer_token(request.headers.get("authorization")) or request.query_params.get("access_token", "")
+    return token_matches(presented, endpoint.access_token)
 
 
 class HttpServerAdapter:
@@ -44,7 +38,15 @@ class HttpServerAdapter:
         self._started = False
 
     def _build_app(self) -> FastAPI:
-        app = FastAPI(title=f"WeChat OneBot HTTP {self.endpoint.name}")
+        app = FastAPI(title=f"WeChat OneBot HTTP {self.endpoint.name}",
+                      docs_url=None, redoc_url=None, openapi_url=None)
+        install_body_limit(
+            app, limit=self.endpoint.max_body_bytes, status_code=413,
+            body=json.dumps(failure(1413, "请求体超过 maxBodyBytes 上限"),
+                            ensure_ascii=False).encode("utf-8"),
+            content_type="application/json",
+        )
+        install_security_headers(app)
 
         async def execute(request: Request, action: str | None = None):
             if not _authorized(self.endpoint, request):
@@ -113,6 +115,12 @@ class HttpServerAdapter:
             if record is None:
                 return JSONResponse(failure(1404, "媒体不存在"), status_code=404)
             return FileResponse(record.path, media_type=record.content_type, filename=record.name)
+
+        # Docs are disabled at app creation; keep the default paths explicitly
+        # absent so the authenticated action catch-all cannot turn them into 401
+        # responses that still reveal route existence.
+        for doc_path in ("/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"):
+            app.add_api_route(doc_path, lambda: Response(status_code=404), methods=["GET"])
 
         # Register after utility routes so /healthz isn't interpreted as an action.
         app.add_api_route("/{action}", action_api, methods=["GET", "POST"])

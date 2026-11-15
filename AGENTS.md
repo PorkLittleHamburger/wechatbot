@@ -33,12 +33,15 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --no-index --no-deps .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev15-py3-none-win_amd64.whl
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe -m compileall -q src
+.\.venv\Scripts\python.exe scripts\check_action_catalog.py --check
 .\scripts\run_mock.ps1
 .\start.cmd
 pwsh -File .\scripts\build_portable.ps1
 ```
 
 The first four commands create the development environment; the vendored SDK wheel is only needed for the `sdk` driver and its tests. `run_mock.ps1` starts an offline service; `start.cmd` launches the configured real bridge (`helper` or `sdk`); the build command writes a portable package to `dist/`.
+
+`docs/action-catalog.json` is generated from `src/wechat_onebot/onebot/actions.py` and the element manifest; after changing an action name, parameter, return schema, example or message-element support, run `python scripts/check_action_catalog.py --write` and commit the snapshot. CI runs `--check` and rejects drift. Message-element direction support is owned by `src/wechat_onebot/protocol/element_manifest.py`.
 
 ## Coding Style & Naming Conventions
 

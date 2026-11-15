@@ -47,7 +47,24 @@ class RequestEvent:
     raw: dict[str, Any] = field(default_factory=dict)
 
 
-DriverEvent: TypeAlias = IncomingMessage | NoticeEvent | RequestEvent
+@dataclass(frozen=True)
+class DriverOffline:
+    """The local driver lost its bridge/session; not a network reachability claim."""
+
+    reason: str = "driver_stopped"
+    detail: str = ""
+
+
+BOT_OFFLINE_TAGS = frozenset({
+    "helper_disconnected",
+    "sdk_session_failed",
+    "driver_stopped",
+    "account_changed",
+    "process_exited",
+})
+
+
+DriverEvent: TypeAlias = IncomingMessage | NoticeEvent | RequestEvent | DriverOffline
 
 
 @dataclass(frozen=True)

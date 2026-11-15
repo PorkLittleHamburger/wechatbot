@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable, Sequence
 import asyncio
 from pathlib import Path
+from typing import Any
 
 from ..models import (
     DriverEvent,
@@ -105,6 +106,14 @@ class Driver(ABC):
     @abstractmethod
     async def get_friend_list(self) -> Sequence[FriendInfo]:
         raise NotImplementedError
+
+    async def friend_requests(self) -> Sequence[dict[str, Any]]:
+        """Read the driver-local friend-request catalog when supported.
+
+        The list is not a standard OneBot API; drivers without a native catalog
+        must fail explicitly instead of returning an empty success.
+        """
+        raise DriverUnsupported("当前驱动不支持读取好友申请列表")
 
     @abstractmethod
     async def get_group_list(self) -> Sequence[GroupInfo]:

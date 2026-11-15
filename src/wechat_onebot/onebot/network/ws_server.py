@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-import hmac
 import logging
 from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
+from ...security import install_security_headers
 from ...service import OneBotService
+from .auth import bearer_token, token_matches
 from .config import WsServerEndpoint
 from .events import EventConnection, EventHub
 from .requests import websocket_response
@@ -17,18 +18,11 @@ from .requests import websocket_response
 logger = logging.getLogger("wechat-onebot.network.ws-server")
 
 
-def _bearer(header: str | None) -> str:
-    if not header:
-        return ""
-    scheme, _, token = header.partition(" ")
-    return token.strip() if scheme.lower() == "bearer" else ""
-
-
 def _authorized(endpoint: WsServerEndpoint, headers, query) -> bool:
     if not endpoint.access_token:
         return True
-    presented = _bearer(headers.get("authorization")) or (query.get("access_token") or "")
-    return hmac.compare_digest(presented.encode("utf-8"), endpoint.access_token.encode("utf-8"))
+    presented = bearer_token(headers.get("authorization")) or (query.get("access_token") or "")
+    return token_matches(presented, endpoint.access_token)
 
 
 class WsServerAdapter:
@@ -42,7 +36,9 @@ class WsServerAdapter:
         self._started = False
 
     def _build_app(self) -> FastAPI:
-        app = FastAPI(title=f"WeChat OneBot WS {self.endpoint.name}")
+        app = FastAPI(title=f"WeChat OneBot WS {self.endpoint.name}",
+                      docs_url=None, redoc_url=None, openapi_url=None)
+        install_security_headers(app)
 
         @app.get("/healthz")
         async def healthz():

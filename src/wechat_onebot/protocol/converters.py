@@ -205,3 +205,33 @@ def meta_event(self_id: int, meta_type: str, **data: Any) -> dict[str, Any]:
         "meta_event_type": meta_type,
         **data,
     }
+
+
+def friend_requests_payload(rows: Any, mapper: IdMapper) -> dict[str, Any]:
+    """Project driver-local friend-request rows into the read-only extension shape.
+
+    This is a gateway extension, not an upstream pending-list equivalent. Only
+    public catalog fields are projected; the driver already removed temporary
+    credentials, and this projection never adds them back.
+    """
+    requests: list[dict[str, Any]] = []
+    for row in rows or ():
+        if not isinstance(row, dict):
+            continue
+        flag = str(row.get("request_id") or "")
+        if not flag:
+            continue
+        sender = str(row.get("sender_id") or "")
+        try:
+            scene = int(row.get("scene") or 0)
+        except (TypeError, ValueError):
+            scene = 0
+        requests.append({
+            "flag": flag,
+            "user_id": mapper.get_or_create("user", sender) if sender else 0,
+            "nickname": str(row.get("nickname") or ""),
+            "comment": str(row.get("verification") or ""),
+            "scene": scene,
+            "status": str(row.get("status") or ""),
+        })
+    return {"requests": requests}

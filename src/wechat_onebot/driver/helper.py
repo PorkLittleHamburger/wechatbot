@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import ctypes
+import logging
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -9,6 +10,7 @@ from typing import Any
 
 from ..config import AppConfig, account_directories
 from ..models import (
+    DriverOffline,
     DriverStatus,
     FriendInfo,
     GroupInfo,
@@ -20,6 +22,9 @@ from ..models import (
     Segment,
 )
 from .base import Driver, DriverError, EventCallback
+
+
+logger = logging.getLogger("wechat-onebot.driver.helper")
 
 
 def _query_process_executable(pid: int) -> Path | None:
@@ -88,10 +93,14 @@ class HelperDriver(Driver):
     screenshots, mouse clicks, or keyboard simulation for sending messages.
     """
 
+    # Local receive-thread failure detection; this is not an OS-level poll.
+    OFFLINE_WATCH_SECONDS = 2.0
+
     _capabilities = frozenset({
         "text.receive", "text.send", "group.text.mention", "image.receive", "image.send",
         "file.receive", "file.send", "voice.send", "emoticon.send", "contact.read",
-        "group.members.read", "request.friend", "message.recall", "forwarded.receive",
+        "group.members.read", "request.friend", "friend.request.list",
+        "message.recall", "forwarded.receive",
     })
 
     @property
@@ -104,7 +113,7 @@ class HelperDriver(Driver):
         available = self._capabilities & supported
         available |= {"forwarded.receive"}
         if "friend.request.receive" in supported:
-            available |= {"request.friend"}
+            available |= {"request.friend", "friend.request.list"}
         return frozenset(available)
 
     def __init__(self, app_config: AppConfig):
@@ -119,6 +128,7 @@ class HelperDriver(Driver):
         self._lifecycle_executor: ThreadPoolExecutor | None = None
         self._process_lock: Any = None
         self._lifecycle_lock = asyncio.Lock()
+        self._offline_task: asyncio.Task | None = None
 
     def rebind(self, app_config: AppConfig) -> None:
         if self._online or self._process_lock is not None:
@@ -188,6 +198,7 @@ class HelperDriver(Driver):
         if self._service is not None:
             if self._online:
                 raise DriverError("微信驱动已启动")
+            await self._cancel_offline_task()
             await self._close_backend()  # Retry failed cleanup before acquiring the PID again.
         if self._process_lock is not None:
             raise DriverError("微信桥接尚未完成启动或清理")
@@ -216,6 +227,8 @@ class HelperDriver(Driver):
             self._service = service
             await self._loop.run_in_executor(self._lifecycle_executor, self._start_raw_backend)
             self._online = True
+            self._offline_task = asyncio.create_task(
+                self._watch_offline(), name="helper-offline-watch")
         except Exception as error:
             self._online = False
             try:
@@ -229,6 +242,54 @@ class HelperDriver(Driver):
         raw.monitor_handler = lambda data: self._on_raw_data(11046, data)
         raw.register_msg_handler(lambda _client, protocol, data, _service: self._on_raw_data(protocol, data))
         raw.start()
+
+    def _offline_reason(self) -> tuple[str, str] | None:
+        """Return a local failure signal from the helper receive service.
+
+        Only the helper's own thread/error state is inspected; no OS process
+        polling is added. A normal ``stop()`` clears ``_online`` first, so a
+        thread that exits because we asked it to is not reported as offline.
+        """
+        if not self._online or self._backend is None:
+            return None
+        raw = getattr(self._backend, "raw", None)
+        if raw is None:
+            return None
+        error = getattr(raw, "last_error", None)
+        if error is not None:
+            return "helper_disconnected", str(error) or type(error).__name__
+        thread = getattr(raw, "_thread", None)
+        if thread is not None and not thread.is_alive():
+            return "helper_disconnected", "接收线程已停止"
+        return None
+
+    async def _watch_offline(self) -> None:
+        while self._online:
+            await asyncio.sleep(self.OFFLINE_WATCH_SECONDS)
+            if not self._online:
+                return
+            failure = self._offline_reason()
+            if failure is None:
+                continue
+            reason, detail = failure
+            self._online = False
+            logger.warning("helper 本地接收线程已停止（有限本地信号）")
+            if detail:
+                logger.debug("helper 离线详情: %s", detail)
+            if self._emit is None:
+                return
+            try:
+                await self._emit(DriverOffline(reason=reason, detail=detail))
+            except Exception:
+                logger.exception("广播 helper 离线事件失败")
+            return
+
+    async def _cancel_offline_task(self) -> None:
+        task, self._offline_task = self._offline_task, None
+        if task is None or task.done():
+            return
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
 
     def _on_raw_data(self, protocol: int, data: Any) -> None:
         try:
@@ -292,7 +353,10 @@ class HelperDriver(Driver):
                 request_type="friend",
                 external_user_id=str(request.get("sender_id") or request.get("from_wxid") or data.get("sender_id") or ""),
                 comment=str(request.get("verification") or request.get("content") or ""),
-                flag=str(request.get("public_id") or request.get("id") or ""),
+                # Native catalog rows expose request_id; older fallbacks stay for
+                # compatibility. Reading public_id/id alone degraded flag to the
+                # sender wxid because the native dict never contains them.
+                flag=str(request.get("request_id") or request.get("public_id") or request.get("id") or ""),
                 raw=data,
             )
         if msg_type in (10000, 10002):
@@ -389,7 +453,7 @@ class HelperDriver(Driver):
                 request_type="friend",
                 external_user_id=str(request.get("sender_id") or message.sender_id or ""),
                 comment=str(request.get("verification") or ""),
-                flag=str(request.get("public_id") or request.get("id") or ""),
+                flag=str(request.get("request_id") or request.get("public_id") or request.get("id") or ""),
                 raw=data,
             )
         if msg_type in (10000, 10002):
@@ -488,6 +552,7 @@ class HelperDriver(Driver):
     async def stop(self) -> None:
         async with self._lifecycle_lock:
             self._online = False
+            await self._cancel_offline_task()
             await self._close_backend()
 
     async def _close_backend(self) -> None:
@@ -606,6 +671,39 @@ class HelperDriver(Driver):
             nickname=str(row.get("nickname") or ""),
             remark=str(row.get("remark") or ""),
         ) for row in rows if row.get("wxid"))
+
+    async def friend_requests(self) -> Sequence[dict[str, Any]]:
+        """Return the helper's in-memory friend-request catalog, whitelisted.
+
+        Raw native rows also carry temporary credentials (ticket/encrypted
+        username); only the public fields below may leave the driver.
+        """
+        import asyncio
+        self._require_service()
+        try:
+            rows = await asyncio.to_thread(self._service.friend_requests)
+        except Exception as error:
+            raise DriverError(f"读取好友申请失败: {error}") from error
+        result: list[dict[str, Any]] = []
+        for row in rows or ():
+            if not isinstance(row, dict):
+                continue
+            request_id = str(row.get("request_id") or "")
+            if not request_id:
+                continue
+            try:
+                scene = int(row.get("scene") or 0)
+            except (TypeError, ValueError):
+                scene = 0
+            result.append({
+                "request_id": request_id,
+                "sender_id": str(row.get("sender_id") or ""),
+                "nickname": str(row.get("nickname") or ""),
+                "verification": str(row.get("verification") or ""),
+                "scene": scene,
+                "status": str(row.get("status") or ""),
+            })
+        return result
 
     async def get_group_list(self) -> Sequence[GroupInfo]:
         self._require_service()

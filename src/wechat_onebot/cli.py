@@ -17,14 +17,8 @@ from . import __version__
 from .bridge import discover_accounts, discover_logged_accounts
 from .config import AppConfig, ConfigError, update_account
 from .core.runtime import RuntimeManager
+from .logging_setup import configure_logging
 from .webui import create_webui_app
-
-
-def _configure_logging(level: str = "INFO") -> None:
-    logging.basicConfig(
-        level=getattr(logging, level.upper(), logging.INFO),
-        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-    )
 
 
 def _build_manager(config: AppConfig) -> RuntimeManager:
@@ -198,12 +192,18 @@ def command_run(args: argparse.Namespace) -> int:
         config = replace(config, driver=replace(config.driver, type="mock"))
     if config.driver.type == "helper" and os.name == "nt" and not ctypes.windll.shell32.IsUserAnAdmin():
         raise ConfigError("helper 原生驱动需要管理员权限，请从提权后的 PowerShell 启动；协议开发可使用 run --mock")
-    _configure_logging(args.log_level)
+    logging_state = configure_logging(config, args.log_level)
+    gateway_log = logging.getLogger("wechat-onebot.cli")
+    if logging_state["enabled"]:
+        gateway_log.info("网关文件日志已启用: %s（级别 %s）",
+                        logging_state["file"], logging_state["level"])
+    else:
+        gateway_log.warning("文件日志未启用；仅输出到 stderr")
     manager = _build_manager(config)
     app = create_webui_app(config, manager, start_runtime=args.resume_bridge)
     try:
         uvicorn.run(app, host=config.webui.host, port=config.webui.port,
-                    log_level=args.log_level.lower(), access_log=args.access_log)
+                    log_level=logging_state["level"].lower(), access_log=args.access_log)
     finally:
         # The WebUI lifespan owns RuntimeManager shutdown.
         pass
@@ -219,7 +219,8 @@ def build_parser() -> argparse.ArgumentParser:
     run = sub.add_parser("run", help="启动 OneBot v11 服务")
     run.add_argument("--mock", action="store_true", help="强制使用 Mock 驱动，不连接微信")
     run.add_argument("--resume-bridge", action="store_true", help="恢复上次成功启动的微信桥接")
-    run.add_argument("--log-level", default="INFO", choices=["debug", "info", "warning", "error", "critical", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+    run.add_argument("--log-level", default=None, choices=["debug", "info", "warning", "error", "critical", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                     help="覆盖配置 logging.level；默认使用配置文件")
     run.add_argument("--access-log", action="store_true", help="输出 HTTP 访问日志")
     run.set_defaults(func=command_run)
 

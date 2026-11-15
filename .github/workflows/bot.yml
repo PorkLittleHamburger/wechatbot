@@ -37,6 +37,7 @@ jobs:
         shell: pwsh
         run: |
           .venv/Scripts/python.exe -m compileall -q src
+          .venv/Scripts/python.exe scripts/check_action_catalog.py --check
           .venv/Scripts/python.exe -m pytest -q
       - name: Verify native media paths
         shell: pwsh

@@ -24,6 +24,7 @@ from typing import Any
 
 from ..config import AppConfig, account_directories
 from ..models import (
+    DriverOffline,
     DriverStatus,
     FriendInfo,
     GroupInfo,
@@ -339,6 +340,44 @@ class SdkDriver(Driver):
             except Exception:
                 logger.exception("处理 wechatbot_api 事件失败 kind=%r",
                                  getattr(event, "kind", None))
+        if not self._stop.is_set():
+            self._report_session_failed()
+
+    def _session_failure_detail(self) -> str:
+        session = self._session
+        if session is None:
+            return ""
+        try:
+            status = session.status()
+        except Exception as error:
+            return _code(error)
+        last_error = getattr(status, "last_error", None)
+        code = getattr(last_error, "value", None) or (str(last_error) if last_error is not None else "")
+        if code:
+            return str(code)
+        state = getattr(status, "state", "")
+        return str(getattr(state, "value", state) or "")
+
+    def _report_session_failed(self) -> None:
+        """Surface the first local session loss; never called for a normal stop."""
+        if self._stop.is_set() or not self._online:
+            return
+        detail = self._session_failure_detail()
+        self._online = False
+        reason = {"ACCOUNT_CHANGED": "account_changed",
+                  "PROCESS_EXITED": "process_exited"}.get(detail.upper(), "sdk_session_failed")
+        logger.warning("wechatbot_api 事件消费已停止（有限本地会话信号，非网络掉线）：%s",
+                       detail or "unknown")
+        if self._loop is None or self._emit is None:
+            return
+        import asyncio
+        try:
+            future = asyncio.run_coroutine_threadsafe(
+                self._emit(DriverOffline(reason=reason, detail=detail)), self._loop)
+        except RuntimeError:
+            logger.debug("事件循环已关闭，离线事件只保留状态", exc_info=True)
+            return
+        future.add_done_callback(self._log_emit_error)
 
     def _handle(self, event: Any) -> None:
         kind = getattr(event, "kind", "")

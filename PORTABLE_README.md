@@ -37,7 +37,7 @@ v0.9.0 包还支持“节点配置 → 通用设置 → 群聊仅被 @ 时互动
 | `data/` | 本地账号配置、消息和媒体数据；首次运行后生成 |
 | `BUILD_MANIFEST.json` | 包版本和原生 DLL 校验值 |
 
-`config.json` 和 `data/` 只留在本机。请勿将它们随日志或报错截图公开。查看运行状态和报错请使用 WebUI“日志”页面。原生桥接的使用限制见 `THIRD_PARTY_NOTICES.md` 和 `vendor/helper/LICENSE`。
+`config.json` 和 `data/` 只留在本机。请勿将它们随日志或报错截图公开。查看运行状态和报错请使用 WebUI“日志”页面；网关自身日志文件默认写入实例数据目录的 `logs/gateway.log`（默认 `data/logs/gateway.log`），可在该页面切换本次运行的级别或下载文件。原生桥接的使用限制见 `THIRD_PARTY_NOTICES.md` 和 `vendor/helper/LICENSE`。
 
 `data/` 是默认位置，实际路径以 `storage.data_dir` 和 `storage.media_dir` 为准；相对路径按配置文件目录解析。更多说明见 [文档索引](docs/README.md) 和 [故障排查](docs/troubleshooting.md)。`vendor/helper` 的独立应用、插件与端口说明不代表本包的入口。
 

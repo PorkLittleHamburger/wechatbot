@@ -13,11 +13,20 @@ from ...config import AppConfig, ConfigError
 DEFAULT_MAX_MESSAGE_BYTES = 128 * 1024 * 1024
 MIN_MAX_MESSAGE_BYTES = 1024 * 1024
 MAX_MAX_MESSAGE_BYTES = 512 * 1024 * 1024
+DEFAULT_MAX_BODY_BYTES = 100 * 1024 * 1024
+MIN_MAX_BODY_BYTES = 1024 * 1024
+MAX_MAX_BODY_BYTES = 512 * 1024 * 1024
 
 
 def _validate_max_message_bytes(value: Any) -> int:
     if type(value) is not int or not MIN_MAX_MESSAGE_BYTES <= value <= MAX_MAX_MESSAGE_BYTES:
         raise ConfigError("maxMessageBytes 必须是 1–512 MiB 之间的整数")
+    return value
+
+
+def _validate_max_body_bytes(value: Any) -> int:
+    if type(value) is not int or not MIN_MAX_BODY_BYTES <= value <= MAX_MAX_BODY_BYTES:
+        raise ConfigError("maxBodyBytes 必须是 1–512 MiB 之间的整数")
     return value
 
 
@@ -60,6 +69,7 @@ class HttpServerEndpoint:
     path: str
     access_token: str
     enabled: bool = True
+    max_body_bytes: int = DEFAULT_MAX_BODY_BYTES
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "HttpServerEndpoint":
@@ -73,7 +83,9 @@ class HttpServerEndpoint:
             raise ConfigError("httpServers.accessToken 必须是字符串")
         if type(enabled) is not bool:
             raise ConfigError("httpServers.enabled 必须是布尔值")
-        return cls(name.strip(), host, port, _normalize_path(value.get("path", "/")), token, enabled)
+        max_body = _validate_max_body_bytes(value.get("maxBodyBytes", DEFAULT_MAX_BODY_BYTES))
+        return cls(name.strip(), host, port, _normalize_path(value.get("path", "/")), token,
+                   enabled, max_body)
 
 
 @dataclass(frozen=True)
@@ -223,6 +235,7 @@ class AccountNetworkConfig:
             "httpServers": [{
                 "name": row.name, "host": row.host, "port": row.port, "path": row.path,
                 "accessToken": row.access_token, "enabled": row.enabled,
+                "maxBodyBytes": row.max_body_bytes,
             } for row in self.http_servers],
             "httpClients": [{
                 "name": row.name, "url": row.url, "accessToken": row.access_token,

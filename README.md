@@ -123,6 +123,8 @@ python -m venv .venv
 
 `config.example.json` 是带占位 Token 的字段样例，不应原样复制用于运行。实际 `config.json` 和运行数据仅保留在本机。默认账号网络配置为 `data/accounts/<账号>/onebot.json`，用户/群 ID 映射为同目录的 `ids.sqlite3`，消息 ID、消息及用户资料为 `messages.sqlite3`，媒体为 `data/media/<账号>/`。路径可由 `storage` 配置修改，相对路径按配置文件目录解析。
 
+入站端点保存时，非 loopback 绑定必须使用非空 Token；新增或变更的空 Token（除本机客户端 + loopback 监听）与明显弱 Token 会被拒绝，既有弱 Token 保持可用并记录告警；仅把已有空 Token 端点改到非 loopback 地址同样会被拒绝。WebUI 登录连续失败 5 次/60 秒时限速；WebUI 与 OneBot HTTP 端点的 HTTP 响应返回安全响应头（WebSocket 握手/帧不带 HTTP 头），并关闭 `/docs`、`/redoc`、`/openapi.json`；OneBot HTTP 单次请求体默认上限 100 MiB（`maxBodyBytes`，覆盖默认 50 MiB 媒体的 base64 信封，超限返回 413 与 retcode `1413`），WebUI 登录/常规 API/动作代理分别有 16 KiB/1 MiB/16 MiB 上限。详见 [网络配置](docs/network-config.md)。
+
 `storage.max_media_bytes` 默认 50 MiB、可设 1 KiB–1 GiB，限制 base64/URL/本地媒体**解码后**的实际大小；可在 WebUI“系统设置 → 存储管理”修改并热更新当前账号媒体存储。它与端点的 `maxMessageBytes` 不同：后者限制 WS 原始帧（含 base64 文本）大小，二者必须同时满足。base64 约为原始媒体的 4/3，例如 AstrBot 将 12 MB MP3 转成 56 MiB WAV 后 base64 约 75 MiB：WS 帧能通过但会被 50 MiB 媒体上限拒绝。
 
 `sdk` 驱动另有 `driver.sdk_data_root`（默认 `data/accounts/<账号>/sdk/`，保存框架守护 journal 与私有快照）与 `driver.sdk_allow_unverified`、`driver.sdk_cross_account_mentions`、`driver.sdk_media_timeout`。它的入站媒体先由框架 `request_media` 下载，再导出到账号媒体目录的 `inbound/` 后注册；导出失败会保留明确的文本占位，不会指向不存在或已释放的文件。
@@ -136,6 +138,8 @@ python -m venv .venv
 启动失败、日志定位、媒体路径与权限的完整步骤见 [故障排查](docs/troubleshooting.md)。下列路径均以当前实例的配置为准。
 
 守护日志在当前 `driver.helper_root` 下的 `logs/bridge_watchdog_startup.log` 和 `logs/bridge_watchdog.log`；提前退出时后者可能尚未生成。`sdk` 驱动的进程退出守护由框架管理，状态见 `/api/status` 与 `get_status` 的 `watchdog` 字段。DLL 完整路径比较、本地媒体路径校验与微信核心指纹是不同检查，不应通过放宽其中一项绕过其他检查。
+
+网关自身日志默认写入实例数据目录的 `logs/gateway.log`（默认 `data/logs/gateway.log`；`logging.dir` 可改目录，`logging.file=false` 可关闭；单文件 10 MiB、保留 5 份）。WebUI“日志 → 运行日志”可查看当前级别并在本次运行内切换，也可下载日志文件；文件只写受控诊断摘要，不写完整日志参数、Token 或 `base64://` 媒体内容。详见 [故障排查](docs/troubleshooting.md)。
 
 ## 测试与验证
 

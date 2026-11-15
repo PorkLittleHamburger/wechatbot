@@ -19,9 +19,13 @@ from dataclasses import replace
 
 from ..config import AppConfig, account_directories, update_account, update_storage
 from ..onebot.network import AccountNetworkConfig, load_or_create_account_network_config
+from ..onebot.network import token_policy
 from ..core.runtime import RuntimeManager, account_media_key
 from ..bridge import discover_logged_accounts, discover_sdk_accounts
+from .. import logging_setup
+from ..security import install_body_limit, install_security_headers
 from .auth import PasswordStore
+from .rate_limit import LoginRateLimiter
 from .startup import autostart_task, load_last_bridge
 from .bridge_resume import BridgeResumeController
 
@@ -30,18 +34,43 @@ COOKIE_NAME = "wechat_onebot_webui"
 SESSION_SECONDS = 12 * 60 * 60
 LOG_LIMIT = 200
 RESUME_CHECK_SECONDS = 1.0
+LOGIN_BODY_BYTES = 16 * 1024
+API_BODY_BYTES = 1024 * 1024
+ACTION_BODY_BYTES = 16 * 1024 * 1024
+LOGIN_MAX_FAILURES = 5
+LOGIN_WINDOW_SECONDS = 60.0
+
+
+def _webui_body_limit(method: str, path: str) -> int | None:
+    if method not in ("POST", "PUT", "PATCH", "DELETE"):
+        return None
+    normalized = path.rstrip("/") or "/"
+    if normalized in ("/api/login", "/api/setup-password", "/api/change-password"):
+        return LOGIN_BODY_BYTES
+    if normalized.startswith("/api/accounts/") and normalized.endswith("/action"):
+        return ACTION_BODY_BYTES
+    if normalized.startswith("/api/"):
+        return API_BODY_BYTES
+    return None
+
+
+def _token_policy_inputs(config: AppConfig, account: str,
+                         network_config: AccountNetworkConfig) -> tuple[str, ...]:
+    values = [config.driver.wechat_account, account, config.webui.host, str(config.webui.port)]
+    for row in (*network_config.http_servers, *network_config.ws_servers):
+        values.extend((row.name, row.host, str(row.port)))
+    return tuple(value for value in values if value)
+
+
+def _masked_request_flag(flag: str) -> str:
+    """Show only a correlation prefix; the WebUI never needs the full flag."""
+    if not flag:
+        return ""
+    return flag[:6] + "…" if len(flag) > 6 else flag[:2] + "…"
 
 
 class _SafeRuntimeLogs(logging.Handler):
     """Keep diagnostic summaries, never formatted log arguments or exceptions."""
-
-    _messages = {
-        "反向 WebSocket 已连接: %s": "反向 WebSocket 已连接",
-        "反向 WebSocket 连接失败 %s: %s；%.1fs 后重试": "反向 WebSocket 连接失败，等待重试",
-        "HTTP 上报队列已满，丢弃事件: %s": "HTTP 上报队列已满",
-        "HTTP 上报失败 %s: %s": "HTTP 上报失败",
-        "OneBot 动作失败: %s": "OneBot 动作失败",
-    }
 
     def __init__(self):
         super().__init__(level=logging.INFO)
@@ -57,7 +86,7 @@ class _SafeRuntimeLogs(logging.Handler):
             "time": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),
             "level": record.levelname,
             "scope": scope,
-            "message": self._messages.get(record.msg, "运行异常" if record.levelno >= logging.ERROR else "运行事件"),
+            "message": logging_setup.safe_message(record),
         })
 
 
@@ -88,10 +117,13 @@ class SessionStore:
 
 
 def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtime: bool = False,
-                     cookie_name: str = COOKIE_NAME) -> FastAPI:
+                     cookie_name: str = COOKIE_NAME,
+                     login_limiter: LoginRateLimiter | None = None) -> FastAPI:
     sessions = SessionStore()
     passwords = PasswordStore(config.storage.data_dir / "webui-auth.json")
     runtime_logs = _SafeRuntimeLogs()
+    login_limiter = login_limiter or LoginRateLimiter(
+        max_failures=LOGIN_MAX_FAILURES, window_seconds=LOGIN_WINDOW_SECONDS)
     bridge_resume = BridgeResumeController(config, manager, enabled=start_runtime,
                                            check_seconds=RESUME_CHECK_SECONDS,
                                            discover=lambda root: discover_logged_accounts(root))
@@ -114,6 +146,9 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             "lastError": manager.last_error,
             "runtimes": manager.snapshot(),
             "bridgeResume": bridge_resume.snapshot(),
+            "logFile": str(logging_setup.log_file_path(config)),
+            "logLevel": logging_setup.current_level(config),
+            "logFileEnabled": config.logging.file,
         }
 
     @asynccontextmanager
@@ -134,7 +169,11 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
                 root_logger.removeHandler(runtime_logs)
                 await manager.stop_all()
 
-    app = FastAPI(title="WeChat OneBot WebUI", version=config.version, lifespan=lifespan)
+    app = FastAPI(title="WeChat OneBot WebUI", version=config.version, lifespan=lifespan,
+                  docs_url=None, redoc_url=None, openapi_url=None)
+    install_body_limit(app, limit_for=_webui_body_limit,
+                       body="请求体超过上限".encode("utf-8"))
+    install_security_headers(app)
     app.state.bridge_resume = bridge_resume
 
     @app.get("/healthz")
@@ -170,6 +209,13 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
 
     @app.post("/api/login")
     async def login(request: Request, response: Response):
+        client_key = request.client.host if request.client else "unknown"
+        retry_after = login_limiter.retry_after(client_key)
+        if retry_after > 0:
+            return JSONResponse(
+                {"ok": False, "message": "登录失败次数过多，请稍后重试"},
+                status_code=429,
+                headers={"Retry-After": login_limiter.retry_after_header(retry_after)})
         try:
             body = await request.json()
         except Exception:
@@ -179,14 +225,17 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
         if passwords.configured:
             password = body.get("password")
             if not isinstance(password, str) or not passwords.verify(password):
+                login_limiter.record_failure(client_key)
                 return Response("密码错误", status_code=401)
             kind = "full"
         else:
             token = body.get("token")
             if (not isinstance(token, str) or not config.webui.access_token
                     or not hmac.compare_digest(token, config.webui.access_token)):
+                login_limiter.record_failure(client_key)
                 return Response("首次登录 Token 无效", status_code=401)
             kind = "setup"
+        login_limiter.clear(client_key)
         session = sessions.create(kind)
         response.set_cookie(cookie_name, session, max_age=SESSION_SECONDS, httponly=True,
                             samesite="strict", secure=False)
@@ -381,6 +430,67 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             return Response("未登录", status_code=401)
         return {"logs": list(runtime_logs.entries)}
 
+    @app.get("/api/logs/level")
+    async def log_level(request: Request):
+        if not authorized(request):
+            return Response("未登录", status_code=401)
+        return {"level": logging_setup.current_level(config),
+                "levels": list(logging_setup.LOG_LEVELS),
+                "persisted": False}
+
+    @app.post("/api/logs/level")
+    async def log_level_update(request: Request):
+        if not authorized(request):
+            return Response("未登录", status_code=401)
+        try:
+            body = await request.json()
+        except Exception:
+            return Response("请求体必须是 JSON", status_code=400)
+        if not isinstance(body, dict) or not isinstance(body.get("level"), str):
+            return Response("请求必须包含 level", status_code=400)
+        previous = logging_setup.current_level(config)
+        try:
+            current = logging_setup.set_log_level(body["level"])
+        except ValueError as error:
+            return JSONResponse({"ok": False, "error": str(error)}, status_code=400)
+        logging.getLogger("wechat-onebot.webui").info(
+            "日志级别已由 WebUI 切换: %s -> %s", previous, current)
+        return {"ok": True, "level": current, "previous": previous, "persisted": False}
+
+    @app.get("/api/logs/file")
+    async def log_file_tail(request: Request):
+        if not authorized(request):
+            return Response("未登录", status_code=401)
+        path = logging_setup.log_file_path(config)
+        tail_value = request.query_params.get("tail")
+        if tail_value in (None, ""):
+            return {"file": str(path), "exists": path.is_file(),
+                    "enabled": config.logging.file,
+                    "level": logging_setup.current_level(config)}
+        try:
+            tail = int(tail_value)
+        except ValueError:
+            return Response("tail 必须是 1–2000 之间的整数", status_code=400)
+        if not 1 <= tail <= 2000:
+            return Response("tail 必须是 1–2000 之间的整数", status_code=400)
+        try:
+            lines, truncated = await asyncio.to_thread(
+                logging_setup.tail_log_file, path, tail)
+        except OSError:
+            return JSONResponse({"ok": False, "error": "读取日志文件失败"}, status_code=500)
+        return {"file": str(path), "exists": path.is_file(), "lines": lines,
+                "truncated": truncated, "level": logging_setup.current_level(config)}
+
+    @app.get("/api/logs/download")
+    async def log_download(request: Request):
+        if not authorized(request):
+            return Response("未登录", status_code=401)
+        path = await asyncio.to_thread(logging_setup.webui_log_file, config)
+        if path is None:
+            return Response("日志文件尚未生成或不在日志目录内", status_code=404)
+        return FileResponse(path, media_type="text/plain; charset=utf-8",
+                            filename="wechat-onebot-gateway.log")
+
     @app.get("/api/events")
     async def events(request: Request):
         if not authorized(request):
@@ -415,8 +525,20 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
             return Response("请求体必须是 JSON", status_code=400)
         if not isinstance(body, dict):
             return Response("网络配置必须是 JSON 对象", status_code=400)
+        account_dir, _ = account_directories(config, account)
         try:
             network_config = AccountNetworkConfig.from_dict(body)
+            previous = load_or_create_account_network_config(
+                account_dir / "onebot.json", config, account)
+        except Exception as error:
+            return {"ok": False, "saved": False, "applied": False, "message": str(error)}
+        client_ip = request.client.host if request.client else ""
+        allowed, message = token_policy.validate_token_changes(
+            previous, network_config, client_ip=client_ip,
+            user_inputs=_token_policy_inputs(config, account, network_config))
+        if not allowed:
+            return {"ok": False, "saved": False, "applied": False, "message": message}
+        try:
             applied = await manager.apply_network_config(account, network_config)
         except Exception as error:
             return {"ok": False, "saved": False, "applied": False, "message": str(error)}
@@ -431,6 +553,28 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
         if runtime is None:
             return Response("账号 Runtime 不存在", status_code=404)
         return {"events": runtime.service.recent_events(100)}
+
+    @app.get("/api/accounts/{account}/friend-requests")
+    async def account_friend_requests(account: str, request: Request):
+        if not authorized(request):
+            return Response("未登录", status_code=401)
+        count_value = request.query_params.get("count", "50")
+        try:
+            count = int(count_value)
+        except ValueError:
+            return Response("count 必须是 1–100 之间的整数", status_code=400)
+        if not 1 <= count <= 100:
+            return Response("count 必须是 1–100 之间的整数", status_code=400)
+        result = await manager.dispatch(account, "get_friend_requests", {"count": count})
+        if result.get("status") != "ok":
+            return JSONResponse(
+                {"ok": False, "error": result.get("message") or "读取好友申请失败"},
+                status_code=400)
+        rows = (result.get("data") or {}).get("requests") or []
+        return {"ok": True, "requests": [
+            {**row, "flag": _masked_request_flag(str(row.get("flag") or ""))}
+            for row in rows if isinstance(row, dict)
+        ]}
 
     @app.get("/api/accounts/{account}/storage")
     async def account_storage(account: str, request: Request):

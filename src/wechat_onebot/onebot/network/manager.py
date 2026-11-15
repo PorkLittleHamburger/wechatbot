@@ -6,6 +6,7 @@ from typing import Any
 
 from ...service import OneBotService
 from .config import AccountNetworkConfig
+from . import token_policy
 from .events import EventHub
 from .http_client import HttpClientAdapter
 from .http_server import HttpServerAdapter
@@ -55,6 +56,7 @@ class OneBotNetworkManager:
                 adapter.start()
             self._heartbeat_task = asyncio.create_task(self._heartbeat_loop(), name="onebot-heartbeat")
             self.started = True
+            self._warn_token_policy()
             await self._http_lifecycle(self.http_clients, "enable")
         except Exception:
             if self._heartbeat_task is not None:
@@ -147,6 +149,12 @@ class OneBotNetworkManager:
             self.ws_clients = new_ws_clients
             self.config = config
             self.service.rate_limit_interval_ms = config.rate_limit_interval_ms
+            self._warn_token_policy()
+
+    def _warn_token_policy(self) -> None:
+        # Manually edited configs keep working (U-05a); make the exposure visible.
+        for message in token_policy.insecure_endpoint_warnings(self.config):
+            logger.warning("检测到不安全的 OneBot 入站端点配置: %s", message)
 
     @staticmethod
     def _reconcile(existing, endpoints, factory):

@@ -54,6 +54,45 @@ async def test_http_auth_and_action(tmp_path: Path):
             assert payload["status"] == "ok"
             assert payload["echo"] == 7
             assert payload["data"]["online"] is True
+            # Bare-token compatibility (no "Bearer" scheme, no whitespace).
+            bare = await client.post("/", headers={"Authorization": "test-token"},
+                                     json={"action": "get_status"})
+            assert bare.status_code == 200 and bare.json()["status"] == "ok"
+            # A non-token Authorization scheme still fails closed.
+            basic = await client.post("/send_private_msg",
+                                      headers={"Authorization": "Basic YWJjOmRlZg=="},
+                                      json={"user_id": 1, "message": "x"})
+            assert basic.status_code == 403
+            # FastAPI documentation routes are disabled.
+            for path in ("/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"):
+                assert (await client.get(path)).status_code == 404
+            health = await client.get("/healthz")
+            assert health.headers["x-frame-options"] == "DENY"
+            assert health.headers["x-content-type-options"] == "nosniff"
+            assert health.headers["referrer-policy"] == "no-referrer"
+            assert "frame-ancestors 'none'" in health.headers["content-security-policy"]
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+async def test_http_body_limit_returns_413_with_onebot_failure(tmp_path: Path):
+    _, service, mapper = await make_service(tmp_path)
+    adapter = HttpServerAdapter(
+        service, HttpServerEndpoint("limited", "127.0.0.1", 6700, "/", "test-token",
+                                    True, 1024 * 1024))
+    try:
+        transport = httpx.ASGITransport(app=adapter.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            headers = {"Authorization": "Bearer test-token"}
+            body = b'{"action":"get_status","padding":"' + b"a" * (1024 * 1024) + b'"}'
+            response = await client.post("/", headers=headers, content=body)
+            assert response.status_code == 413
+            payload = response.json()
+            assert payload["status"] == "failed" and payload["retcode"] == 1413
+            accepted = await client.post("/", headers=headers,
+                                         json={"action": "get_status"})
+            assert accepted.status_code == 200
     finally:
         await service.stop()
         mapper.close()
@@ -70,6 +109,8 @@ def test_forward_websocket_adapter(tmp_path: Path):
     adapter = WsServerAdapter(service, EventHub(), WsServerEndpoint("default", "127.0.0.1", 6701, "/ws", "test-token"))
     try:
         with TestClient(adapter.app) as client:
+            assert client.get("/docs").status_code == 404
+            assert client.get("/openapi.json").status_code == 404
             with client.websocket_connect("/ws?access_token=test-token") as websocket:
                 lifecycle = websocket.receive_json()
                 assert lifecycle["post_type"] == "meta_event"
@@ -77,6 +118,11 @@ def test_forward_websocket_adapter(tmp_path: Path):
                 response = websocket.receive_json()
                 assert response["status"] == "ok"
                 assert response["echo"] == "login"
+            # Bare Authorization token is accepted for forward WS too.
+            with client.websocket_connect("/ws", headers={"Authorization": "test-token"}) as websocket:
+                assert websocket.receive_json()["post_type"] == "meta_event"
+            rejected = client.get("/healthz")
+            assert rejected.headers["x-frame-options"] == "DENY"
     finally:
         asyncio.run(service.stop())
         mapper.close()
@@ -99,6 +145,29 @@ async def test_http_string_booleans_and_json_message_with_real_service(tmp_path:
             # Missing resources are action failures; unknown APIs are HTTP 404.
             response = await client.get("/get_msg?message_id=123")
             assert response.status_code == 200 and response.json()["status"] == "failed"
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+async def test_http_default_body_limit_accepts_50mib_media_base64_envelope(tmp_path: Path):
+    """Default 100 MiB must cover base64 of a 50 MiB decoded media item."""
+    from wechat_onebot.onebot.network.config import DEFAULT_MAX_BODY_BYTES
+
+    _, service, mapper = await make_service(tmp_path)
+    adapter = HttpServerAdapter(
+        service, HttpServerEndpoint("default", "127.0.0.1", 6700, "/", "test-token"))
+    encoded = 4 * ((50 * 1024 * 1024 + 2) // 3)
+    assert encoded < DEFAULT_MAX_BODY_BYTES
+    body = b'{"action":"get_status","padding":"' + b"a" * encoded + b'"}'
+    try:
+        transport = httpx.ASGITransport(app=adapter.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/", headers={"Authorization": "Bearer test-token",
+                              "Content-Type": "application/json"}, content=body)
+            assert response.status_code == 200
+            assert response.json()["status"] == "ok"
     finally:
         await service.stop()
         mapper.close()

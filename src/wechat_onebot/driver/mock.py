@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..models import (
+    DriverOffline,
     DriverStatus,
     FriendInfo,
     GroupInfo,
@@ -28,7 +29,7 @@ class MockDriver(Driver):
     capabilities = frozenset({
         "text.receive", "text.send", "group.text.mention", "image.receive", "image.send",
         "file.receive", "file.send", "voice.send", "emoticon.send", "contact.read",
-        "group.members.read", "request.friend",
+        "group.members.read", "request.friend", "friend.request.list",
     })
 
     def __init__(self):
@@ -48,6 +49,7 @@ class MockDriver(Driver):
                 GroupMemberInfo("10001@chatroom", "wxid_bob", "Bob", "Bob", "member"),
             ),
         }
+        self.friend_request_rows: list[dict[str, Any]] = []
 
     @property
     def online(self) -> bool:
@@ -60,6 +62,18 @@ class MockDriver(Driver):
     async def stop(self) -> None:
         self._online = False
         self._emit = None
+
+    async def go_offline(self, reason: str = "driver_stopped", detail: str = "") -> None:
+        """Test hook: simulate a local bridge/session loss once."""
+        if not self._online:
+            return
+        self._online = False
+        if self._emit is not None:
+            await self._emit(DriverOffline(reason=reason, detail=detail))
+
+    async def go_online(self) -> None:
+        """Test hook: simulate the bridge being usable again (no online notice)."""
+        self._online = True
 
     async def send_text(self, chat_id: str, text: str) -> bool:
         self.sent.append(SendRecord("text", chat_id, {"text": text}))
@@ -95,6 +109,9 @@ class MockDriver(Driver):
 
     async def get_friend_list(self) -> Sequence[FriendInfo]:
         return self.friends
+
+    async def friend_requests(self) -> Sequence[dict[str, Any]]:
+        return [dict(row) for row in self.friend_request_rows]
 
     async def get_group_list(self) -> Sequence[GroupInfo]:
         return self.groups

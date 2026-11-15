@@ -35,8 +35,9 @@ resolution; outbound action calls are not restricted. This field is included in 
       "host": "127.0.0.1",
       "port": 6700,
       "path": "/",
-      "accessToken": "onebot-token",
-      "enabled": true
+      "accessToken": "6mZq2Vt9Lk4Rw8Pc",
+      "enabled": true,
+      "maxBodyBytes": 104857600
     }
   ],
   "httpClients": [
@@ -55,7 +56,7 @@ resolution; outbound action calls are not restricted. This field is included in 
       "host": "127.0.0.1",
       "port": 6701,
       "path": "/ws",
-      "accessToken": "onebot-token",
+      "accessToken": "6mZq2Vt9Lk4Rw8Pc",
       "enabled": true,
       "maxMessageBytes": 134217728
     }
@@ -78,7 +79,10 @@ resolution; outbound action calls are not restricted. This field is included in 
 
 - Endpoint names must be non-empty and unique within each list.
 - Duplicate server `host:port` pairs are rejected across both server lists, including disabled entries. Wildcard binds and separate accounts can also conflict at runtime; different paths do not allow sharing a listener.
-- Access tokens are independent per endpoint. An omitted token defaults to an empty string; an empty server token disables action authentication. Configure non-empty credentials before exposing an endpoint.
+- Access tokens are independent per endpoint. An omitted token defaults to an empty string. For compatibility an already-saved empty token keeps working (loading never fails), but the WebUI refuses to **save a changed empty token** — or to move an existing empty-token endpoint to a non-loopback bind — unless both the management client and the listening address are loopback; a non-loopback bind must use a non-empty token. Changed tokens shorter than 16 characters, common placeholder/weak values, sequences, all-digit strings, or tokens containing the account name, endpoint name, host or port are rejected; an unchanged weak token is allowed and only logged as a warning. Manual edits of `onebot.json` are not rejected. HTTP and forward WS action endpoints accept `Authorization: Bearer <token>`, a bare `Authorization: <token>`, or the `access_token` query parameter.
+- `maxBodyBytes` limits one OneBot HTTP POST body (default **100 MiB**, 1–512 MiB) and is enforced by counting actual bytes, not only Content-Length. The default stays above the base64 envelope of a 50 MiB decoded media item (about 70 MB plus JSON overhead); raise it for larger inline media or use a URL/file input instead. An oversized request returns HTTP 413 with OneBot retcode `1413`. The WebUI applies fixed limits: login/setup/change-password **16 KiB**, other JSON APIs **1 MiB**, and `/api/accounts/{account}/action` **16 MiB** so large inline media can still be sent. These limits are not configurable in this batch.
+- WebUI failed logins are rate limited per client address: 5 failures within 60 seconds return `429` with `Retry-After`; a successful login clears the window. State is in memory and resets when the process restarts. The gateway does not trust `X-Forwarded-For`; behind a reverse proxy the limit applies to the proxy address, so restrict proxy exposure separately.
+- HTTP responses from the WebUI and the OneBot HTTP server adapter carry `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and a CSP limited to `frame-ancestors 'none'; base-uri 'self'; object-src 'none'`. WebSocket accept handshakes and WS frames are not HTTP responses and do not carry these headers. No CORS headers are added. FastAPI `/docs`, `/redoc` and `/openapi.json` are disabled on the WebUI, OneBot HTTP and OneBot WS apps.
 - HTTP client events include `X-Self-ID`, plus `Authorization: Bearer <accessToken>` when non-empty. Optional `secret` adds HMAC-SHA1 `X-Signature`. Response JSON can request standard quick replies; unsupported native operations are logged. Reports are not a durable retry queue. HTTP POST and quick operations finish before WS broadcast.
 - Reverse WS clients send `Authorization: Bearer <accessToken>` when non-empty during the handshake, plus `X-Self-ID` and the configured `X-Client-Role` (`Universal`, `API`, or `Event`). HTTP and forward WS action endpoints accept a Bearer token or the `access_token` query parameter.
 - `maxMessageBytes` limits the raw size of one received WS frame/message: forward WS servers use it as uvicorn `ws_max_size`, reverse WS clients pass it to `websockets.connect` (`max_size`). The default is **128 MiB**, configurable 1–512 MiB. It exists for clients that inline long audio as `base64://` (AstrBot's `Record` adapter can produce 30 MB+ frames); frames over the limit close with `1009 (message too big)` and the client's API call times out. Raise it only for trusted local/private endpoints because each frame can consume comparable memory. The WebUI exposes the field for both WS endpoint types.
@@ -110,6 +114,7 @@ resolution; outbound action calls are not restricted. This field is included in 
 | HTTP client `timeoutSeconds` | 10 seconds | 0 for no timeout, otherwise 0.5–120 seconds |
 | WS client `reconnectSeconds` | 5 seconds | 0.5–300 seconds; every retry waits this fixed interval after a failed connection or a clean close (no exponential backoff; a backoff strategy would be a separate planned change) |
 | WS server/client `maxMessageBytes` | 134217728 (128 MiB) | Integer 1–512 MiB; received raw WS frame limit for large base64 media |
+| HTTP server `maxBodyBytes` | 104857600 (100 MiB) | Integer 1–512 MiB; OneBot HTTP POST body limit; oversized body returns 413/retcode 1413 |
 | `storage.max_media_bytes` (main config) | 52428800 (50 MiB) | Integer 1 KiB–1 GiB; decoded media limit, independent of WS frames |
 | Client `url` | Required | HTTP(S) for HTTP clients, WS(S) for WS clients |
 

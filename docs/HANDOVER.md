@@ -46,7 +46,8 @@
 - 群消息未知角色可输出兼容默认值 `member`，不能证明真实群权限；观测成员资料将未知角色标在 `unavailable_fields`，标准 `role` 使用保守的 `member`。
 - Helper 成员行缺少群昵称时，适配器的 `card` 可退回显示昵称；分开存储字段不等于每份 `card` 都是独立的真实群名片。
 - AstrBot UMO 可由用户和群组合。应核对消息实际路由配置中的 `unique_session`，而不是改 Bot 的群 ID。诊断须区分网关事件、客户端正文和微信 UI。
-- 日志位置以实例 `driver.helper_root` 为准；Release、源码和正在运行的实例可能是三个不同状态。详见 [故障排查](troubleshooting.md)。
+- 网关自身日志默认写入实例 `storage.data_dir/logs/gateway.log`（`logging.dir` 可改目录，`logging.file=false` 可关闭；10 MiB×5 轮转，只写受控摘要），WebUI 可查询/热切换本次运行级别并下载；helper 守护日志位置以实例 `driver.helper_root` 为准。Release、源码和正在运行的实例可能是三个不同状态。详见 [故障排查](troubleshooting.md)。
+- 入站端点保存护栏：非 loopback 绑定必须使用非空 Token；新增/变更的空 Token（除本机客户端 + loopback 监听）、仅把已有空 Token 端点改到非 loopback 地址、以及明显弱 Token 变更被拒绝，既有弱 Token 仅告警不阻断。WebUI 登录 5 次失败/60 秒限速；WebUI 与 OneBot HTTP 端点的 HTTP 响应带安全头（WS 握手/帧无 HTTP 头），并关闭 `/docs`、`/redoc`、`/openapi.json`；OneBot HTTP `maxBodyBytes` 默认 100 MiB（覆盖默认 50 MiB 媒体的 base64 信封，超限 413/retcode 1413），WebUI 请求体上限 16 KiB/1 MiB/16 MiB（登录/常规 API/动作代理）。
 
 ## 验证与发布
 
@@ -413,4 +414,34 @@ v0.11.6 修复后，用户再次发送群消息仍失败，错误从 `NOT_VERIFI
 6. `get_group_info`/`get_group_member_info` 的 `no_cache` 补 ParamSpec 描述，明确为兼容参数、不触发额外刷新；Driver 无刷新原语，未伪造刷新。
 7. `@全体成员` 失败文案改为“当前驱动不支持”，retcode 仍 1404。
 
-验证：`pytest -q` **556 passed / 1 skipped**，`compileall -q src` 通过；纠偏批次由独立 verifier 复核文档/代码一致、无 P1 实现、无 `.env`/`.development`/`.agent-teams` 提交。P1 七项分析与 U-01 出站引用决策包只读产物在 `.development/analysis/`（gitignored，不提交）；范围选择与真机实验待用户裁决。`docs/snowluma-comparison.md` 与 `docs/README.md` 索引作为单独比对交付批次处理，尚未提交。
+验证：`pytest -q` **556 passed / 1 skipped**，`compileall -q src` 通过；纠偏批次由独立 verifier 复核文档/代码一致、无 P1 实现、无 `.env`/`.development`/`.agent-teams` 提交。P1 七项分析与 U-01 出站引用决策包只读产物在 `.development/analysis/`（gitignored，不提交）；范围选择与真机实验待用户裁决。`docs/snowluma-comparison.md` 与 `docs/README.md` 索引已由 `04ab900`（docs: archive SnowLuma comparison and ignore agent team state）提交；本批已按已提交状态表述，不再保留旧说法。
+
+## B 批 U-04 桥接离线事件（2026-11-15，未发布）
+
+`notice bot_offline` 作为本地桥接失联的**尽力信号**加入：SDK 事件消费线程异常退出、helper 接收线程停止或 `last_error` 非空时，驱动置为离线并上报一次；服务在每次 online→offline 只广播一次，不发 online 通知。心跳只报告当前驱动状态，不能自行恢复（helper/sdk 的 `online` 仅在 start 置 true）；恢复需停止/重启桥接或重新启动账号 Runtime，之后的心跳才会看到 online=true 并重置去抖门闩。正常关停不发。字段为 `user_id=self_id`、`tag`（`helper_disconnected` / `sdk_session_failed` / `driver_stopped` / `account_changed` / `process_exited`）、`message`；广播走服务内 `emit_internal_event`，不改变既有 `meta_event lifecycle` 与心跳语义，未新增 OS 轮询。
+
+Q-14 有限结论（2026-11-15 实测）：Bot 侧直连 SDK 时，手动退出微信进程约 55 秒后 `Session.status()` 从 `connected` 变为 `failed`，期间无发送、无自动重连。该信号**不等同网络掉线或可靠心跳**；文档与测试统一按“本地状态可观测进程退出”的有限口径表述，不宣称可靠断线检测。
+
+验证：新增 `tests/test_offline_event.py` 覆盖单次通知、重复信号去重、恢复后再次离线、正常关停/重启、无 sink/异常 sink、helper 线程与错误探测、SDK `StopIteration`/正常停止、WS 广播；全量 `pytest -q` **629 passed / 1 skipped**，`compileall -q src`、`scripts/check_action_catalog.py --check` 与内联 JS `node --check` 通过。未提交、未真机。
+
+## B 批 U-08a 好友申请只读列表（2026-11-15，未发布）
+
+修复 helper 入站好友申请的 `flag` 映射：优先读取原生 `request_id`（原生 dict 不含 `public_id`/`id`，旧代码因此回退为发送者 wxid），旧字段保留兼容回退；`_convert_raw_data` 与 `_convert_message` 两处同步。
+
+新增只读扩展动作 `get_friend_requests`（可选 `count` 1–100，默认 50）与 helper 驱动 `friend_requests()`；驱动只返回 `request_id/sender_id/nickname/verification/scene/status` 白名单字段，ticket/encrypted username/raw XML 不出驱动。helper 能力名新增 `friend.request.list`（按后端 `friend.request.receive` 门控），sdk 返回 1404，mock 提供内存目录用于测试。WebUI 账号页新增“好友申请（只读）”列表，flag 只显示前缀，无审批/拒绝/备注按钮与写操作。动作目录快照更新为 24 个动作。
+
+本批**不含** U-08b：未注册 `set_friend_add_request`，不实现 approve/reject/remark，也不暴露 ticket。
+
+验证：新增 `tests/test_friend_requests.py` 与 WebUI endpoint 用例（request_id 映射与旧字段回退、白名单脱敏、空/缺字段过滤、count 限制、能力缺失 1404、SDK 1404、快照）；全量 `pytest -q` **640 passed / 1 skipped**，`compileall -q src`、`scripts/check_action_catalog.py --check` 与内联 JS `node --check` 通过。未提交、未真机。
+
+## B 批落地与验证入口（2026-11-15）
+
+B 批为 A 批之后的工作区改动，**尚未 commit、未发布、未真机**；范围与入口如下（U-04/U-08a 细节见上两节）：
+
+- U-07 动作目录/元素四向单一真源：`scripts/check_action_catalog.py` + `docs/action-catalog.json`（24 动作/15 元素），`src/wechat_onebot/protocol/element_manifest.py` 为元素方向单一真源；CI 执行 `--check` 防漂移。测试：`tests/test_action_catalog.py`、`tests/test_element_manifest.py`。文档入口：`AGENTS.md` 构建/校验命令、`docs/architecture.md:101`、`docs/onebot-compatibility.md:97-109`。
+- U-06 文件日志与级别热切换：`src/wechat_onebot/logging_setup.py`（10 MiB×5、白名单摘要脱敏）、WebUI `/api/logs/level`、`/api/logs/file`、`/api/logs/download`、CLI `--log-level`；测试 `tests/test_logging.py` 与 WebUI 用例。文档入口：`docs/troubleshooting.md`、`README.md`。
+- U-05a 暴露面加固：`token_policy.py`、`auth.py`、`security.py`、`webui/rate_limit.py`（保存护栏、安全头、登录 5/60s 限速、WebUI/OneBot 请求体上限、关闭 docs 路由）；测试 `tests/test_security_policy.py`、`tests/test_http.py`、`tests/test_webui.py`。文档入口：`docs/network-config.md`、`README.md`。
+- U-04 桥接离线事件：见“B 批 U-04”节；测试 `tests/test_offline_event.py`。
+- U-08a 好友申请只读列表：见“B 批 U-08a”节；测试 `tests/test_friend_requests.py`；`get_friend_requests` 为可选扩展，不含 U-08b 审批/备注。
+
+验证入口：`pytest -q`、`python -m compileall -q src`、`python scripts/check_action_catalog.py --check`、内联 JS `node --check`、`git diff --check`；当前 `pytest --collect-only` 为 **645 项 / 49 个测试文件**（t24 W-01 后）。独立 verifier t16 的阻塞项 V-01（默认体上限）与提交前项 V-02/V-04/V-05 已由 t21 修复，W-01/W-02 已由 t24/t25 修复，t26 最终复验 **PASS**；B 批由本轮提交纳入，尚未发布，不得按已发布表述。

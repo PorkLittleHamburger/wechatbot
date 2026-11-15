@@ -523,8 +523,9 @@ const S = {
   network: null, networkJsonOpen: false, configTab: "general",
   events: [], eventFilter: "all", eventQuery: "", selectedEvent: null, eventsAuto: true,
   logTab: "runtime", logs: null, logQuery: "", logLevel: "all", logAuto: true,
+  gatewayLevel: "", gatewayLevels: [],
   processes: null, processError: "", processSort: "status", processLoading: false, processRequest: 0, bridgeBusy: false,
-  friends: null, groups: null, friendQuery: "", groupQuery: "",
+  friends: null, groups: null, friendQuery: "", groupQuery: "", friendRequests: null,
   mentionLabels: null, mentionGroup: "", mentionUser: "", mentionLabel: "",
   storage: null, maxMediaBytes: null, mediaLimitBusy: false,
   action: null, actionParams: {}, actionJsonMode: false, actionResult: null, actionBusy: false, confirmWrite: false, actionQuery: "", debugTab: "tester", apiQuery: "",
@@ -684,7 +685,7 @@ function applyStatus(payload) {
     : (runtimes.find((r) => r.account === payload.configuredAccount) || runtimes[0] || null);
   S.account = preferredAccount || (S.runtime ? S.runtime.account : (payload.configuredAccount || null));
   if (S.account !== previousAccount) {
-    S.loginInfo = null; S.versionInfo = null; S.friends = null; S.groups = null;
+    S.loginInfo = null; S.versionInfo = null; S.friends = null; S.groups = null; S.friendRequests = null;
     S.network = null; S.storage = null; S.caps = null; S.catalog = null;
   }
   updateChrome();
@@ -706,7 +707,7 @@ function selectAccount(account, force = false) {
   if (!account || (account === S.account && !force)) return;
   S.selectedAccount = account;
   S.loginInfo = null; S.versionInfo = null; S.caps = null; S.catalog = null; S.catalogError = "";
-  S.friends = null; S.groups = null; S.network = null; S.storage = null;
+  S.friends = null; S.groups = null; S.friendRequests = null; S.network = null; S.storage = null;
   S.events = []; S.selectedEvent = null;
   applyStatus(S.status);
   render();
@@ -1132,7 +1133,10 @@ function renderAccount(root) {
         "<label class=\"field\" style=\"flex:1;min-width:180px\"><span>真实显示名</span><input class=\"input\" id=\"mentionName\" maxlength=\"64\" placeholder=\"群内 @ 时显示的名字\" value=\"" + esc(S.mentionLabel) + "\"></label>" +
         "<button class=\"btn primary\" data-act=\"mention-save\">保存绑定</button></div>" +
         "<p class=\"hint\" style=\"margin:8px 0 0\">仅对“缓存中查不到昵称”的成员生效；名称必须与该成员在微信群里的实际显示名一致，任意标签不会产生真实 @。group_id/user_id 可在本页群列表和 OneBot 事件中查看。</p>" +
-        "<div class=\"rows scroll\" id=\"mentionList\" style=\"max-height:240px;margin-top:10px\">" + emptyState("尚未绑定成员显示名", "i-user") + "</div></div></div>";
+        "<div class=\"rows scroll\" id=\"mentionList\" style=\"max-height:240px;margin-top:10px\">" + emptyState("尚未绑定成员显示名", "i-user") + "</div></div></div>" +
+      "<div class=\"card\" style=\"margin-top:16px\"><div class=\"card-h\"><h2>好友申请（只读）</h2><div class=\"spacer\"></div>" +
+        "<span class=\"hint\">helper 本机内存目录，非上游 pending 等价；不提供审批</span><button class=\"btn ghost sm\" data-act=\"fr-refresh\"><svg class=\"i\"><use href=\"#i-refresh\"/></svg>刷新</button></div>" +
+        "<div class=\"card-b\"><div class=\"rows scroll\" id=\"friendRequestsList\" style=\"max-height:260px\">" + emptyState("点击“刷新”读取好友申请", "i-user") + "</div></div></div>";
   const fs = $("#friendSearch");
   if (fs) fs.addEventListener("input", () => { S.friendQuery = fs.value; renderFriendList(); });
   const gs = $("#groupSearch");
@@ -1206,6 +1210,22 @@ function renderGroupList() {
     "<div class=\"r-main\"><div class=\"r-title\">" + esc(g.group_name || "未命名群") + "</div>" +
     "<div class=\"r-sub\">" + esc(g.group_id) + "</div></div>" +
     "<div class=\"r-right\">" + (g.member_count ? esc(g.member_count) + " 人" : "") + "</div></div>").join("") : emptyState(q ? "没有匹配的群" : "群列表为空", "i-msg");
+}
+async function loadFriendRequests() {
+  if (!S.account) throw new Error("账号尚未就绪");
+  const body = await api("/api/accounts/" + encodeURIComponent(S.account) + "/friend-requests?count=50");
+  S.friendRequests = body.requests || [];
+  renderFriendRequests();
+}
+function renderFriendRequests() {
+  const box = $("#friendRequestsList"); if (!box) return;
+  const rows = S.friendRequests || [];
+  box.innerHTML = rows.length ? rows.map((row) =>
+    "<div class=\"row\"><div class=\"avatar sm\"><svg class=\"i\"><use href=\"#i-user\"/></svg></div>" +
+    "<div class=\"r-main\"><div class=\"r-title\">" + esc(row.nickname || "未读昵称") + " <span class=\"badge\">" + esc(row.status || "unknown") + "</span></div>" +
+    "<div class=\"r-sub mono\">flag " + esc(row.flag || "—") + " · user_id " + esc(row.user_id ?? "—") + " · scene " + esc(row.scene ?? "—") + "</div>" +
+    "<div class=\"r-sub\">" + esc(row.comment || "（无申请语）") + "</div></div></div>").join("") :
+    emptyState("暂无好友申请（仅 helper 运行期内存目录可用，SDK 不支持）", "i-user");
 }
 async function loadMentionLabels() {
   if (!S.account) return;
@@ -1295,7 +1315,7 @@ function endpointCard(kind, index, row, saveButton) {
     (isServer
       ? field("host", "监听地址", row.host, "text") + field("port", "端口", row.port, "number") +
         field("path", "路径", row.path, "text") + field("accessToken", "Access Token", row.accessToken, "password", true) +
-        field("maxMessageBytes", "最大 WS 消息（字节）", row.maxMessageBytes, "number")
+        (kind === "httpServers" ? field("maxBodyBytes", "最大 HTTP 请求体（字节）", row.maxBodyBytes, "number") : field("maxMessageBytes", "最大 WS 消息（字节）", row.maxMessageBytes, "number"))
       : field("url", "目标地址", row.url, "text", true) + field("accessToken", "Access Token", row.accessToken, "password") +
         (kind === "httpClients" ? field("timeoutSeconds", "超时（秒，0 为不限）", row.timeoutSeconds, "number") + field("secret", "上报签名密钥（可选）", row.secret, "password") : field("reconnectSeconds", "重连间隔（秒）", row.reconnectSeconds, "number") + field("role", "角色：Universal / API / Event", row.role ?? "Universal", "text") + field("maxMessageBytes", "最大 WS 消息（字节）", row.maxMessageBytes, "number")));
   return "<div class=\"card endpoint" + (row.enabled === false ? " off" : "") + "\" data-kind=\"" + kind + "\" data-index=\"" + index + "\">" +
@@ -1340,7 +1360,7 @@ function collectNetwork() {
     const number = (name) => { const raw = val(name); return raw === "" ? "" : Number(raw); };
     const on = card.querySelector(".switch").classList.contains("on");
     if (kind === "httpServers" || kind === "wsServers") {
-      out[kind].push({ name: val("name"), host: val("host"), port: number("port"), path: val("path"), accessToken: val("accessToken"), enabled: on, ...(kind === "wsServers" ? { maxMessageBytes: number("maxMessageBytes") } : {}) });
+      out[kind].push({ name: val("name"), host: val("host"), port: number("port"), path: val("path"), accessToken: val("accessToken"), enabled: on, ...(kind === "wsServers" ? { maxMessageBytes: number("maxMessageBytes") } : { maxBodyBytes: number("maxBodyBytes") }) });
     } else if (kind === "httpClients") {
       out[kind].push({ name: val("name"), url: val("url"), accessToken: val("accessToken"), timeoutSeconds: number("timeoutSeconds"), secret: val("secret"), enabled: on });
     } else {
@@ -1371,7 +1391,7 @@ async function saveNetwork() {
 }
 
 function defaultEndpoint(kind, count) {
-  if (kind === "httpServers") return { name: "http-" + (count + 1), host: "127.0.0.1", port: 6702, path: "/", accessToken: "", enabled: true };
+  if (kind === "httpServers") return { name: "http-" + (count + 1), host: "127.0.0.1", port: 6702, path: "/", accessToken: "", enabled: true, maxBodyBytes: 104857600 };
   if (kind === "wsServers") return { name: "ws-" + (count + 1), host: "127.0.0.1", port: 6703, path: "/ws", accessToken: "", enabled: true, maxMessageBytes: 134217728 };
   if (kind === "httpClients") return { name: "http-client-" + (count + 1), url: "http://127.0.0.1:8080/", accessToken: "", timeoutSeconds: 5, enabled: true };
   return { name: "ws-client-" + (count + 1), url: "ws://127.0.0.1:8080/onebot/v11/ws", accessToken: "", reconnectSeconds: 1, enabled: true, maxMessageBytes: 134217728 };
@@ -1405,14 +1425,49 @@ function renderRuntimeLogs(root) {
     "<select class=\"input\" id=\"logLevel\" aria-label=\"日志级别\" style=\"width:125px\"><option value=\"all\">全部级别</option><option value=\"debug\">DEBUG</option><option value=\"info\">INFO</option><option value=\"warning\">WARNING</option><option value=\"error\">ERROR</option></select>" +
     "<div class=\"search\"><svg class=\"i\"><use href=\"#i-search\"/></svg><input class=\"input\" id=\"logQuery\" placeholder=\"搜索范围或内容\" value=\"" + esc(S.logQuery) + "\"></div>" +
     "<label class=\"check\"><input type=\"checkbox\" id=\"logAuto\"" + (S.logAuto ? " checked" : "") + ">自动刷新</label><div style=\"flex:1\"></div>" +
-    "<span class=\"small muted\" id=\"logCount\">—</span><button class=\"btn sm\" data-act=\"log-export\">导出当前结果</button><button class=\"btn sm\" data-act=\"log-refresh\">刷新</button>" +
-    "</div></div></div><div class=\"card\" style=\"margin-top:14px\"><div class=\"card-h\"><h2>运行日志</h2><div class=\"spacer\"></div><span class=\"hint\">最近 200 条受控诊断摘要</span></div><div id=\"runtimeLogList\" class=\"scroll tall\"></div></div>";
+    "<span class=\"small muted\" id=\"logCount\">—</span><button class=\"btn sm\" data-act=\"log-export\">导出当前结果</button><button class=\"btn sm\" data-act=\"log-download\">下载网关日志</button><button class=\"btn sm\" data-act=\"log-refresh\">刷新</button>" +
+    "</div><div class=\"toolbar\" style=\"margin-top:10px\"><span class=\"hint small muted\" id=\"gatewayLogLevelHint\">网关日志级别 —</span><select class=\"input\" id=\"gatewayLogLevel\" aria-label=\"网关日志级别\" style=\"width:125px\"></select><button class=\"btn sm\" data-act=\"log-level-save\">应用级别</button><span class=\"hint small muted\">级别切换只影响本次运行，写入 " + esc((S.status && S.status.logFile) || "数据目录/logs/gateway.log") + "</span></div></div></div><div class=\"card\" style=\"margin-top:14px\"><div class=\"card-h\"><h2>运行日志</h2><div class=\"spacer\"></div><span class=\"hint\">最近 200 条受控诊断摘要</span></div><div id=\"runtimeLogList\" class=\"scroll tall\"></div></div>";
   $("#logLevel").value = S.logLevel;
   $("#logLevel").addEventListener("change", (event) => { S.logLevel = event.target.value; drawRuntimeLogs(); });
   $("#logQuery").addEventListener("input", (event) => { S.logQuery = event.target.value; drawRuntimeLogs(); });
   $("#logAuto").addEventListener("change", (event) => { S.logAuto = event.target.checked; });
   drawRuntimeLogs();
   loadRuntimeLogs();
+  loadGatewayLogLevel();
+}
+
+async function loadGatewayLogLevel() {
+  try {
+    const result = await api("/api/logs/level");
+    S.gatewayLevel = result.level || "";
+    S.gatewayLevels = result.levels || [];
+    const select = $("#gatewayLogLevel");
+    if (select) {
+      select.innerHTML = S.gatewayLevels.map((level) => "<option value=\"" + esc(level) + "\"" + (level === S.gatewayLevel ? " selected" : "") + ">" + esc(level) + "</option>").join("");
+    }
+    const hint = $("#gatewayLogLevelHint");
+    if (hint) hint.textContent = "网关日志级别 " + S.gatewayLevel;
+  } catch (error) { /* 会话过期由 api() 统一处理 */ }
+}
+
+async function saveGatewayLogLevel() {
+  const select = $("#gatewayLogLevel"); if (!select) return;
+  try {
+    const result = await api("/api/logs/level", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ level: select.value }) });
+    S.gatewayLevel = result.level;
+    toast("网关日志级别已切换为 " + result.level + "（仅本次运行）", "ok", 3600);
+    await loadGatewayLogLevel();
+  } catch (error) { toast("切换日志级别失败：" + error.message, "bad"); }
+}
+
+async function downloadGatewayLog() {
+  try {
+    const response = await fetch("/api/logs/download");
+    if (!response.ok) throw new Error(response.status === 404 ? "日志文件尚未生成" : "HTTP " + response.status);
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement("a"); link.href = url; link.download = "wechat-onebot-gateway.log"; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (error) { toast("下载网关日志失败：" + error.message, "bad"); }
 }
 
 async function loadRuntimeLogs() {
@@ -1953,6 +2008,8 @@ document.getElementById("view").addEventListener("click", async (event) => {
     if (act === "log-tab") { S.logTab = el.dataset.tab; render(); return; }
     if (act === "log-refresh") { await loadRuntimeLogs(); return; }
     if (act === "log-export") { exportRuntimeLogs(); return; }
+    if (act === "log-level-save") { await saveGatewayLogLevel(); return; }
+    if (act === "log-download") { await downloadGatewayLog(); return; }
     if (act === "debug-tab") { S.debugTab = el.dataset.tab; render(); return; }
     if (act === "compose-send") { el.disabled = true; try { await sendComposedMessage(); } finally { el.disabled = false; } return; }
     if (act === "api-try") {
@@ -1983,6 +2040,13 @@ document.getElementById("view").addEventListener("click", async (event) => {
     if (act === "acct-friends") { el.disabled = true; await loadFriends(); toast("好友列表已更新", "ok"); el.disabled = false; return; }
     if (act === "acct-groups") { el.disabled = true; await loadGroups(); toast("群列表已更新", "ok"); el.disabled = false; return; }
     if (act === "mention-refresh") { await loadMentionLabels(); toast("显示名绑定已刷新", "ok"); return; }
+    if (act === "fr-refresh") {
+      el.disabled = true;
+      try { await loadFriendRequests(); toast("好友申请已刷新", "ok", 1500); }
+      catch (error) { toast("读取好友申请失败：" + error.message, "bad", 4200); }
+      finally { el.disabled = false; }
+      return;
+    }
     if (act === "mention-save") {
       if (!S.account) return;
       const groupId = Number($("#mentionGroup") ? $("#mentionGroup").value : 0);
@@ -2178,7 +2242,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 function ensureRuntimeData() {
-  S.friends = null; S.groups = null; S.storage = null; S.caps = null; S.catalog = null; S.catalogError = "";
+  S.friends = null; S.groups = null; S.friendRequests = null; S.storage = null; S.caps = null; S.catalog = null; S.catalogError = "";
   S.loginInfo = null; S.versionInfo = null; S.processes = null;
   S.events = []; S.selectedEvent = null; S.network = null;
   if (S.view === "overview" || S.view === "account" || S.view === "connect") render();

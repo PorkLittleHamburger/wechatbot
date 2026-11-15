@@ -1,0 +1,600 @@
+{
+  "schema_version": 1,
+  "generated_by": "scripts/check_action_catalog.py --write",
+  "actions": [
+    {
+      "name": "can_send_image",
+      "summary": "是否可发送图片",
+      "read_only": true,
+      "params": {},
+      "returns": {
+        "type": "object"
+      },
+      "examples": []
+    },
+    {
+      "name": "can_send_record",
+      "summary": "是否可发送语音",
+      "read_only": true,
+      "params": {},
+      "returns": {
+        "type": "object"
+      },
+      "examples": []
+    },
+    {
+      "name": "get_capabilities",
+      "summary": "获取驱动、动作与能力矩阵",
+      "read_only": true,
+      "params": {},
+      "returns": {
+        "type": "object"
+      },
+      "examples": []
+    },
+    {
+      "name": "get_forward_msg",
+      "summary": "读取当前账号已解析的合并转发",
+      "read_only": true,
+      "params": {
+        "id": {
+          "kind": "any",
+          "required": false,
+          "description": ""
+        },
+        "message_id": {
+          "kind": "any",
+          "required": false,
+          "description": ""
+        }
+      },
+      "returns": {
+        "type": "object"
+      },
+      "examples": []
+    },
+    {
+      "name": "get_friend_list",
+      "summary": "获取好友列表",
+      "read_only": true,
+      "params": {},
+      "returns": {
+        "type": "array"
+      },
+      "examples": []
+    },
+    {
+      "name": "get_friend_msg_history",
+      "summary": "读取 Runtime 启动后已持久化的好友消息",
+      "read_only": true,
+      "params": {
+        "user_id": {
+          "kind": "int",
+          "required": true,
+          "description": "OneBot user_id"
+        },
+        "message_id": {
+          "kind": "signed_int32",
+          "required": false,
+          "description": "可选游标消息 ID"
+        },
+        "count": {
+          "kind": "int",
+          "required": false,
+          "description": "条数，默认 20，最大 100"
+        },
+        "reverse_order": {
+          "kind": "bool",
+          "required": false,
+          "description": "true 时读取游标之后的消息"
+        }
+      },
+      "returns": {
+        "type": "array"
+      },
+      "examples": []
+    },
+    {
+      "name": "get_friend_requests",
+      "summary": "读取当前账号的只读好友申请扩展列表（本机内存目录，非上游 pending 等价）",
+      "read_only": true,
+      "params": {
+        "count": {
+          "kind": "int",
+          "required": false,
+          "description": "返回条数，默认 50，最大 100"
+        }
+      },
+      "returns": {
+        "type": "object"
+      },
+      "examples": []
+    },
+    {
+      "name": "get_group_info",
+      "summary": "获取群信息",
+      "read_only": true,
+      "params": {
+        "group_id": {
+          "kind": "int",
+          "required": true,
+          "description": "OneBot group_id"
+        },
+        "no_cache": {
+          "kind": "bool",
+          "required": false,
+          "description": "兼容参数；不触发额外刷新，读取驱动群列表"
+        }
+      },
+      "returns": {
+        "type": "object"
+      },
+      "examples": []
+    },
+    {
+      "name": "get_group_list",
+      "summary": "获取已发现群列表",
+      "read_only": true,
+      "params": {},
+      "returns": {
+        "type": "array"
+      },
+      "examples": []
+    },
+    {
+      "name": "get_group_member_info",
+      "summary": "获取群成员信息",
+      "read_only": true,
+      "params": {
+        "group_id": {
+          "kind": "int",
+          "required": true,
+          "description": "OneBot group_id"
+        },
+        "user_id": {
+          "kind": "int",
+          "required": true,
+          "description": "OneBot user_id"
+        },
+        "no_cache": {
+          "kind": "bool",
+          "required": false,
+          "description": "兼容参数；不触发额外刷新，读取驱动群成员缓存"
+        }
+      },
+      "returns": {
+        "type": "object"
+      },
+      "examples": []
+    },
+    {
+      "name": "get_group_member_list",
+      "summary": "获取群成员列表",
+      "read_only": true,
+      "params": {
+        "group_id": {
+          "kind": "int",
+          "required": true,
+          "description": "OneBot group_id"
+        }
+      },
+      "returns": {
+        "type": "array"
+      },
+      "examples": []
+    },
+    {
+      "name": "get_group_msg_history",
+      "summary": "读取 Runtime 启动后已持久化的群消息",
+      "read_only": true,
+      "params": {
+        "group_id": {
+          "kind": "int",
+          "required": true,
+          "description": "OneBot group_id"
+        },
+        "message_id": {
+          "kind": "signed_int32",
+          "required": false,
+          "description": "可选游标消息 ID"
+        },
+        "count": {
+          "kind": "int",
+          "required": false,
+          "description": "条数，默认 20，最大 100"
+        },
+        "reverse_order": {
+          "kind": "bool",
+          "required": false,
+          "description": "true 时读取游标之后的消息"
+        }
+      },
+      "returns": {
+        "type": "array"
+      },
+      "examples": []
+    },
+    {
+      "name": "get_image",
+      "summary": "获取收到的图片文件",
+      "read_only": true,
+      "params": {
+        "file": {
+          "kind": "str",
+          "required": true,
+          "description": "消息段中的 file"
+        }
+      },
+      "returns": {
+        "type": "object"
+      },
+      "examples": []
+    },
+    {
+      "name": "get_login_info",
+      "summary": "获取当前登录账号",
+      "read_only": true,
+      "params": {},
+      "returns": {
+        "type": "object"
+      },
+      "examples": []
+    },
+    {
+      "name": "get_msg",
+      "summary": "通过 signed 32-bit message_id 获取持久化消息",
+      "read_only": true,
+      "params": {
+        "message_id": {
+          "kind": "signed_int32",
+          "required": true,
+          "description": "非零 signed int32；负值合法"
+        }
+      },
+      "returns": {
+        "type": "object"
+      },
+      "examples": []
+    },
+    {
+      "name": "get_record",
+      "summary": "获取收到的语音并转换格式",
+      "read_only": true,
+      "params": {
+        "file": {
+          "kind": "str",
+          "required": true,
+          "description": "消息段中的 file"
+        },
+        "out_format": {
+          "kind": "str",
+          "required": true,
+          "description": "mp3/amr/wma/m4a/spx/ogg/wav/flac"
+        }
+      },
+      "returns": {
+        "type": "object"
+      },
+      "examples": []
+    },
+    {
+      "name": "get_status",
+      "summary": "获取运行状态",
+      "read_only": true,
+      "params": {},
+      "returns": {
+        "type": "object"
+      },
+      "examples": []
+    },
+    {
+      "name": "get_stranger_info",
+      "summary": "获取已观测的用户资料",
+      "read_only": true,
+      "params": {
+        "user_id": {
+          "kind": "int",
+          "required": true,
+          "description": "OneBot user_id"
+        },
+        "no_cache": {
+          "kind": "bool",
+          "required": false,
+          "description": "尝试刷新好友资料"
+        }
+      },
+      "returns": {
+        "type": "object"
+      },
+      "examples": []
+    },
+    {
+      "name": "get_version_info",
+      "summary": "获取协议端版本",
+      "read_only": true,
+      "params": {},
+      "returns": {
+        "type": "object"
+      },
+      "examples": []
+    },
+    {
+      "name": "send_group_forward_msg",
+      "summary": "将转发节点按顺序降级为普通群消息发送",
+      "read_only": false,
+      "params": {
+        "group_id": {
+          "kind": "int",
+          "required": true,
+          "description": ""
+        },
+        "messages": {
+          "kind": "any",
+          "required": true,
+          "description": ""
+        }
+      },
+      "returns": {
+        "type": "object"
+      },
+      "examples": []
+    },
+    {
+      "name": "send_group_msg",
+      "summary": "发送群消息，支持真实 @",
+      "read_only": false,
+      "params": {
+        "group_id": {
+          "kind": "int",
+          "required": true,
+          "description": "目标 OneBot group_id"
+        },
+        "message": {
+          "kind": "any",
+          "required": true,
+          "description": "CQ 字符串、消息段数组或单个消息段对象"
+        },
+        "auto_escape": {
+          "kind": "bool",
+          "required": false,
+          "description": ""
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "message_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "message_id"
+        ]
+      },
+      "examples": [
+        {
+          "summary": "群内 @ 成员并发送文本",
+          "params": {
+            "group_id": 20001,
+            "message": [
+              {
+                "type": "at",
+                "data": {
+                  "qq": 10001,
+                  "name": "Alice"
+                }
+              },
+              {
+                "type": "text",
+                "data": {
+                  "text": " 你好"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "send_msg",
+      "summary": "根据 message_type 或目标字段发送消息",
+      "read_only": false,
+      "params": {
+        "message": {
+          "kind": "any",
+          "required": true,
+          "description": "CQ 字符串、消息段数组或单个消息段对象"
+        },
+        "auto_escape": {
+          "kind": "bool",
+          "required": false,
+          "description": ""
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "message_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "message_id"
+        ]
+      },
+      "examples": [
+        {
+          "summary": "按群号发送",
+          "params": {
+            "message_type": "group",
+            "group_id": 20001,
+            "message": "你好"
+          }
+        }
+      ]
+    },
+    {
+      "name": "send_private_forward_msg",
+      "summary": "将转发节点按顺序降级为普通私聊消息发送",
+      "read_only": false,
+      "params": {
+        "user_id": {
+          "kind": "int",
+          "required": true,
+          "description": ""
+        },
+        "messages": {
+          "kind": "any",
+          "required": true,
+          "description": ""
+        }
+      },
+      "returns": {
+        "type": "object"
+      },
+      "examples": []
+    },
+    {
+      "name": "send_private_msg",
+      "summary": "发送私聊消息",
+      "read_only": false,
+      "params": {
+        "user_id": {
+          "kind": "int",
+          "required": true,
+          "description": "目标 OneBot user_id"
+        },
+        "message": {
+          "kind": "any",
+          "required": true,
+          "description": "CQ 字符串、消息段数组或单个消息段对象"
+        },
+        "auto_escape": {
+          "kind": "bool",
+          "required": false,
+          "description": ""
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "message_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "message_id"
+        ]
+      },
+      "examples": [
+        {
+          "summary": "向好友发送文本",
+          "params": {
+            "user_id": 10001,
+            "message": "你好"
+          }
+        }
+      ]
+    }
+  ],
+  "elements": {
+    "at": {
+      "D": "yes",
+      "S": "yes",
+      "P": "yes",
+      "W": "yes"
+    },
+    "contact": {
+      "D": "no",
+      "S": "no",
+      "P": "by-design-no",
+      "W": "no"
+    },
+    "face": {
+      "D": "no",
+      "S": "yes",
+      "P": "yes",
+      "W": "yes"
+    },
+    "file": {
+      "D": "yes",
+      "S": "yes",
+      "P": "yes",
+      "W": "yes"
+    },
+    "forward": {
+      "D": "yes",
+      "S": "yes",
+      "P": "by-design-no",
+      "W": "no"
+    },
+    "image": {
+      "D": "yes",
+      "S": "yes",
+      "P": "yes",
+      "W": "yes"
+    },
+    "json": {
+      "D": "no",
+      "S": "no",
+      "P": "by-design-no",
+      "W": "no"
+    },
+    "music": {
+      "D": "no",
+      "S": "no",
+      "P": "yes",
+      "W": "no"
+    },
+    "node": {
+      "D": "no",
+      "S": "no",
+      "P": "by-design-no",
+      "W": "no"
+    },
+    "record": {
+      "D": "yes",
+      "S": "yes",
+      "P": "yes",
+      "W": "yes"
+    },
+    "reply": {
+      "D": "no",
+      "S": "no",
+      "P": "no",
+      "W": "no"
+    },
+    "share": {
+      "D": "no",
+      "S": "no",
+      "P": "by-design-no",
+      "W": "no"
+    },
+    "text": {
+      "D": "yes",
+      "S": "yes",
+      "P": "yes",
+      "W": "yes"
+    },
+    "video": {
+      "D": "yes",
+      "S": "yes",
+      "P": "no",
+      "W": "no"
+    },
+    "xml": {
+      "D": "no",
+      "S": "no",
+      "P": "by-design-no",
+      "W": "no"
+    }
+  },
+  "send_capabilities": {
+    "at": "group.text.mention",
+    "face": "emoticon.send",
+    "file": "file.send",
+    "image": "image.send",
+    "record": "voice.send",
+    "text": "text.send"
+  }
+}

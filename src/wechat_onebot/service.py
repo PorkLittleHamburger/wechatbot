@@ -19,7 +19,9 @@ from .media import MediaError, MediaStore
 from .onebot import MessageStore, message_event_name, message_sequence
 from .onebot.actions import ACTION_REGISTRY, ActionValidationError, action_catalog
 from .models import (
+    BOT_OFFLINE_TAGS,
     DriverEvent,
+    DriverOffline,
     FriendInfo,
     GroupInfo,
     GroupMemberInfo,
@@ -28,7 +30,12 @@ from .models import (
     RequestEvent,
     Segment,
 )
-from .protocol import failure, message_event, meta_event, notice_event, ok, request_event
+from .protocol import failure, friend_requests_payload, message_event, meta_event, notice_event, ok, request_event
+from .protocol.element_manifest import (
+    ELEMENT_MANIFEST,
+    ELEMENT_SEND_CAPABILITIES,
+    NATIVE_SEND_TYPES,
+)
 from .protocol.rich_content import canonical_forward, materialize_forwards, rich_segments
 from .protocol.codec import normalize_message, serialize_message
 from .protocol import outbound_forward as forwarding
@@ -36,6 +43,14 @@ from .protocol import outbound_forward as forwarding
 
 ECHO_UNSET = object()
 logger = logging.getLogger("wechat-onebot.actions")
+
+BOT_OFFLINE_MESSAGES = {
+    "helper_disconnected": "微信 helper 桥接接收线程已停止（本地失联信号）",
+    "sdk_session_failed": "wechatbot_api 会话已失败（本地失联信号）",
+    "driver_stopped": "微信驱动已停止（本地失联信号）",
+    "account_changed": "微信账号在连接期间发生变化（本地失联信号）",
+    "process_exited": "微信进程可能已退出（本地失联信号）",
+}
 
 
 class OneBotActionError(Exception):
@@ -86,6 +101,7 @@ class OneBotService:
         self._event_queue: asyncio.Queue[DriverEvent | None] = asyncio.Queue()
         self._event_worker: asyncio.Task | None = None
         self._events_closed = False
+        self._bridge_offline_reported = False
 
     @property
     def supported_actions(self) -> frozenset[str]:
@@ -99,6 +115,7 @@ class OneBotService:
             return
         self._stopping_actions = False
         self._events_closed = False
+        self._bridge_offline_reported = False
         login = await self.driver.get_login_info()
         if not login.external_user_id:
             raise DriverError("微信账号 ID 为空，无法启动 OneBot")
@@ -235,6 +252,9 @@ class OneBotService:
             payload = notice_event(event, self.mapper, self.self_id, message_id=recalled_id)
         elif isinstance(event, RequestEvent):
             payload = request_event(event, self.mapper, self.self_id)
+        elif isinstance(event, DriverOffline):
+            await self._handle_driver_offline(event)
+            return
         else:
             return
         if payload is None:
@@ -246,6 +266,49 @@ class OneBotService:
             return
         if self._event_sink is not None:
             await self._event_sink(payload)
+
+    async def emit_internal_event(self, payload: dict[str, Any]) -> None:
+        """Broadcast a gateway-internal event (not sourced from a driver).
+
+        Kept separate from driver conversion so U-03/U-04-style events share one
+        pipeline: recent-event history first, then the configured event sink.
+        A missing sink or a failing adapter must never break the caller.
+        """
+        self._recent_events.append(copy.deepcopy(payload))
+        sink = self._event_sink
+        if sink is None:
+            return
+        try:
+            await sink(payload)
+        except Exception:
+            logger.exception("广播服务内部事件失败: %s", payload.get("notice_type", "event"))
+
+    async def _handle_driver_offline(self, event: DriverOffline) -> None:
+        """Emit one ``bot_offline`` notice per online→offline transition.
+
+        This is a best-effort local bridge signal, not proof that the network is
+        down; recovery is expressed by a later heartbeat with ``online=true`` and
+        does not emit an "online" notice.
+        """
+        if self._bridge_offline_reported:
+            return
+        if not self.started:
+            # A normal shutdown must not emit bot_offline.
+            return
+        self._bridge_offline_reported = True
+        tag = event.reason if event.reason in BOT_OFFLINE_TAGS else "driver_stopped"
+        logger.warning("本地桥接离线：%s（有限本地信号，不代表网络掉线）", tag)
+        if event.detail:
+            logger.debug("桥接离线详情: %s", event.detail)
+        await self.emit_internal_event({
+            "time": int(time.time()),
+            "self_id": self.self_id,
+            "post_type": "notice",
+            "notice_type": "bot_offline",
+            "user_id": self.self_id,
+            "tag": tag,
+            "message": BOT_OFFLINE_MESSAGES[tag],
+        })
 
     def _resolve_reference(self, event: IncomingMessage) -> int | None:
         reference = event.raw.get("reply")
@@ -438,9 +501,13 @@ class OneBotService:
         return copy.deepcopy(list(self._recent_events)[-count:])
 
     def heartbeat_event(self) -> dict[str, Any]:
+        online = self.driver.online
+        if online:
+            # A heartbeat that observes a live driver re-arms the offline notice.
+            self._bridge_offline_reported = False
         status = {
-            "online": self.driver.online,
-            "good": self.driver.online,
+            "online": online,
+            "good": online,
         }
         return meta_event(self.self_id, "heartbeat", status=status,
                           interval=self.config.onebot.heartbeat_interval_seconds * 1000)
@@ -531,10 +598,9 @@ class OneBotService:
         for chain in plan.chains:
             segments = await self._prepare_segments(chain, is_group=is_group, media_budget=media_budget)
             self._validate_sendable(segments, is_group=is_group)
-            required = {"text": "text.send", "at": "group.text.mention", "image": "image.send",
-                        "file": "file.send", "record": "voice.send", "face": "emoticon.send"}
             for segment in segments:
-                if required[segment.type] not in self.driver.capabilities:
+                capability = ELEMENT_SEND_CAPABILITIES.get(segment.type)
+                if capability is None or capability not in self.driver.capabilities:
                     raise OneBotActionError(1404, f"当前驱动不支持 {segment.type} 发送")
             pending_text: list[str] = []
             has_at = False
@@ -593,7 +659,7 @@ class OneBotService:
 
     @staticmethod
     def _validate_sendable(segments: list[PreparedSegment], *, is_group: bool) -> None:
-        if not any(segment.type in ("image", "file", "record", "face", "at") or
+        if not any((segment.type in NATIVE_SEND_TYPES and segment.type != "text") or
                    (segment.type == "text" and segment.data["text"]) for segment in segments):
             raise OneBotActionError(1400, "消息没有可发送的内容")
         if any(segment.type == "at" for segment in segments) and not is_group:
@@ -810,7 +876,10 @@ class OneBotService:
                 raise OneBotActionError(1400, "消息段必须包含 type 和 data")
             if segment_type == "reply":
                 raise OneBotActionError(1404, "当前原生桥接不支持引用回复；消息未发送")
-            if segment_type in ("node", "forward", "json", "xml", "video", "contact"):
+            direction = ELEMENT_MANIFEST.get(segment_type)
+            if direction is None:
+                raise OneBotActionError(1404, f"不支持的 OneBot 消息段: {segment_type}")
+            if direction["P"] != "yes":
                 raise OneBotActionError(1404, f"当前原生桥接不支持发送 {segment_type} 段")
             if segment_type == "music":
                 prepared.extend(await self._prepare_music(
@@ -934,6 +1003,19 @@ class OneBotService:
             }
             for row in rows
         ]
+
+    async def _get_friend_requests(self, params: dict[str, Any]) -> dict[str, Any]:
+        if "friend.request.list" not in self.driver.capabilities:
+            raise OneBotActionError(1404, "当前驱动不支持读取好友申请列表")
+        value = params.get("count", 50)
+        if value is None:
+            value = 50
+        elif isinstance(value, str) and value.isascii() and value.isdecimal():
+            value = int(value)
+        if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 100:
+            raise OneBotActionError(1400, "count 必须在 1–100 之间")
+        rows = await self.driver.friend_requests()
+        return friend_requests_payload(rows[:value], self.mapper)
 
     async def _get_group_list(self, params: dict[str, Any]) -> list[dict[str, Any]]:
         rows = await self.driver.get_group_list()
@@ -1140,10 +1222,12 @@ class OneBotService:
         return result
 
     async def _can_send_image(self, params: dict[str, Any]) -> dict[str, Any]:
-        return {"yes": self.driver.online and "image.send" in self.driver.capabilities}
+        capability = ELEMENT_SEND_CAPABILITIES["image"]
+        return {"yes": self.driver.online and capability in self.driver.capabilities}
 
     async def _can_send_record(self, params: dict[str, Any]) -> dict[str, Any]:
-        return {"yes": self.driver.online and "voice.send" in self.driver.capabilities}
+        capability = ELEMENT_SEND_CAPABILITIES["record"]
+        return {"yes": self.driver.online and capability in self.driver.capabilities}
 
     def _received_media_path(self, params: dict[str, Any], label: str) -> Path:
         value = params.get("file")

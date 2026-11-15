@@ -21,6 +21,10 @@ from wechat_onebot.core import runtime as runtime_module
 import pytest
 
 
+API_TOKEN = "Xk9mP2vL8qT4wZ7c"
+ROTATED_TOKEN = "Rt7Vb3Nc9Mx2Kp5Q"
+
+
 def make_config(tmp_path: Path) -> AppConfig:
     config = AppConfig(
         path=tmp_path / "config.json",
@@ -136,22 +140,22 @@ def test_network_save_applies_without_restarting_account(tmp_path: Path):
         base = "/api/accounts/wxid_robot/network"
         payload = client.get(base).json()
         payload["httpServers"] = [{"name": "api", "host": "127.0.0.1", "port": http_port,
-                                   "path": "/", "accessToken": "onebot-token", "enabled": True}]
+                                   "path": "/", "accessToken": API_TOKEN, "enabled": True, "maxBodyBytes": 104857600}]
         added = client.put(base, json=payload).json()
         assert added["saved"] is True and added["applied"] is True
         assert manager.get("wxid_robot") is runtime and runtime.driver is driver and driver.online
         first_adapter = runtime.network.http_servers[0]
         with httpx.Client(base_url=f"http://127.0.0.1:{http_port}", timeout=3) as http:
-            response = http.post("/", headers={"Authorization": "Bearer onebot-token"},
+            response = http.post("/", headers={"Authorization": "Bearer " + API_TOKEN},
                                  json={"action": "get_status"})
             assert response.json()["status"] == "ok"
 
         payload["wsServers"] = [{"name": "events", "host": "127.0.0.1", "port": ws_port,
-                                 "path": "/ws", "accessToken": "onebot-token", "enabled": True, "maxMessageBytes": 134217728}]
+                                 "path": "/ws", "accessToken": API_TOKEN, "enabled": True, "maxMessageBytes": 134217728}]
         assert client.put(base, json=payload).json()["applied"] is True
         assert runtime.network.http_servers[0] is first_adapter
         assert runtime.driver is driver and driver.online
-        with connect(f"ws://127.0.0.1:{ws_port}/ws?access_token=onebot-token") as ws:
+        with connect(f"ws://127.0.0.1:{ws_port}/ws?access_token={API_TOKEN}") as ws:
             assert json.loads(ws.recv(timeout=3))["meta_event_type"] == "lifecycle"
             with socket.socket() as occupied:
                 occupied.bind(("127.0.0.1", 0))
@@ -159,20 +163,20 @@ def test_network_save_applies_without_restarting_account(tmp_path: Path):
                 bad_port = occupied.getsockname()[1]
                 invalid = {**payload, "httpServers": payload["httpServers"] + [
                     {"name": "busy", "host": "127.0.0.1", "port": bad_port,
-                     "path": "/", "accessToken": "onebot-token", "enabled": True}]}
+                     "path": "/", "accessToken": API_TOKEN, "enabled": True, "maxBodyBytes": 104857600}]}
                 failed = client.put(base, json=invalid).json()
                 assert failed["saved"] is False and failed["applied"] is False
             assert runtime.network.http_servers[0] is first_adapter
             assert runtime.driver is driver and driver.online
             assert client.get(base).json() == payload
 
-            payload["httpServers"][0]["accessToken"] = "rotated-token"
+            payload["httpServers"][0]["accessToken"] = ROTATED_TOKEN
             assert client.put(base, json=payload).json()["applied"] is True
             assert runtime.network.http_servers[0] is not first_adapter
             with httpx.Client(base_url=f"http://127.0.0.1:{http_port}", timeout=3) as http:
-                assert http.post("/", headers={"Authorization": "Bearer onebot-token"},
+                assert http.post("/", headers={"Authorization": "Bearer " + API_TOKEN},
                                  json={"action": "get_status"}).status_code == 403
-                assert http.post("/", headers={"Authorization": "Bearer rotated-token"},
+                assert http.post("/", headers={"Authorization": "Bearer " + ROTATED_TOKEN},
                                  json={"action": "get_status"}).json()["status"] == "ok"
             assert runtime.driver is driver and driver.online
 
@@ -200,19 +204,19 @@ def test_network_endpoint_runs_before_and_after_wechat_runtime(tmp_path: Path):
         assert manager.snapshot() == []
         payload = client.get("/api/accounts/wxid_robot/network").json()
         payload["httpServers"] = [{"name": "offline-api", "host": "127.0.0.1", "port": port,
-                                   "path": "/", "accessToken": "onebot-token", "enabled": True}]
+                                   "path": "/", "accessToken": API_TOKEN, "enabled": True, "maxBodyBytes": 104857600}]
         payload["wsServers"] = [{"name": "offline-ws", "host": "127.0.0.1", "port": ws_port,
-                                 "path": "/ws", "accessToken": "onebot-token", "enabled": True, "maxMessageBytes": 134217728}]
+                                 "path": "/ws", "accessToken": API_TOKEN, "enabled": True, "maxMessageBytes": 134217728}]
         saved = client.put("/api/accounts/wxid_robot/network", json=payload).json()
         assert saved["saved"] is True and saved["applied"] is True
         runtime = manager.get("wxid_robot")
         assert runtime.started is False and runtime.network.started is True
         assert runtime.service.self_id > 0
         with (httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=3) as http,
-              connect(f"ws://127.0.0.1:{ws_port}/ws?access_token=onebot-token") as ws):
+              connect(f"ws://127.0.0.1:{ws_port}/ws?access_token={API_TOKEN}") as ws):
             assert json.loads(ws.recv(timeout=3))["meta_event_type"] == "lifecycle"
             def online():
-                response = http.post("/", headers={"Authorization": "Bearer onebot-token"},
+                response = http.post("/", headers={"Authorization": "Bearer " + API_TOKEN},
                                      json={"action": "get_status"})
                 assert response.json()["status"] == "ok"
                 return response.json()["data"]["online"]
@@ -234,7 +238,7 @@ def test_network_endpoint_runs_before_and_after_wechat_runtime(tmp_path: Path):
         assert runtime is not None and runtime.started is False
         assert runtime.network.http_servers[0].started is True
         with httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=3) as http:
-            response = http.post("/", headers={"Authorization": "Bearer onebot-token"},
+            response = http.post("/", headers={"Authorization": "Bearer " + API_TOKEN},
                                  json={"action": "get_status"})
             assert response.json()["data"]["online"] is False
 
@@ -560,6 +564,84 @@ async def test_runtime_uses_current_account_pid_after_reboot(tmp_path: Path, mon
     await manager.stop_all()
 
 
+def test_gateway_log_level_and_file_endpoints(tmp_path: Path):
+    from wechat_onebot import logging_setup
+
+    config = make_config(tmp_path)
+    manager = RuntimeManager(config)
+    logger = logging.getLogger(logging_setup.LOGGER_NAME)
+    old_level = logger.level
+    logging_setup._close_file_handler()
+    try:
+        assert logging_setup.configure_logging(config)["enabled"] is True
+        with TestClient(create_webui_app(config, manager, start_runtime=False)) as client:
+            assert client.get("/api/logs/level").status_code == 401
+            assert client.get("/api/logs/file").status_code == 401
+            assert client.get("/api/logs/download").status_code == 401
+            login_and_set_password(client)
+            payload = client.get("/api/logs/level").json()
+            assert payload["level"] == "INFO"
+            assert payload["levels"] == list(logging_setup.LOG_LEVELS)
+            assert payload["persisted"] is False
+            assert client.post("/api/logs/level", json={"level": "VERBOSE"}).status_code == 400
+            assert client.post("/api/logs/level", json={}).status_code == 400
+            updated = client.post("/api/logs/level", json={"level": "DEBUG"}).json()
+            assert updated == {"ok": True, "level": "DEBUG", "previous": "INFO",
+                               "persisted": False}
+            logging.getLogger("wechat-onebot.network").debug(
+                "OneBot 动作失败: %s", "probe detail")
+            tail = client.get("/api/logs/file", params={"tail": 10}).json()
+            assert tail["exists"] is True
+            assert any("OneBot 动作失败" in line for line in tail["lines"])
+            assert client.get("/api/logs/file", params={"tail": 0}).status_code == 400
+            assert client.get("/api/logs/file", params={"tail": "nope"}).status_code == 400
+            status = client.get("/api/status").json()
+            assert status["logLevel"] == "DEBUG"
+            assert status["logFile"].endswith("gateway.log")
+            assert status["logFileEnabled"] is True
+            download = client.get("/api/logs/download")
+            assert download.status_code == 200
+            assert "OneBot 动作失败" in download.text
+    finally:
+        logging_setup._close_file_handler()
+        logger.setLevel(old_level)
+
+
+def test_friend_requests_endpoint_is_readonly_and_masks_flags(tmp_path: Path):
+    config = make_config(tmp_path)
+    manager = RuntimeManager(config)
+    request_id = "fr_" + "a1b2c3d4" * 4
+    with TestClient(create_webui_app(config, manager, start_runtime=False)) as client:
+        assert client.get("/api/accounts/wxid_robot/friend-requests").status_code == 401
+        login_and_set_password(client)
+        missing = client.get("/api/accounts/wxid_robot/friend-requests")
+        assert missing.status_code == 400 and missing.json()["ok"] is False
+        assert client.post("/api/accounts/wxid_robot/start").json()["ok"] is True
+        runtime = manager.get("wxid_robot")
+        runtime.driver.friend_request_rows = [{
+            "request_id": request_id, "sender_id": "wxid_alice", "nickname": "Alice",
+            "verification": "请通过", "scene": 10, "status": "pending",
+            "ticket": "SECRET-TICKET", "encryptusername": "SECRET-ENC",
+            "raw_xml": "<xml>SECRET</xml>",
+        }]
+        response = client.get("/api/accounts/wxid_robot/friend-requests")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["ok"] is True
+        row = payload["requests"][0]
+        assert row["flag"].endswith("…") and row["flag"] != request_id
+        assert request_id not in response.text
+        assert "SECRET-TICKET" not in response.text
+        assert "encryptusername" not in response.text and "ticket" not in response.text
+        assert "approve" not in row and "action" not in row
+        assert client.get("/api/accounts/wxid_robot/friend-requests",
+                          params={"count": 0}).status_code == 400
+        assert client.get("/api/accounts/wxid_robot/friend-requests",
+                          params={"count": 101}).status_code == 400
+        assert client.get("/api/accounts/wxid_robot/friend-requests",
+                          params={"count": "nope"}).status_code == 400
+
+
 def test_logs_auth_bounded_and_redacted(tmp_path: Path):
     config = make_config(tmp_path)
     manager = RuntimeManager(config)
@@ -585,3 +667,103 @@ def test_logs_auth_bounded_and_redacted(tmp_path: Path):
             assert client.get("/api/logs").json()["logs"][-1]["message"] == "运行异常"
     finally:
         logger.setLevel(old_level)
+
+
+def test_exposure_hardening_headers_docs_and_body_limits(tmp_path: Path):
+    config = make_config(tmp_path)
+    manager = RuntimeManager(config)
+    with TestClient(create_webui_app(config, manager)) as client:
+        for path in ("/docs", "/redoc", "/openapi.json"):
+            assert client.get(path).status_code == 404
+        for path in ("/", "/healthz", "/api/status"):
+            response = client.get(path)
+            assert response.headers["x-frame-options"] == "DENY"
+            assert response.headers["x-content-type-options"] == "nosniff"
+            assert response.headers["referrer-policy"] == "no-referrer"
+            assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+        login_and_set_password(client)
+        # Login/credential bodies are capped at 16 KiB.
+        too_large_login = client.post(
+            "/api/login", headers={"Content-Type": "application/json"},
+            content=b'{"password":"' + b"a" * 17_000 + b'"}')
+        assert too_large_login.status_code == 413
+        assert too_large_login.headers["x-frame-options"] == "DENY"
+        # Other JSON APIs are capped at 1 MiB.
+        too_large_api = client.post(
+            "/api/account-selection", headers={"Content-Type": "application/json"},
+            content=b'{"account":"' + b"a" * (1024 * 1024) + b'"}')
+        assert too_large_api.status_code == 413
+        # The OneBot action proxy keeps the 16 MiB media exception.
+        action_body = (b'{"action":"get_status","padding":"'
+                       + b"a" * (2 * 1024 * 1024) + b'"}')
+        action = client.post("/api/accounts/wxid_robot/action",
+                             headers={"Content-Type": "application/json"},
+                             content=action_body)
+        assert action.status_code == 200
+        assert action.json()["status"] == "failed" and action.json()["retcode"] == 1404
+
+
+def test_login_rate_limit_window_and_success_reset(tmp_path: Path):
+    from wechat_onebot.webui.rate_limit import LoginRateLimiter
+
+    now = [1000.0]
+    limiter = LoginRateLimiter(clock=lambda: now[0])
+    config = make_config(tmp_path)
+    app = create_webui_app(config, RuntimeManager(config), login_limiter=limiter)
+    with TestClient(app) as client:
+        for _ in range(4):
+            assert client.post("/api/login", json={"token": "wrong"}).status_code == 401
+        assert client.post("/api/login", json={"token": "webui-token"}).status_code == 200
+        for _ in range(4):
+            assert client.post("/api/login", json={"token": "wrong"}).status_code == 401
+        assert client.post("/api/login", json={"token": "webui-token"}).status_code == 200
+        for _ in range(5):
+            assert client.post("/api/login", json={"token": "wrong"}).status_code == 401
+        blocked = client.post("/api/login", json={"token": "webui-token"})
+        assert blocked.status_code == 429
+        assert blocked.headers["retry-after"] == "60"
+        now[0] += 61
+        assert client.post("/api/login", json={"token": "webui-token"}).status_code == 200
+
+
+def test_token_save_guard_for_loopback_and_weak_tokens(tmp_path: Path):
+    config = make_config(tmp_path)
+    manager = RuntimeManager(config)
+    base = "/api/accounts/wxid_robot/network"
+    with TestClient(create_webui_app(config, manager),
+                    client=("127.0.0.1", 5555)) as client:
+        login_and_set_password(client)
+        payload = client.get(base).json()
+        payload["httpServers"] = [{
+            "name": "api", "host": "127.0.0.1", "port": 6700, "path": "/",
+            "accessToken": API_TOKEN, "enabled": False, "maxBodyBytes": 104857600,
+        }]
+        assert client.put(base, json=payload).json()["saved"] is True
+        # A non-loopback bind cannot drop its token, even from a local client.
+        payload["httpServers"][0]["host"] = "0.0.0.0"
+        payload["httpServers"][0]["accessToken"] = ""
+        rejected = client.put(base, json=payload).json()
+        assert rejected["saved"] is False and "非 loopback" in rejected["message"]
+        # Loopback bind + loopback client may clear the token.
+        payload["httpServers"][0]["host"] = "127.0.0.1"
+        assert client.put(base, json=payload).json()["saved"] is True
+        assert client.get(base).json()["httpServers"][0]["maxBodyBytes"] == 104857600
+        # Moving an existing empty-token endpoint to a non-loopback bind is
+        # rejected even though the token itself did not change.
+        payload["httpServers"][0]["host"] = "0.0.0.0"
+        host_change = client.put(base, json=payload).json()
+        assert host_change["saved"] is False and "非 loopback" in host_change["message"]
+        payload["httpServers"][0]["host"] = "127.0.0.1"
+        # Weak changed tokens are rejected; unchanged/rotated strong ones pass.
+        payload["httpServers"][0]["accessToken"] = "onebot-token"
+        weak = client.put(base, json=payload).json()
+        assert weak["saved"] is False and "至少需要 16" in weak["message"]
+        payload["httpServers"][0]["accessToken"] = ROTATED_TOKEN
+        assert client.put(base, json=payload).json()["saved"] is True
+    # A non-loopback management client cannot save an empty token either.
+    payload["httpServers"][0]["accessToken"] = ""
+    with TestClient(create_webui_app(config, RuntimeManager(config))) as client:
+        assert client.post("/api/login", json={
+            "password": "correct horse battery staple"}).status_code == 200
+        rejected = client.put(base, json=payload).json()
+        assert rejected["saved"] is False and "非 loopback" in rejected["message"]
