@@ -79,6 +79,8 @@ C 批 U-02（已随 v0.12.0 发布；SDK 网关私聊已实机确认可播放）
 
 v0.12.0 支持微信 **4.2.0.53** 并发布 dev17 SDK：`wechatbot_api 0.1.0.dev17`（bridge 10 / ABI 1）同时支持 4.2.0.52 与 4.2.0.53 的精确构建；群 @ 保持“本账号缓存名 → 手工绑定 → 跨账号缓存名 → 历史 profile”的优先级，混合不可靠来源仍整批降级为可见文本，wxid 不再作为 native label。4.2.0.53 staging 已确认一条真实可点击群 @，手工绑定/跨账号/混合降级仍以离线测试和框架证据为准。本版还包含文件日志/级别热切换、安全暴露面加固、好友申请只读列表、`bot_offline` 有限事件和 dev17 适配；U-01 出站引用仍不支持（无 SDK quote API，`reply` 返回 1404），U-03/U-05b 暂缓，U-08b 跳过。
 
+v0.12.1 修复 v0.12.0 在 Launcher 中启动失败的问题：Launcher 注入的 worker 仍在读取配置前导入 `_configure_logging`，v0.12.0 的日志重构删除了该兼容函数，服务进程以 `ImportError` 退出。v0.12.1 恢复兼容 shim、增加回归测试，并用实际 worker 完成启动/health 验证；**v0.12.0 的 Release/资产已撤回，请使用 v0.12.1**。
+
 ## 下载与升级
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。

@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-18** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 **WeChatBot v0.12.0**（Launcher 配套 v0.8.12、框架 dev17）；源码为 **0.12.1** Launcher worker 修复，待发布；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-18** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 **WeChatBot v0.12.1**（Launcher 配套 v0.8.12、框架 dev17）；HEAD 为 `06d1564`；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -489,7 +489,7 @@ U-01 出站引用（P0）仍不在 Bot 实现内：当前 SDK 4.2.0.52 无 quote
 
 U-01 出站引用仍无 dev17 quote API；Bot 出站 `reply` 继续 1404。后续若要升级生产配置，仍需用户确认实例账号切换/升级窗口。
 
-## v0.12.0 WeChat 4.2.0.53 / dev17 与 B/C 批整合（2026-11-18，已发布）
+## v0.12.0 WeChat 4.2.0.53 / dev17 与 B/C 批整合（2026-11-18，Release 已撤回）
 
 本版把已提交但未发布的 B 批、C 批 U-02 与新微信 4.2.0.53 支持整合发布：
 
@@ -502,7 +502,7 @@ U-01 出站引用仍无 dev17 quote API；Bot 出站 `reply` 继续 1404。后�
 
 发布结果（2026-11-18）：用户明确要求发布，完成 **WeChatBot v0.12.0**。annotated tag `v0.12.0` → `bdc6bae`；GitHub Release ID `449837782`，非 draft/prerelease，Latest；[Bot checks #44287068675](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/44287068675) 成功。附件 `wechat-onebot-0.12.0-windows-x64.zip` 60,489,018 B，SHA-256 `653f39466ef858786f1f80ff0b888989d0930fe6a6c87de62e877698972598f1`，同名 `.sha256` 一并上传；公网下载后重新计算大小/摘要一致。实际 Launcher `VersionStore.import_archive` 临时工作区导入 1,596 个文件、状态 `compatible`。生产实例未替换，未修改生产配置。
 
-## v0.12.1 Launcher worker 兼容修复（2026-11-18，待发布）
+## v0.12.1 Launcher worker 兼容修复（2026-11-18，已发布）
 
 用户安装 v0.12.0 后 Launcher 报“服务进程提前退出”。实例 `service.log` 显示 Launcher 注入的 `wechat_onebot.launcher.worker` 在导入阶段失败：
 
@@ -512,4 +512,6 @@ ImportError: cannot import name '_configure_logging' from 'wechat_onebot.cli'
 
 根因：B 批 U-06 把 CLI 日志初始化改为 `configure_logging(config, level)`，删除了 Launcher worker 依赖的旧函数 `_configure_logging()`。Launcher worker 是外部注入文件，仍按旧契约在读取配置前调用该函数；Bot 离线测试覆盖了 CLI，但没有覆盖 Launcher 注入 worker 的导入面。
 
-修复：在 `src/wechat_onebot/cli.py` 恢复无配置依赖的 `_configure_logging(level="INFO")` 兼容 shim（stderr basicConfig），并新增 `tests/test_cli.py` 回归测试。Bot 自身 `command_run` 继续使用完整文件日志 `configure_logging`；Launcher 托管 worker 的旧启动契约不再被破坏。修复提交后需重建/发布 **0.12.1**；v0.12.0 不应继续安装。
+修复：在 `src/wechat_onebot/cli.py` 恢复无配置依赖的 `_configure_logging(level="INFO")` 兼容 shim（stderr basicConfig），并新增 `tests/test_cli.py` 回归测试。Bot 自身 `command_run` 继续使用完整文件日志 `configure_logging`；Launcher 托管 worker 的旧启动契约不再被破坏。
+
+发布结果（2026-11-18）：用户确认发布并撤回 v0.12.0 旧包。**WeChatBot v0.12.1** annotated tag `v0.12.1` → `06d1564`；GitHub Release ID `449853074`，非 draft/prerelease，Latest；[Bot checks #44289239782](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/44289239782) 成功。附件 `wechat-onebot-0.12.1-windows-x64.zip` 60,489,938 B，SHA-256 `f8efb6289823f9a9dd35e6161bd6b94527b1ad271f37806ebcc25822ed20cb0c`，同名 `.sha256` 已上传并公网复验一致；Launcher `VersionStore.import_archive` 导入 1,596 个文件、状态 `compatible`；实际 Launcher worker 启动提取包后 `/healthz` HTTP 200、退出码 0。v0.12.0 Release/资产已删除并返回 404；其历史 tag 保留作审计记录，不再作为可安装包。生产实例未替换。
