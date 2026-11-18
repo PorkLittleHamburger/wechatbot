@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-18** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 **WeChatBot v0.12.0**（Launcher 配套 v0.8.12、框架 dev17）；HEAD 为 `v0.12.0` 对应提交（见本页发布记录）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-18** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 **WeChatBot v0.12.0**（Launcher 配套 v0.8.12、框架 dev17）；HEAD 为 `bdc6bae`（v0.12.0）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -485,11 +485,11 @@ U-01 出站引用（P0）仍不在 Bot 实现内：当前 SDK 4.2.0.52 无 quote
 - 接收端人工确认：**真实可点击群 @**，不是普通文本；
 - 发送前 Bot/AstrBot 未运行、无 `wca_bridge.dll`；发送后正常 `stop_all`，无 `SHUTDOWN_PENDING` 残留，bridge 已卸载；
 - 本轮只覆盖本账号缓存名/verified 路径；手工绑定、跨账号缓存、混合来源降级仍以框架证据 + Bot 离线测试为准，未全部在 Bot 实机重跑。
-- 未修改生产 `config.json`，未发布、未构建 Release，Bot 版本仍 `0.11.10`。
+- 未修改生产 `config.json`，未发布、未构建 Release，Bot 版本仍 `0.11.10`（后由 v0.12.0 发布）。
 
 U-01 出站引用仍无 dev17 quote API；Bot 出站 `reply` 继续 1404。后续若要升级生产配置，仍需用户确认实例账号切换/升级窗口。
 
-## v0.12.0 WeChat 4.2.0.53 / dev17 与 B/C 批整合（2026-11-18，发布）
+## v0.12.0 WeChat 4.2.0.53 / dev17 与 B/C 批整合（2026-11-18，已发布）
 
 本版把已提交但未发布的 B 批、C 批 U-02 与新微信 4.2.0.53 支持整合发布：
 
@@ -499,3 +499,5 @@ U-01 出站引用仍无 dev17 quote API；Bot 出站 `reply` 继续 1404。后�
 - B 批：动作目录/元素清单单一真源、文件日志/级别热切换、安全暴露面加固、桥接离线有限事件、好友申请只读列表；U-08b 审批跳过。
 - U-01 出站引用仍不支持（无 quote API，`reply` 1404）；U-03/U-05b 暂缓。
 - 验证：全量测试、`compileall`、action-catalog、JS、便携包构建与 Launcher 导入；具体数字、资产哈希和 Release 结果见下述发布记录。
+
+发布结果（2026-11-18）：用户明确要求发布，完成 **WeChatBot v0.12.0**。annotated tag `v0.12.0` → `bdc6bae`；GitHub Release ID `449837782`，非 draft/prerelease，Latest；[Bot checks #44287068675](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/44287068675) 成功。附件 `wechat-onebot-0.12.0-windows-x64.zip` 60,489,018 B，SHA-256 `653f39466ef858786f1f80ff0b888989d0930fe6a6c87de62e877698972598f1`，同名 `.sha256` 一并上传；公网下载后重新计算大小/摘要一致。实际 Launcher `VersionStore.import_archive` 临时工作区导入 1,596 个文件、状态 `compatible`。生产实例未替换，未修改生产配置。
