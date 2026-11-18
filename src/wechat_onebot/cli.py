@@ -25,6 +25,20 @@ def _build_manager(config: AppConfig) -> RuntimeManager:
     return RuntimeManager(config)
 
 
+def _configure_logging(level: str = "INFO") -> None:
+    """Launcher worker compatibility shim for the pre-v0.12 stderr setup.
+
+    The Launcher-owned worker imports this name before it can load ``config``;
+    the full file-logging setup is configured by :func:`command_run` only when
+    the Bot owns the process. Keep this shim side-effect-equivalent to the old
+    stderr-only initializer so an injected worker does not fail to start.
+    """
+    logging.basicConfig(
+        level=getattr(logging, level.upper(), logging.INFO),
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    )
+
+
 def _file_version(path: Path) -> str:
     if os.name != "nt":
         return ""
