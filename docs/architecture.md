@@ -5,7 +5,7 @@
 ```text
 WeChat (fingerprint-locked Windows x64 builds)
   helper driver: 4.1.15.13 / 4.1.15.56 / 4.2.0.11 / 4.2.0.12
-  sdk driver:    4.2.0.52 (wechatbot_api 0.1.0.dev15)
+  sdk driver:    4.2.0.52/4.2.0.53 (wechatbot_api 0.1.0.dev17)
         |
         v
 Driver implementation + bridge helpers
@@ -76,9 +76,9 @@ The `sdk` driver maps the framework's public API instead of raw native messages:
 - events are immutable SDK `Event` objects with `kind` (`message`/`media_update`/`diagnostic`), `content_type`, `mentions`, `reference` and bounded rich `content`; the driver thaws them into plain dicts and reuses `protocol/rich_content.py` for OneBot projection;
 - pending media is downloaded with `Session.request_media`, exported from the SDK-owned `MediaHandle` into the account media `inbound/` directory, and released before the OneBot event is emitted; failures stay explicit text placeholders;
 - `Session` calls run on an executor, events are consumed on a dedicated thread and dispatched with `run_coroutine_threadsafe`, and `close()` is drained (`SHUTDOWN_PENDING` → `wait_closed`) rather than forced;
-- capabilities describe only mapped operations; emoticon send, recall, friend requests and group management are absent, so the corresponding actions fail explicitly. Video send is mapped only where the driver/build advertises `video.send` (helper 4.2.0.12, sdk 4.2.0.52) and stays `1404` elsewhere, including inside forward-send chains.
+- capabilities describe only mapped operations; emoticon send, recall, friend requests and group management are absent, so the corresponding actions fail explicitly. Video send is mapped only where the driver/build advertises `video.send` (helper 4.2.0.12, sdk 4.2.0.52/4.2.0.53) and stays `1404` elsewhere, including inside forward-send chains.
 
-Unavailable capabilities remain visible in the capability matrix. On 4.2 helper builds an unsupported emoticon send is currently handled as a generic `1500` by this gateway's mapping (the native 4.2 emoticon path itself has not been live-verified), while the `sdk` driver reports `1404`. Outbound `video` follows the same capability-gated per-build rule: helper 4.2.0.12 and sdk 4.2.0.52 map it (SDK H.264 silent MP4 is framework-verified; helper filehelper/group verified upstream, private chat pending Q-4), while helper 4.2.0.11/4.1.15.x and forward chains remain `1404`.
+Unavailable capabilities remain visible in the capability matrix. On 4.2 helper builds an unsupported emoticon send is currently handled as a generic `1500` by this gateway's mapping (the native 4.2 emoticon path itself has not been live-verified), while the `sdk` driver reports `1404`. Outbound `video` follows the same capability-gated per-build rule: helper 4.2.0.12 and sdk 4.2.0.52/4.2.0.53 map it (SDK H.264 silent MP4 is framework-verified; helper filehelper/group verified upstream, private chat pending Q-4), while helper 4.2.0.11/4.1.15.x and forward chains remain `1404`.
 
 ## Inbound media handoff
 

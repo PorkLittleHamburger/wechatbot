@@ -234,7 +234,7 @@ class RuntimeManager:
         """Pick the configured driver, falling back to the other real driver.
 
         A gateway upgraded from helper to 0.10.0 keeps ``driver.type=helper`` in
-        its existing config while the installed WeChat is a 4.2.0.52 build that
+        its existing config while the installed WeChat is a 4.2.0.52/4.2.0.53 build that
         only the SDK driver supports. Trying the other driver here removes that
         migration trap instead of reporting the account as logged out.
         """
@@ -274,7 +274,7 @@ class RuntimeManager:
             hint += f" 发现错误码 {', '.join(codes)}。"
         raise AccountNotLoggedInError(
             f"目标账号未登录，或当前微信构建不受支持（已尝试 {'/'.join(order)} 驱动）。{hint}"
-            "4.2.0.52 需要 sdk 驱动，4.1.15.x / 4.2.0.11 / 4.2.0.12 需要 helper 驱动；"
+            "4.2.0.52/4.2.0.53 需要 sdk 驱动，4.1.15.x / 4.2.0.11 / 4.2.0.12 需要 helper 驱动；"
             "请确认微信已登录、账号一致，且没有旧桥接占用该进程。"
         )
 

@@ -5,13 +5,13 @@
 
 | 项 | 值 |
 | --- | --- |
-| 版本 | `0.1.0.dev15` |
-| 构建提交 | `7157c44f04b40fa51945b42e4d8486709be48422` |
-| wheel | `wechatbot_api-0.1.0.dev15-py3-none-win_amd64.whl` |
-| SHA-256 | `8dc2845866487138307e1bbf0840e98ae37c868b8a6feb43edee10ccd167b951` |
-| 原生 bridge | `wca_bridge.dll`（bridge 10 / ABI 1），SHA-256 `5af4026cd8a5b8940c11b451df77ca78b2addaeb64e66e383322449be08a6c0b` |
+| 版本 | `0.1.0.dev17` |
+| 构建提交 | `c23e83f5c877b13febc494025606f596af28726f` |
+| wheel | `wechatbot_api-0.1.0.dev17-py3-none-win_amd64.whl` |
+| SHA-256 | `c1294988dcb7e3e69f0be6feeab0ebfa15e43205c2cdac36926b3b6b74ea0495` |
+| 原生 bridge | `wca_bridge.dll`（bridge 10 / ABI 1），SHA-256 `0e8fc3a4dedfa90220a91b82ef5f6a1375041234f173847be2252c25e7d06693` |
 | 许可 | helper 非商业使用许可协议 1.0（见 `LICENSE`） |
-| 目标微信构建 | 4.2.0.52（`Weixin.dll` 204168240 字节，SHA-256 `d733489e…f8d84`） |
+| 目标微信构建 | 4.2.0.52（`Weixin.dll` 204168240 字节，SHA-256 `d733489e…f8d84`）；4.2.0.53（204154920 字节，SHA-256 `ac6b174d…104825`） |
 
 框架不依赖本仓库；网关只通过 `wechatbot_api` 的公开 API 接入。完整接口、
 能力边界与验收范围见该框架自带的 `docs/API.md` 与 `docs/HANDOVER.md`；本仓库的
@@ -21,7 +21,7 @@
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install --no-index --no-deps `
-  .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev15-py3-none-win_amd64.whl
+  .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev17-py3-none-win_amd64.whl
 ```
 
 便携包由 `scripts/build_portable.py` 自动安装该 wheel。安装时不要使用

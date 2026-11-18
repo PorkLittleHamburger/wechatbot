@@ -701,12 +701,15 @@ class OneBotService:
                 except DriverError:
                     cached = ""
                 if cached:
+                    cached = self._mention_label_name(cached, external)
+                if cached:
                     names.append(cached)
                     sources.append("cache")
                     fallback_labels.append(cached)
                     continue
                 manual = self.message_store.mention_label(
                     self.account, external, chat_id)
+                manual = self._mention_label_name(manual, external)
                 if manual:
                     names.append(manual)
                     sources.append("manual")
@@ -719,11 +722,14 @@ class OneBotService:
                 except DriverError:
                     foreign = ""
                 if foreign:
+                    foreign = self._mention_label_name(foreign, external)
+                if foreign:
                     names.append(foreign)
                     sources.append("foreign")
                     fallback_labels.append(foreign)
                     continue
                 profile = self._display_name(external, chat_id)
+                profile = self._mention_label_name(profile, external)
                 if profile:
                     names.append(profile)
                     sources.append("profile")
@@ -1126,6 +1132,11 @@ class OneBotService:
         profile = self.message_store.profile(self.account, user, group)
         name = (profile["card"] or profile["nickname"]) if profile else ""
         return "".join(" " if ord(ch) < 32 else ch for ch in name).strip()[:64]
+
+    @staticmethod
+    def _mention_label_name(label: str, external: str) -> str:
+        """A wxid is never a native display label, even from legacy/profile data."""
+        return "" if not label or label == external else label
 
     @staticmethod
     def _mention_label_value(value: Any) -> str:

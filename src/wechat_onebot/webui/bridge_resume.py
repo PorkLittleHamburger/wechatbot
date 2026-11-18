@@ -13,7 +13,7 @@ from .startup import load_bridge_intent, save_bridge_intent, save_last_bridge
 
 RESUME_CAPABILITY_VERSION = 1
 
-# A helper-configured instance may target a 4.2.0.52 client that only the SDK
+# A helper-configured instance may target a 4.2.0.52/4.2.0.53 client that only the SDK
 # driver can reach. Probe the SDK after a short grace period, then sparingly:
 # the resume loop runs every few milliseconds and must not scan processes on
 # every iteration.
@@ -123,7 +123,7 @@ class BridgeResumeController:
                     self._waiting_since = None
                 elif self.config.driver.type == "helper":
                     # Existing helper configs upgraded to 0.10+ may target a
-                    # 4.2.0.52 client that only the SDK driver can reach. Probe
+                    # 4.2.0.52/4.2.0.53 client that only the SDK driver can reach. Probe
                     # after a grace period instead of scanning every loop.
                     now = time.monotonic()
                     if self._waiting_since is None:

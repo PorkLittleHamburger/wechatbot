@@ -2,7 +2,7 @@
 
 Windows 11 x64 个人微信 OneBot v11 网关。本项目包含协议转换、账号与原生桥接会话、HTTP/WebSocket 网络端点、账号 WebUI、持久化 ID 与消息存储，以及 Windows 便携包构建。
 
-真实微信访问由两种驱动提供：`helper` 驱动适配 4.1.15.13–4.2.0.12，`sdk` 驱动通过独立框架 `wechatbot-api` 适配 4.2.0.52。两者互斥启用，`driver.type` 只能选择其一；Mock 驱动用于离线开发。
+真实微信访问由两种驱动提供：`helper` 驱动适配 4.1.15.13–4.2.0.12，`sdk` 驱动通过独立框架 `wechatbot-api` 适配 4.2.0.52 与 4.2.0.53。两者互斥启用，`driver.type` 只能选择其一；Mock 驱动用于离线开发。
 
 仓库仅包含 Bot 网关开发内容。机器人回复逻辑、AI 行为和业务流程由外部 OneBot v11 客户端实现。
 
@@ -16,7 +16,7 @@ Windows 11 x64 个人微信 OneBot v11 网关。本项目包含协议转换、�
 - 跨账号名称补全：sdk 驱动在本账号缓存查不到成员名时，可只读查询同一 Windows 用户下其他已登录微信账号的群成员缓存，取群昵称/微信名（不使用他人备注）作为未验证标签。默认开启，可用 `driver.sdk_cross_account_mentions=false` 关闭。
 - 稳定且持久化的 OneBot 用户、群与消息 ID。
 - 本地 WebUI 管理账号扫描、桥接、OneBot 端点、日志和媒体存储；系统设置 → 存储管理可直接调整 `storage.max_media_bytes`（媒体解码后大小上限，1 KiB–1 GiB）。
-- Mock 驱动用于离线测试；`helper` 驱动通过固定版本原生桥接读写真实微信消息；`sdk` 驱动通过 `wechatbot-api` 公开 SDK 支持微信 4.2.0.52。
+- Mock 驱动用于离线测试；`helper` 驱动通过固定版本原生桥接读写真实微信消息；`sdk` 驱动通过 `wechatbot-api` 公开 SDK 支持微信 4.2.0.52/4.2.0.53。
 - 可构建包含 Python、依赖、原生组件和 WebUI 的 Windows 便携包。
 
 ## 系统要求
@@ -24,12 +24,12 @@ Windows 11 x64 个人微信 OneBot v11 网关。本项目包含协议转换、�
 - 当前验证平台为 Windows 11 x64。
 - 源码要求 Python 3.11+ x64，建议使用与 CI 一致的 Python 3.13；便携包内置解释器。
 - `helper` 驱动适配 PC 微信 **4.1.15.13 / 4.1.15.56 / 4.2.0.11 / 4.2.0.12** 的指定构建，还会核对核心 DLL 指纹；相同版本号不保证兼容。
-- `sdk` 驱动适配 PC 微信 **4.2.0.52**（`Weixin.dll` 204168240 字节，SHA-256 `d733489e…f8d84`），依赖包内 `wechatbot_api 0.1.0.dev15` 与其 bridge 10；其他 4.2 构建不在本次范围。
+- `sdk` 驱动适配 PC 微信 **4.2.0.52 / 4.2.0.53**（两个精确指纹：4.2.0.52 `Weixin.dll` 204168240 字节、SHA-256 `d733489e…f8d84`；4.2.0.53 204154920 字节、SHA-256 `ac6b174d…104825`），依赖包内 `wechatbot_api 0.1.0.dev17` 与其 bridge 10；其他 4.2 构建不在本次范围。
 - 原生桥接需要管理员权限；Mock 模式不需要微信登录。
 
 `helper` 驱动固定要求管理员权限；`sdk` 驱动按微信进程的完整性决定，同级或更高权限即可，权限不足时连接返回 `ACCESS_DENIED`。
 
-v0.10.0 新增 `sdk` 驱动并固定 `wechatbot_api 0.1.0.dev14`（后续升级到 dev15）；**4.2.0.52 只能用 `sdk` 驱动，4.1.15.x 与 4.2.0.11/0.12 只能用 `helper` 驱动**，不能靠修改版本号放行。两者能力边界不同，详见 [微信版本与能力](docs/wechat-versions.md)。
+v0.10.0 新增 `sdk` 驱动并固定 `wechatbot_api 0.1.0.dev14`（后续依次升级到 dev15/dev17）；**4.2.0.52/4.2.0.53 只能用 `sdk` 驱动，4.1.15.x 与 4.2.0.11/0.12 只能用 `helper` 驱动**，不能靠修改版本号放行。两者能力边界不同，详见 [微信版本与能力](docs/wechat-versions.md)。
 
 PC 微信登录必须由用户在微信客户端中完成。WebUI 不提供扫码登录接口。
 
@@ -75,7 +75,7 @@ v0.11.9 跨账号名称补全：某些成员的名称只存在于另一台已登
 
 v0.11.10 媒体上限可调：实例 WebUI 的“系统设置 → 存储管理”新增 `storage.max_media_bytes` 输入（默认 50 MiB，范围 1 KiB–1 GiB），保存后写入 `config.json` 并热更新当前账号的媒体存储，无需重启。页面同时说明它与 OneBot 端点 `maxMessageBytes` 的区别：前者限制解码后的媒体大小，后者限制 WS 原始帧大小。
 
-C 批 U-02（已提交 `9829e35`，未发布；SDK 网关私聊已实机确认可播放）：出站 `video` 发送按驱动与微信构建映射——`sdk` 4.2.0.52 支持 H.264 静音 MP4（Q-3 私聊短样本已验证；其他编码/带音轨仍为框架 pending），`helper` 4.2.0.12 映射但私聊待 Q-4（上游仅声明 filehelper/群已验证），其他构建与 `send_group_forward_msg`/`send_private_forward_msg` 链内视频仍返回 1404。
+C 批 U-02（已提交 `9829e35`，未发布；SDK 网关私聊已实机确认可播放）：出站 `video` 发送按驱动与微信构建映射——`sdk` 4.2.0.52 支持 H.264 静音 MP4（Q-3 私聊短样本已验证；4.2.0.53 共用 `video.send` 能力但未单独实发；其他编码/带音轨仍为框架 pending），`helper` 4.2.0.12 映射但私聊待 Q-4（上游仅声明 filehelper/群已验证），其他构建与 `send_group_forward_msg`/`send_private_forward_msg` 链内视频仍返回 1404。
 
 ## 下载与升级
 
@@ -95,7 +95,7 @@ v0.9.3 新增明确的桥接恢复状态与手动停止持久化。自动恢复�
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements-runtime.lock
 .venv\Scripts\python.exe -m pip install -e ".[dev]"
-.venv\Scripts\python.exe -m pip install --no-index --no-deps .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev15-py3-none-win_amd64.whl
+.venv\Scripts\python.exe -m pip install --no-index --no-deps .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev17-py3-none-win_amd64.whl
 .venv\Scripts\python.exe -m pytest -q
 ```
 
@@ -175,7 +175,7 @@ pwsh -File .\scripts\build_portable.ps1
 | `src/wechat_onebot/` | 协议、账号桥接、OneBot 网络、运行时与 WebUI 服务 |
 | `tests/` | 协议、账号、网络、WebUI、存储与运行时测试 |
 | `vendor/helper/` | 固定版本的原生微信桥接与第三方声明（4.1.15.x、4.2.0.11/0.12） |
-| `vendor/wechatbot_api/` | 固定版本的 `wechatbot-api` wheel 与清单（4.2.0.52） |
+| `vendor/wechatbot_api/` | 固定版本的 `wechatbot-api` wheel 与清单（4.2.0.52 / 4.2.0.53） |
 | `webui/` | 账号和 OneBot 配置管理页面 |
 | `scripts/` | 单服务启动、原生桥接预检和便携包构建 |
 | `docs/` | 架构、网络配置、协议兼容及验证说明 |

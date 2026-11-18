@@ -253,6 +253,116 @@ async def test_mixed_manual_and_cached_labels_use_unverified_native(tmp_path: Pa
 
 
 @pytest.mark.asyncio
+async def test_at_only_qq_segment_uses_native_mention_without_text(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = mapper.get_or_create("group", "10001@chatroom")
+        user = mapper.get_or_create("user", "wxid_alice")
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group,
+            "message": [{"type": "at", "data": {"qq": user}}],
+        })
+        assert response["status"] == "ok"
+        payload = driver.sent[-1].payload
+        assert driver.sent[-1].kind == "at_text"
+        assert payload["user_ids"] == ["wxid_alice"]
+        assert payload["display_names"] == ["Alice"]
+        assert payload["labels_verified"] is True
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_cache_manual_foreign_priority_in_one_batch(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = mapper.get_or_create("group", "10001@chatroom")
+        alice = mapper.get_or_create("user", "wxid_alice")
+        bob = mapper.get_or_create("user", "wxid_bob")
+        carol = mapper.get_or_create("user", "wxid_carol")
+        service.set_mention_label(group, bob, "手工名")
+        driver.resolve_mention_label = AsyncMock(
+            side_effect=lambda _chat, user: "缓存名" if user == "wxid_alice" else None)
+        driver.resolve_foreign_mention_label = AsyncMock(
+            side_effect=lambda _chat, user: "外账号名" if user == "wxid_carol" else None)
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group,
+            "message": [{"type": "at", "data": {"qq": alice}},
+                        {"type": "text", "data": {"text": " "}},
+                        {"type": "at", "data": {"qq": bob}},
+                        {"type": "text", "data": {"text": " "}},
+                        {"type": "at", "data": {"qq": carol}},
+                        {"type": "text", "data": {"text": "hi"}}],
+        })
+        assert response["status"] == "ok"
+        payload = driver.sent[-1].payload
+        assert payload["display_names"] == ["缓存名", "手工名", "外账号名"]
+        assert payload["labels_verified"] is False
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_wxid_is_never_passed_as_a_native_label(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = mapper.get_or_create("group", "10001@chatroom")
+        user = mapper.get_or_create("user", "wxid_ghost")
+        # Legacy/manual/profile/cache data can disagree with the setter guard.
+        service.message_store.set_mention_label(
+            service.account, "wxid_ghost", "10001@chatroom", "wxid_ghost")
+        driver.resolve_mention_label = AsyncMock(return_value="wxid_ghost")
+        driver.resolve_foreign_mention_label = AsyncMock(return_value="wxid_ghost")
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group,
+            "message": [{"type": "at", "data": {"qq": user}},
+                        {"type": "text", "data": {"text": "hi"}}],
+        })
+        assert response["status"] == "ok"
+        payload = driver.sent[-1].payload
+        assert payload["display_names"] == []
+        assert "wxid_ghost" not in (payload["display_names"] or [])
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_profile_in_mixed_batch_degrades_entire_visible_text(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = mapper.get_or_create("group", "10001@chatroom")
+        alice = mapper.get_or_create("user", "wxid_alice")
+        bob = mapper.get_or_create("user", "wxid_bob")
+        carol = mapper.get_or_create("user", "wxid_carol")
+        service.message_store.remember_profiles("wxid_robot", [
+            ("wxid_carol", "", "资料名", "", "message")])
+        driver.resolve_mention_label = AsyncMock(
+            side_effect=lambda _chat, user: "缓存名" if user == "wxid_alice" else None)
+        driver.resolve_foreign_mention_label = AsyncMock(
+            side_effect=lambda _chat, user: "外账号名" if user == "wxid_bob" else None)
+        driver.send_at_text = AsyncMock(side_effect=AssertionError("must degrade"))
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group,
+            "message": [{"type": "at", "data": {"qq": alice}},
+                        {"type": "text", "data": {"text": " "}},
+                        {"type": "at", "data": {"qq": bob}},
+                        {"type": "text", "data": {"text": " "}},
+                        {"type": "at", "data": {"qq": carol}},
+                        {"type": "text", "data": {"text": "hi"}}],
+        })
+        assert response["status"] == "ok"
+        assert driver.sent[-1].kind == "text"
+        text = driver.sent[-1].payload["text"]
+        assert "@缓存名" in text and "@外账号名" in text and "@资料名" in text
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
 async def test_mixed_manual_and_profile_labels_degrade_without_native_attempt(tmp_path: Path):
     service, driver, mapper, _ = await make_service(tmp_path)
     try:

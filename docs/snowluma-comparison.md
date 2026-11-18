@@ -6,7 +6,7 @@
 >
 > **B 批基线变化（2026-11-15，已提交 `5a3a360`）**：A 批（`1b19502`/`04ab900`）之后的工作区新增 U-07 动作目录/元素四向单一真源、U-06 文件日志与级别热切换、U-05a 暴露面加固、U-04 `bot_offline`、U-08a 好友申请只读列表（新增可选扩展动作 `get_friend_requests`）；注册动作 23→24、测试 557→645、测试文件 43→49。正文的现状判断与优先级仍以 A 批为基线，不据 B 批改写；B 批落地与验证入口见 `docs/HANDOVER.md`，引用行号已按当前工作区核对。
 >
-> **C 批 U-02（2026-11-15，未提交）**：出站 `video` 发送已按驱动/构建映射（SDK 4.2.0.52 H.264 静音 MP4：Q-3 私聊短样本已验证，其他编码/带音轨 pending；helper 4.2.0.12：网关已映射但私聊/本机待 Q-4，上游仅声明 filehelper/群已验证；其他构建与转发发送扩展链仍 1404）。当前 `pytest --collect-only` 为 657 项 / 50 个测试文件，动作仍 24、WebUI 路由仍 33；U-02 状态按本批更新，其他条目与 A/B 历史注记不变。
+> **C 批 U-02（2026-11-15，未提交）**：出站 `video` 发送已按驱动/构建映射（SDK 4.2.0.52 H.264 静音 MP4：Q-3 私聊短样本已验证，其他编码/带音轨 pending；helper 4.2.0.12：网关已映射但私聊/本机待 Q-4，上游仅声明 filehelper/群已验证；其他构建与转发发送扩展链仍 1404）。当前 `pytest --collect-only` 为 669 项 / 50 个测试文件，动作仍 24、WebUI 路由仍 33；U-02 状态按本批更新，其他条目与 A/B 历史注记不变。
 >
 > **方法**：只读比对。SnowLuma 侧逐文件阅读镜像源码与文档；本仓库侧逐文件阅读 `src/`、`tests/`、`docs/` 与 `vendor/` 的固定依赖，结论以代码为准、文档为辅。证据格式：本仓库写 `路径:行号`；SnowLuma 镜像写 `SnowLuma v2.4.2: 镜像相对路径:行号`。所有引用在成稿前重新核对到具体行内容（不只校验行号存在）。
 >
@@ -247,7 +247,7 @@
 | 91 | 发布流程 | 明确排除 | — | — | 人工发布 + Launcher 复验：`docs/HANDOVER.md:66` / `SnowLuma v2.4.2: .github/workflows/release.yml:119-192` |
 | 92 | CI 治理（lint/类型/覆盖率/矩阵） | 部分覆盖 | — | — | 单作业 windows-x64：`.github/workflows/bot.yml:10-53` / `SnowLuma v2.4.2: .github/workflows/ci.yml:17-106` |
 | 93 | 依赖固定与 vendored 校验 | 已覆盖 | — | — | `.github/workflows/bot.yml:26-35`、`vendor/helper/VENDORED_SHA256.json` / `SnowLuma v2.4.2: LICENSE:32-35` |
-| 94 | 测试规模与分层 | 部分覆盖 | — | — | 50 个测试文件 / 657 项（`pytest --collect-only`）；无真实客户端 e2e：`docs/live-preflight.md:3` / `SnowLuma v2.4.2: AGENTS.md:54-90`；测试文件 518（含 scripts 生成器测试为 519） |
+| 94 | 测试规模与分层 | 部分覆盖 | — | — | 50 个测试文件 / 669 项（`pytest --collect-only`）；无真实客户端 e2e：`docs/live-preflight.md:3` / `SnowLuma v2.4.2: AGENTS.md:54-90`；测试文件 518（含 scripts 生成器测试为 519） |
 | 95 | 动作目录 / 元素四向清单单一真源 | 部分覆盖 | U-07 | — | 运行期目录（`src/wechat_onebot/onebot/actions.py:220-225`），无生成快照/漂移校验 / `SnowLuma v2.4.2: .github/workflows/ci.yml:39-43`、`SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:1-27,134-288` |
 | 96 | 客户端 SDK | 未覆盖-可迁移 | U-25 | — | 对外契约只有 OneBot 协议：`docs/onebot-compatibility.md:3` / `SnowLuma v2.4.2: packages/sdk/README.md:3`、`SnowLuma v2.4.2: packages/sdk/src/actions.ts:5-240` |
 | 97 | MCP 服务器 | 未覆盖-可迁移 | U-26 | — | 本仓库无 MCP / `SnowLuma v2.4.2: packages/mcp/README.md:3-11`、`SnowLuma v2.4.2: packages/mcp/src/tools.ts:57-162` |
@@ -392,7 +392,7 @@
 | 现有文档 | 已声明的限制（不重复抄写） | 本报告的处理 |
 | --- | --- | --- |
 | [OneBot 兼容说明](onebot-compatibility.md) | 出站 `reply` 整链 1404（`docs/onebot-compatibility.md:43`）；`video` 已按驱动/构建映射（`docs/onebot-compatibility.md:41`：SDK Q-3、helper 4.2.0.12/Q-4 待验，转发链 1404），`json`/`xml`/`share`/`contact` 等仍不支持（`docs/onebot-compatibility.md:46`）；未注册动作 1404/404（`docs/onebot-compatibility.md:36`）；历史只读本地观测（`docs/onebot-compatibility.md:34`）；通知/请求抑制规则（`docs/onebot-compatibility.md:57`） | 出站引用判 **U-01（受限可迁移）**，只在"产品决策"层面建议重估；`video` 判 **U-02**（C 批已实现，Q-3/Q-4 分列）；卡片类判 **X-2**；未注册动作给出 5/13/2 分类；抑制规则属已声明限制，不计遗漏 |
-| [微信版本与能力](wechat-versions.md) | 指纹锁定 4 个 helper 构建 + 1 个 sdk 构建（`docs/wechat-versions.md:12-25`）；驱动能力按构建不同（`docs/wechat-versions.md:27-65`） | U-01 限定"仅 4.2.0.12 声明"；U-02 分 helper 4.2.0.12 / sdk 4.2.0.52 两条路径；U-08 按构建可用 |
+| [微信版本与能力](wechat-versions.md) | 指纹锁定 4 个 helper 构建 + 2 个 sdk 构建（4.2.0.52/4.2.0.53，`docs/wechat-versions.md:12-25`）；驱动能力按构建不同（`docs/wechat-versions.md:27-65`） | U-01 限定"仅 4.2.0.12 声明"；U-02 分 helper 4.2.0.12 / sdk 4.2.0.52/4.2.0.53 两条路径；U-08 按构建可用 |
 | [后续方向](roadmap.md) | 撤回、原生合并转发卡片、群管理"按原生接口限制，按不支持处理"（`docs/roadmap.md:14`） | 尊重该声明：U-13/U-14/U-16/U-17 均标注"需原生新增"，并注明是**产品决策**而非遗漏 |
 
 **口径提示**：上游"框架/协议层支持"不等于本仓库"网关支持"。视频即典型——SnowLuma 的 `video` 四向支持、helper/SDK 原生有 `send_video`；本仓库 C 批已按驱动/构建映射（SDK Q-3 私聊短样本已验证；helper 4.2.0.12 映射但 Q-4 待验；其他构建/转发链 1404），不再按"未覆盖"表述。原 7 项纠偏中的第 1、5 项口径修正注记保留；本报告其他结论不变。
@@ -431,7 +431,7 @@
 | 上游占位/降级 | 9 个显式占位（含 4 个标准名）+ 2 个语义降级，实际有效约 211 | catalog 的 summary/notes |
 | SnowLuma 入站事件/消息元素/WebUI/MCP | 23 类事件 / 16 类元素 / 66 处路由 / 14 个 MCP 工具 | 镜像源码统计 |
 | 本仓库注册动作 | 24（18 标准 + 6 扩展） | `src/wechat_onebot/onebot/actions.py:86-221`；AST 复核 |
-| 本仓库 WebUI/测试 | 33 路由；50 个测试文件 / 657 项 | `src/wechat_onebot/webui/server.py:179-730`；`pytest --collect-only` |
+| 本仓库 WebUI/测试 | 33 路由；50 个测试文件 / 669 项 | `src/wechat_onebot/webui/server.py:179-730`；`pytest --collect-only` |
 | 本报告矩阵/清单 | 99 行矩阵；28 个可迁移条目（P0 1 / P1 7 / P2 20） | 本文第三、四节 |
 
 **自检**
@@ -440,4 +440,4 @@
 - 矩阵每个"未覆盖"行同时给出本仓库与 SnowLuma 两侧证据；28 个可迁移条目与矩阵第三列一一对应，无跨域重复、无同一能力两处不同优先级。
 - `docs/onebot-v11-audit.md:146` 的"本项目注册 19 个动作"是该文档文首声明的 v0.9.0 代码基线（`7b62bdd`）历史快照，不代表当前注册表；当前注册表为 24 个动作（见上表与 `src/wechat_onebot/onebot/actions.py:86-221`），本报告保留该历史基线且不改写该审计文档。
 - 未引用个人路径、账号、代理或任何本地分析目录；未复制上游大段源码。
-- 本轮只改文档：新增本文件与 `docs/README.md` 索引一行；未改代码、未提交/推送/发布。**批次说明**：其后的独立纠偏批次（HEAD `1b19502`）提交了本报告复核出的 7 项一致性修正（5 项文档口径 + 2 项低风险代码文案/参数描述，P1/P0 均未实施）；本报告结论不变，测试计数与文档索引已按该批次刷新。**B 批说明（2026-11-15，已提交 `5a3a360`）**：工作区新增 U-07/U-06/U-05a/U-04/U-08a 的落地内容；本报告已按 B 批工作区刷新计数与引用行号（动作 24、测试 49 文件/645 项、新增 `get_friend_requests` 计为可选扩展），结论与优先级不变，B 批验收见 `docs/HANDOVER.md`。**C 批说明（2026-11-15，未提交）**：U-02 出站视频已按驱动/构建映射（SDK Q-3 私聊短样本已验证；helper 4.2.0.12 映射但 Q-4 待验；其他构建/转发链 1404）；测试计数更新为 50 文件 / 657 项，动作 24、WebUI 路由 33 不变，其他结论与优先级不变，验收口径见 `docs/HANDOVER.md` C 批节与 Q-3/Q-4。
+- 本轮只改文档：新增本文件与 `docs/README.md` 索引一行；未改代码、未提交/推送/发布。**批次说明**：其后的独立纠偏批次（HEAD `1b19502`）提交了本报告复核出的 7 项一致性修正（5 项文档口径 + 2 项低风险代码文案/参数描述，P1/P0 均未实施）；本报告结论不变，测试计数与文档索引已按该批次刷新。**B 批说明（2026-11-15，已提交 `5a3a360`）**：工作区新增 U-07/U-06/U-05a/U-04/U-08a 的落地内容；本报告已按 B 批工作区刷新计数与引用行号（动作 24、测试 49 文件/645 项、新增 `get_friend_requests` 计为可选扩展），结论与优先级不变，B 批验收见 `docs/HANDOVER.md`。**C 批说明（2026-11-15，未提交）**：U-02 出站视频已按驱动/构建映射（SDK Q-3 私聊短样本已验证；helper 4.2.0.12 映射但 Q-4 待验；其他构建/转发链 1404）；测试计数更新为 50 文件 / 669 项，动作 24、WebUI 路由 33 不变，其他结论与优先级不变，验收口径见 `docs/HANDOVER.md` C 批节与 Q-3/Q-4。**SDK 升级说明（2026-11-18，未提交）**：vendored `wechatbot-api` 升级到 dev17，sdk 支持 4.2.0.52/4.2.0.53 双构建；helper `driver.supported_versions` 不变，测试计数同步为 669；4.2.0.53 仅做只读发现与离线群 @ 准备验证，未做真实群 @。

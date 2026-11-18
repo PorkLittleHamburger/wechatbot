@@ -1,4 +1,4 @@
-"""Driver for the independent ``wechatbot_api`` framework (WeChat 4.2.0.52).
+"""Driver for the independent ``wechatbot_api`` framework (WeChat 4.2.0.52/4.2.0.53).
 
 The framework owns the native bridge: process/account discovery, injection,
 event decoding and media download. This adapter only maps its typed public API
@@ -185,7 +185,7 @@ class SdkDriver(Driver):
             hint = {
                 "SESSION_BUSY": "微信进程已被其他桥接占用；已等待 20 秒仍未释放。请停止旧实例/旧桥接或重启微信后再试",
                 "ACCESS_DENIED": "Bot 权限低于微信进程，请用与微信相同或更高的权限启动",
-                "UNSUPPORTED_BUILD": "当前微信构建未适配；4.2.0.52 需要 sdk 驱动并核对核心指纹",
+                "UNSUPPORTED_BUILD": "当前微信构建未适配；4.2.0.52/4.2.0.53 需要 sdk 驱动并核对核心指纹",
                 "ABI_MISMATCH": "wechatbot_api 包与 bridge DLL 版本不匹配，请使用固定版本 wheel",
                 "ACCOUNT_CHANGED": "微信账号在连接期间发生变化，请重新扫描并启动",
             }.get(_code(error), "")

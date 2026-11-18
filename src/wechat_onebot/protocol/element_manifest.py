@@ -22,7 +22,7 @@ Values follow the SnowLuma element-manifest vocabulary:
   or because the gateway must not fake that semantic.
 
 Build-specific availability (for example ``video.send`` only on helper
-4.2.0.12 and the sdk 4.2.0.52 wheel) is enforced by ``Driver.capabilities``;
+4.2.0.12 and the sdk 4.2.0.52/4.2.0.53 wheel) is enforced by ``Driver.capabilities``;
 this table declares that a gateway mapping exists in that direction.
 
 This table covers gateway mappings only. Build-specific availability (for
@@ -50,7 +50,7 @@ ELEMENT_MANIFEST: dict[str, dict[Direction, DirectionSupport]] = {
     "file": {"D": "yes", "S": "yes", "P": "yes", "W": "yes"},
     # Inbound downloaded videos are reported as a ``video`` segment; outbound
     # video is mapped only where the driver exposes ``video.send`` (helper
-    # 4.2.0.12, sdk 4.2.0.52 fixed wheel). Forward-chain video stays 1404.
+    # 4.2.0.12, sdk 4.2.0.52/4.2.0.53 fixed wheel). Forward-chain video stays 1404.
     "video": {"D": "yes", "S": "yes", "P": "yes", "W": "yes"},
     # Inbound stickers are normalized to text ("[表情]") or image, never a
     # Segment("face"). Outbound accepts only file-based stickers; QQ face IDs

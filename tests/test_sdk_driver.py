@@ -200,7 +200,7 @@ def install_fake_sdk(monkeypatch, client=None) -> FakeClient:
 
     module = types.ModuleType("wechatbot_api")
     module.Client = Holder()
-    module.__version__ = "0.1.0.dev15"
+    module.__version__ = "0.1.0.dev17"
     monkeypatch.setitem(sys.modules, "wechatbot_api", module)
     return holder
 
@@ -693,6 +693,110 @@ async def test_status_reports_watchdog_and_build(monkeypatch, tmp_path: Path):
         await driver.stop()
 
 
+@pytest.mark.asyncio
+async def test_status_reports_42053_build(monkeypatch, tmp_path: Path):
+    client = install_fake_sdk(monkeypatch)
+    client.rows = [discovery_result(pid=123, wxid="wxid_robot", version="4.2.0.53")]
+    driver = SdkDriver(make_config(tmp_path))
+    await driver.start(lambda message: None)
+    try:
+        status = await driver.get_status()
+        assert status.online is True
+        assert status.details["wechat_version"] == "4.2.0.53"
+    finally:
+        await driver.stop()
+
+
+def test_42053_inbound_self_mention_maps_is_at_self_and_target(tmp_path: Path):
+    from wechat_onebot.ids import IdMapper
+    from wechat_onebot.media import MediaStore
+    from wechat_onebot.protocol.converters import message_event
+
+    driver = SdkDriver(make_config(tmp_path))
+    driver._self_id = "wxid_robot"
+    message = driver._convert_message(event(
+        chat_id="1@chatroom", sender_id="wxid_friend", content_type="text",
+        text="@机器人 hi", mentions=("wxid_robot",)))
+    assert message is not None and message.is_group is True
+    assert message.raw["is_at_self"] is True
+    assert message.segments[0].type == "at"
+    assert message.segments[0].data["qq"] == "wxid_robot"
+    mapper = IdMapper(tmp_path / "ids.sqlite3")
+    media = MediaStore(tmp_path / "media", max_bytes=1024 * 1024,
+                       public_base_url="http://127.0.0.1:6700")
+    self_id = mapper.get_or_create("user", "wxid_robot")
+    try:
+        payload = message_event(message, mapper, media, self_id, message_id=42)
+        assert payload["to_me"] is True
+        assert payload["message"][0] == {
+            "type": "at", "data": {"qq": str(self_id)}}
+    finally:
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_42053_group_at_contract(monkeypatch, tmp_path: Path):
+    client = install_fake_sdk(monkeypatch)
+    client.rows = [discovery_result(pid=123, wxid="wxid_robot", version="4.2.0.53")]
+    driver = SdkDriver(make_config(tmp_path))
+    await driver.start(lambda message: None)
+    try:
+        assert await driver.send_at_text(
+            "1@chatroom", "@群昵称 hi", ["wxid_a"], ["群昵称"],
+            labels_verified=False) is True
+        name, args, kwargs = client.session_obj.sent[-1]
+        assert name == "send_at_text"
+        assert args == ("1@chatroom", "@群昵称 hi")
+        assert kwargs["members"] == ["wxid_a"]
+        assert kwargs["display_names"] == ["群昵称"]
+        assert kwargs["labels_verified"] is False
+        assert await driver.resolve_mention_label("1@chatroom", "wxid_a") == "群昵称"
+        rows = await driver.get_group_member_list("1@chatroom")
+        assert [row.external_user_id for row in rows] == ["wxid_a"]
+    finally:
+        await driver.stop()
+
+
+@pytest.mark.asyncio
+async def test_42053_group_at_preparation_path(monkeypatch, tmp_path: Path):
+    from wechat_onebot.ids import IdMapper
+    from wechat_onebot.media import MediaStore
+    from wechat_onebot.onebot.message_store import MessageStore
+    from wechat_onebot.service import OneBotService
+
+    client = install_fake_sdk(monkeypatch)
+    client.rows = [discovery_result(pid=123, wxid="wxid_robot", version="4.2.0.53")]
+    driver = SdkDriver(make_config(tmp_path))
+    await driver.start(lambda message: None)
+    config = make_config(tmp_path)
+    mapper = IdMapper(tmp_path / "ids-service.sqlite3")
+    media = MediaStore(tmp_path / "media", max_bytes=config.storage.max_media_bytes,
+                       public_base_url="http://127.0.0.1:6700")
+    store = MessageStore(":memory:")
+    service = OneBotService(config, driver, mapper, media,
+                            message_store=store, account="wxid_robot")
+    service.self_id = mapper.get_or_create("user", "wxid_robot")
+    group = mapper.get_or_create("group", "1@chatroom")
+    user = mapper.get_or_create("user", "wxid_a")
+    try:
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group,
+            "message": [{"type": "at", "data": {"qq": user}},
+                        {"type": "text", "data": {"text": "hi"}}],
+        })
+        assert response["status"] == "ok"
+        name, args, kwargs = client.session_obj.sent[-1]
+        assert name == "send_at_text"
+        assert args == ("1@chatroom", "hi")
+        assert kwargs["members"] == ["wxid_a"]
+        assert kwargs["display_names"] == ["群昵称"]
+        assert kwargs["labels_verified"] is True
+    finally:
+        mapper.close()
+        store.close()
+        await driver.stop()
+
+
 # --------------------------------------------------------------- lifecycle
 @pytest.mark.asyncio
 async def test_stop_closes_session_and_cleans_media(monkeypatch, tmp_path: Path):
@@ -702,6 +806,41 @@ async def test_stop_closes_session_and_cleans_media(monkeypatch, tmp_path: Path)
     assert driver.online is False
     assert session.closed == 1
     assert session.cleaned == 1
+
+
+@pytest.mark.asyncio
+async def test_stop_waits_when_session_reports_shutdown_pending(monkeypatch, tmp_path: Path):
+    driver, client, _, _ = await started_driver(monkeypatch, tmp_path)
+    session = client.session_obj
+    waited: list[float | None] = []
+
+    class Pending(Exception):
+        code = SimpleNamespace(value="SHUTDOWN_PENDING")
+
+    def close(timeout=30):
+        raise Pending("native work still releasing")
+
+    session.close = close
+    session.wait_closed = lambda timeout=None: waited.append(timeout)
+    await driver.stop()
+    assert waited == [180]
+    assert session.cleaned == 0
+
+
+@pytest.mark.asyncio
+async def test_42053_restart_after_stop(monkeypatch, tmp_path: Path):
+    client = install_fake_sdk(monkeypatch)
+    client.rows = [discovery_result(pid=123, wxid="wxid_robot", version="4.2.0.53")]
+    driver = SdkDriver(make_config(tmp_path))
+    await driver.start(lambda message: None)
+    await driver.stop()
+    await driver.start(lambda message: None)
+    try:
+        status = await driver.get_status()
+        assert status.online is True
+        assert status.details["wechat_version"] == "4.2.0.53"
+    finally:
+        await driver.stop()
 
 
 @pytest.mark.asyncio
@@ -836,11 +975,29 @@ def test_sdk_discovery_fills_missing_nickname_from_contact_cache(monkeypatch, tm
 
     module = types.ModuleType("wechatbot_api")
     module.Client = Client
-    module.__version__ = "0.1.0.dev15"
+    module.__version__ = "0.1.0.dev17"
     monkeypatch.setitem(sys.modules, "wechatbot_api", module)
     rows = discover_sdk_accounts(make_config(tmp_path))
     assert rows[0].wxid == "wxid_a"
     assert rows[0].nickname == "墨染青花"
+
+
+def test_sdk_discovery_accepts_42053_build(monkeypatch):
+    from wechatbot_api import ErrorCode
+
+    class Client:
+        def discover(self):
+            return (discovery_result(pid=12, wxid="wxid_c", version="4.2.0.53"),)
+
+    module = types.ModuleType("wechatbot_api")
+    module.Client = Client
+    module.ErrorCode = ErrorCode
+    module.__version__ = "0.1.0.dev17"
+    monkeypatch.setitem(sys.modules, "wechatbot_api", module)
+    rows = discover_sdk_accounts(make_config(Path(".")))
+    assert [row.wxid for row in rows] == ["wxid_c"]
+    assert rows[0].version == "4.2.0.53"
+    assert rows[0].extra["bridge_supported"] is True
 
 
 def test_sdk_discovery_filters_unverified_rows(monkeypatch):
@@ -857,7 +1014,7 @@ def test_sdk_discovery_filters_unverified_rows(monkeypatch):
     module = types.ModuleType("wechatbot_api")
     module.Client = Client
     module.ErrorCode = ErrorCode
-    module.__version__ = "0.1.0.dev15"
+    module.__version__ = "0.1.0.dev17"
     monkeypatch.setitem(sys.modules, "wechatbot_api", module)
     rows = discover_sdk_accounts(make_config(Path(".")))
     assert [row.wxid for row in rows] == ["wxid_a", "wxid_b"]

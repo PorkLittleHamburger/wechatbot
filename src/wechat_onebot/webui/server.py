@@ -327,7 +327,7 @@ def create_webui_app(config: AppConfig, manager: RuntimeManager, *, start_runtim
                     discovered = await asyncio.to_thread(discover_logged_accounts, config.driver.helper_root)
                 if not discovered:
                     # A helper-configured instance may have been upgraded next
-                    # to a 4.2.0.52 client; show accounts the SDK can see.
+                    # to a 4.2.0.52/4.2.0.53 client; show accounts the SDK can see.
                     try:
                         if config.driver.type == "sdk":
                             discovered = await asyncio.to_thread(discover_logged_accounts, config.driver.helper_root)

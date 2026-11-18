@@ -7,10 +7,10 @@
 | 驱动 | 固定来源 | 支持的 Windows x64 微信构建 |
 | --- | --- | --- |
 | `helper` | [helper `119acdf`](https://github.com/Prometheus-first/helper/tree/119acdf9d74654c6ebb8cded2c6841b85af75867) + 本项目补丁 | 4.1.15.13、4.1.15.56、4.2.0.11、4.2.0.12 |
-| `sdk` | `wechatbot-api 0.1.0.dev15`（bridge 10 / ABI 1，见 [vendor/wechatbot_api](../vendor/wechatbot_api/README.md)） | 4.2.0.52 |
+| `sdk` | `wechatbot-api 0.1.0.dev17`（bridge 10 / ABI 1，见 [vendor/wechatbot_api](../vendor/wechatbot_api/README.md)） | 4.2.0.52、4.2.0.53 |
 
 helper 驱动的指纹以 `vendor/helper/native/compatibility.json` 为准；sdk 驱动在
-连接前由框架校验 `Weixin.dll` 的完整指纹。**4.2.0.52 只支持 `sdk` 驱动**；
+连接前由框架校验 `Weixin.dll` 的完整指纹。**4.2.0.52 与 4.2.0.53 只支持 `sdk` 驱动**；
 4.1.15.13 至 4.2.0.12 只支持 `helper` 驱动。其他未列出的构建不会放行。
 
 | Windows x64 微信 | 核心 DLL 字节数 | SHA-256 | 驱动 |
@@ -20,24 +20,25 @@ helper 驱动的指纹以 `vendor/helper/native/compatibility.json` 为准；sdk
 | 4.2.0.11 | 205929008 | `745cdf2955fa5128cdb00c056c97571156a5f107406a9bb15ac0754f3246b201` | helper |
 | 4.2.0.12 | 205932072 | `2b3677c3f932daaa4ef84c8b2acd0aee12cbe5a779ff9e740c370761e5c291ce` | helper |
 | 4.2.0.52 | 204168240 | `d733489eea0b62af77e1aa61ba645cd941583d2a64fb2d7572da818d285f8d84` | sdk |
+| 4.2.0.53 | 204154920 | `ac6b174d98ee1b69e95c99a7a39c3197c8c167b7c6d32f5b72c7a7659c104825` | sdk |
 
 sdk 驱动还要求 `wechatbot_api` 包与包内 `wca_bridge.dll` 的版本、大小和哈希
 一致；安装请使用 `vendor/wechatbot_api` 中的 wheel，不要单独替换 DLL。
 
 ## sdk 驱动能力与边界
 
-框架对 4.2.0.52 的公开已验证范围决定网关能宣称什么：
+框架对 4.2.0.52 / 4.2.0.53 的公开已验证范围决定网关能宣称什么：
 
 - 支持：私聊/群聊文本收发、1–2 人真实缓存名称的群 `@`、PNG 图片与普通文件
   收发、SILK/WAV/MP3/AAC/M4A/OGG/Opus/AMR-NB/WB/FLAC 语音发送（统一转为
   腾讯 SILK v3）、H.264 静音 MP4 视频发送（网关已映射 `video.send`；框架
-  标为 filehelper/私聊/群已验证，本地私聊短样本实发可播放；其他编码/带音轨
-  仍为框架 pending）、入站图片/文件/语音/视频的显式 `request_media` 下载、
+  标为 filehelper/私聊/群已验证，4.2.0.52 本地私聊短样本实发可播放；其他编码/带音轨
+  仍为框架 pending；4.2.0.53 未单独做网关侧视频实发）、入站图片/文件/语音/视频的显式 `request_media` 下载、
   `get_image`/`get_record` 读取收到的媒体（语音可转
   mp3/amr/wma/m4a/spx/ogg/wav/flac）、私聊引用文本/引用原图与两层嵌套转发、
   只读联系人/群/群成员缓存查询。视频不进入转发发送扩展链（仍 1404）。
-- 群 `@` 名称：dev15 新增按次 `labels_verified=False` 和只读
-  `mention_label(room, wxid)`。网关优先使用当前 SDK 缓存名（verified）；
+- 群 `@` 名称：dev17 沿用按次 `labels_verified=False` 和只读
+  `mention_label(room, wxid)`，并增加 4.2.0.53 目录/群成员缓存与标签适配。网关优先使用当前 SDK 缓存名（verified）；
   缓存查不到时先用实例 WebUI 手工绑定的真实名（按次未验证提交），仍没有时
   只读查询同一 Windows 用户下其他已登录微信账号的群成员缓存，取群昵称或
   微信名作为未验证标签（不读私人备注、不从其他账号发送）。任意标签即使
@@ -120,3 +121,22 @@ v0.11.9 新增跨账号名称补全：本账号缓存缺失时，sdk 驱动只�
 已登录微信账号的群成员缓存，取群昵称/微信名作为未验证标签；默认开启，
 `driver.sdk_cross_account_mentions=false` 可关闭。该路径不读其他账号备注，
 也不从其他账号发送；其他账号都未缓存该成员时仍需手工绑定或可见文本降级。
+
+## dev17 与 4.2.0.53 双构建（2026-11-18 源码接入，未发布）
+
+`vendor/wechatbot_api` 升级到 `wechatbot-api 0.1.0.dev17`（wheel 122388 字节，
+SHA-256 `c1294988…ea0495`；bridge 10 / ABI 1 不变；内嵌 `wca_bridge.dll` SHA-256
+`0e8fc3a4…d06693`；构建提交 `c23e83f5…8726f`）。该 wheel 的 `data/builds.json`
+同时声明两个 discovery/bridge 已验证的构建：4.2.0.52（`d733489e…f8d84`）与
+4.2.0.53（`ac6b174d…104825`）。Bot 不需要改驱动代码：发现账号时由框架按精确
+指纹筛选，`Driver.sdk` 继续从 wheel 的构建清单获得支持范围；helper 的
+`driver.supported_versions` 仍是 helper-only，**不要**把 4.2.0.53 加进去。
+
+能力口径：4.2.0.53 与 4.2.0.52 共用 sdk 驱动与公开 API；群 `@` 的
+`labels_verified=False`/`mention_label` 契约不变，dev17 已适配 4.2.0.53 的目录与
+群成员缓存（框架侧证据）。**Bot 未在 4.2.0.53 上发起真实群 `@`**；本仓库仅做
+临时配置只读发现与离线 fake SDK 的发送准备路径验证，真实群 `@` 仍需实机确认。
+视频发送仅继承 `video.send` 能力，Q-3 的实机可播放证据仍只覆盖
+4.2.0.52 私聊短静音 H.264 MP4，**4.2.0.53 未单独做网关侧视频实发**；其他编码/
+带音轨仍为框架 pending。本接入未改生产 `config.json`、未启动真实桥接、未发送
+微信消息；验证见交接文件。

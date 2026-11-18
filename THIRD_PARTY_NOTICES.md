@@ -4,11 +4,11 @@
 
 `vendor/wechatbot_api` contains an **unmodified** wheel of the independent framework:
 
-- Package: `wechatbot-api 0.1.0.dev15` (import name `wechatbot_api`)
-- Build commit: `7157c44f04b40fa51945b42e4d8486709be48422`
-- Wheel: `wechatbot_api-0.1.0.dev15-py3-none-win_amd64.whl`, SHA-256 `8dc2845866487138307e1bbf0840e98ae37c868b8a6feb43edee10ccd167b951`
-- Native bridge: `wechatbot_api/bin/wca_bridge.dll` (bridge 10 / ABI 1), SHA-256 `5af4026cd8a5b8940c11b451df77ca78b2addaeb64e66e383322449be08a6c0b`
-- Target build: WeChat 4.2.0.52 (`Weixin.dll` 204168240 bytes, SHA-256 `d733489eea0b62af77e1aa61ba645cd941583d2a64fb2d7572da818d285f8d84`)
+- Package: `wechatbot-api 0.1.0.dev17` (import name `wechatbot_api`)
+- Build commit: `c23e83f5c877b13febc494025606f596af28726f`
+- Wheel: `wechatbot_api-0.1.0.dev17-py3-none-win_amd64.whl`, SHA-256 `c1294988dcb7e3e69f0be6feeab0ebfa15e43205c2cdac36926b3b6b74ea0495`
+- Native bridge: `wechatbot_api/bin/wca_bridge.dll` (bridge 10 / ABI 1), SHA-256 `0e8fc3a4dedfa90220a91b82ef5f6a1375041234f173847be2252c25e7d06693`
+- Target builds: WeChat 4.2.0.52 (`Weixin.dll` 204168240 bytes, SHA-256 `d733489eea0b62af77e1aa61ba645cd941583d2a64fb2d7572da818d285f8d84`) and 4.2.0.53 (204154920 bytes, SHA-256 `ac6b174d98ee1b69e95c99a7a39c3197c8c167b7c6d32f5b72c7a7659c104825`)
 - License: helper Noncommercial License 1.0 (`LicenseRef-helper-noncommercial-1.0`), full text at `vendor/wechatbot_api/LICENSE`
 
 The gateway consumes the wheel only through the public `wechatbot_api` API in `src/wechat_onebot/driver/sdk.py`. It does not patch the wheel or its DLL; upgrades replace the whole wheel and update `vendor/wechatbot_api/VENDORED.json` and this section. The wheel bundles MinHook 1.3.4 and its license files under its own distribution metadata. Pillow is an install-time dependency pinned by `requirements-runtime.lock`.

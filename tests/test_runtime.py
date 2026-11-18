@@ -154,13 +154,15 @@ def patch_driver(monkeypatch, created: list[str]):
 
 
 @pytest.mark.asyncio
-async def test_start_account_falls_back_to_sdk_for_unsupported_helper_build(tmp_path: Path, monkeypatch):
+@pytest.mark.parametrize("version", ["4.2.0.52", "4.2.0.53"])
+async def test_start_account_falls_back_to_sdk_for_unsupported_helper_build(
+        tmp_path: Path, monkeypatch, version: str):
     config = make_manager_config(tmp_path)
     patch_discovery(
         monkeypatch,
         helper_rows=[],
         sdk_rows=[WeChatLogin(pid=31004, wxid="wxid_robot", nickname="Robot",
-                              version="4.2.0.52")],
+                              version=version)],
     )
     created: list[str] = []
     patch_driver(monkeypatch, created)

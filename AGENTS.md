@@ -19,7 +19,7 @@ This repository is the standalone Python OneBot v11 gateway for a personal Windo
 - `tests/`: pytest coverage for protocol conversion, IDs, networking, runtime, bridge management, storage, and WebUI APIs.
 - `webui/`, `assets/`, `docs/`, and `scripts/`: frontend files, icons, design notes, and launch/preflight/build utilities.
 - `vendor/helper/`: pinned helper native bridge (WeChat 4.1.15.x, 4.2.0.11/0.12). Do not modify vendored files without following its README and updating `VENDORED_SHA256.json`.
-- `vendor/wechatbot_api/`: pinned `wechatbot-api` wheel for the `sdk` driver (WeChat 4.2.0.52). Treat it as read-only; record upgrades in `VENDORED.json` and `THIRD_PARTY_NOTICES.md`.
+- `vendor/wechatbot_api/`: pinned `wechatbot-api` wheel for the `sdk` driver (WeChat 4.2.0.52/4.2.0.53). Treat it as read-only; record upgrades in `VENDORED.json` and `THIRD_PARTY_NOTICES.md`.
 - `config.example.json`: configuration template. Never commit local `config.json`, `data/`, credentials, or logs.
 
 Do not add unrelated application code to this repository.
@@ -30,7 +30,7 @@ Do not add unrelated application code to this repository.
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-runtime.lock
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
-.\.venv\Scripts\python.exe -m pip install --no-index --no-deps .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev15-py3-none-win_amd64.whl
+.\.venv\Scripts\python.exe -m pip install --no-index --no-deps .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev17-py3-none-win_amd64.whl
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe -m compileall -q src
 .\.venv\Scripts\python.exe scripts\check_action_catalog.py --check
