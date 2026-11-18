@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-18** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前已发布基线为 **WeChatBot v0.11.10**（Launcher 配套 v0.8.12、框架 dev15；工作区正升级到 dev17）；HEAD 为 `ad75a68`，含已提交的 B 批、C 批 U-02 与 U-02 实机记录，dev17/4.2.0.53 适配为未提交工作区改动；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-18** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前已发布基线为 **WeChatBot v0.11.10**（Launcher 配套 v0.8.12、框架 dev15）；HEAD 为 `2d784fd`，含已提交的 B 批、C 批 U-02、U-02 实机记录与 dev17/4.2.0.53 适配；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -458,7 +458,7 @@ B 批为 A 批之后的改动，**已由 `5a3a360` 提交、未发布、未真�
 
 U-01 出站引用（P0）仍不在 Bot 实现内：当前 SDK 4.2.0.52 无 quote/reply 发送 API，等待框架 dev16 `.52` 原生 quote spike/API；Bot 出站 reply 继续 1404，入站 `native_message_id` 已保存在 `message_store.native_message_ids` 供未来 API 使用。
 
-## SDK 升级 dev17 / 4.2.0.53（2026-11-18，未提交）
+## SDK 升级 dev17 / 4.2.0.53（2026-11-18，已提交 `2d784fd`）
 
 `vendor/wechatbot_api` 从 `0.1.0.dev15` 升级到 **`0.1.0.dev17`**（wheel 122388 字节，SHA-256 `c1294988…ea0495`；bridge 10 / ABI 1；内嵌 `wca_bridge.dll` 60416 字节、SHA-256 `0e8fc3a4…d06693`；构建提交 `c23e83f5…8726f`）。dev17 的 `data/builds.json` 同时声明 4.2.0.52（`d733489e…f8d84`）与 4.2.0.53（`ac6b174d…104825`）两条 discovery/bridge 已验证构建；Bot 驱动代码不改，账号发现由框架按精确指纹筛选。**helper 的 `driver.supported_versions` 保持原值，未加入 4.2.0.53**——该字段是 helper-only 诊断白名单，sdk 支持范围来自 wheel 构建清单。
 
@@ -466,7 +466,7 @@ U-01 出站引用（P0）仍不在 Bot 实现内：当前 SDK 4.2.0.52 无 quote
 
 验证：`pip install --no-index --no-deps --force-reinstall` 后 `wechatbot_api.__version__=0.1.0.dev17`，安装目录 DLL 大小/哈希与包内一致，`builds.json` 为 .52/.53；全量 `pytest -q` **659 passed / 1 skipped**（collect 660），`compileall -q src`、`scripts/check_action_catalog.py --check`、`git diff --check` 通过。新增/调整测试覆盖 .53 发现、.53 状态与 .52/.53 的 helper→sdk 回退。回滚：恢复 dev15 wheel 与 `VENDORED.json`/文档并 `pip install --no-index --no-deps --force-reinstall` 旧 wheel；本机临时备份在 gitignored 的 `dist/sdk-backup-dev15/`。
 
-## dev17 群 @ 回归与只读 staging（2026-11-18，未提交）
+## dev17 群 @ 回归与只读 staging（2026-11-18，已提交）
 
 在 dev17 安装环境做了只读 API/发现核对，未连接桥接、未发送消息：
 
@@ -476,3 +476,15 @@ U-01 出站引用（P0）仍不在 Bot 实现内：当前 SDK 4.2.0.52 无 quote
 - **关闭/重连桩**：新增 `SHUTDOWN_PENDING` 关闭时等待 `wait_closed(180)`、不误清媒体的测试；4.2.0.53 驱动 stop→start 重连测试通过。
 
 验证：focused 76 passed；全量 `pytest -q` **668 passed / 1 skipped**（collect 669），`compileall -q src`、`action-catalog --check`、内联 JS `node --check`、`git diff --check` 通过。**未在 4.2.0.53 上做真实群 @**；需实机确认项：假 SDK 无法覆盖的 SDK 原生标签校验、真实群成员缓存与接收端真实 @、.53 的 `SHUTDOWN_PENDING` 实际释放时序。未提交、未真机、未改生产 config。
+
+## dev17 群 @ 实机验证（2026-11-18，staging PASS）
+
+在不替换生产实例的临时 staging Bot 中启动 4.2.0.53 SDK，单个测试账号向 `test` 群发送 1 条 `at` + 文本消息（目标为已登录测试成员；不记录 wxid/PID）：
+
+- 网关 `send_group_msg` 返回 `status=ok`、`retcode=0`、`message_id=-1701606708`；
+- 接收端人工确认：**真实可点击群 @**，不是普通文本；
+- 发送前 Bot/AstrBot 未运行、无 `wca_bridge.dll`；发送后正常 `stop_all`，无 `SHUTDOWN_PENDING` 残留，bridge 已卸载；
+- 本轮只覆盖本账号缓存名/verified 路径；手工绑定、跨账号缓存、混合来源降级仍以框架证据 + Bot 离线测试为准，未全部在 Bot 实机重跑。
+- 未修改生产 `config.json`，未发布、未构建 Release，Bot 版本仍 `0.11.10`。
+
+U-01 出站引用仍无 dev17 quote API；Bot 出站 `reply` 继续 1404。后续若要升级生产配置，仍需用户确认实例账号切换/升级窗口。
