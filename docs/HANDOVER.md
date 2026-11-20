@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-20** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 **WeChatBot v0.12.1**（Launcher 配套 v0.8.12、框架 dev17；工作区正升级到 dev18 并接入自动通知名）；HEAD 为 `e963fe3`，dev18/bridge11/ABI2 与自动通知名为未提交工作区改动；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-20** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 **WeChatBot v0.12.1**（Launcher 配套 v0.8.12、框架 dev17）；HEAD 为 `897fc3a`，dev18/bridge11/ABI2 与自动通知名为已提交未发布改动；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -516,11 +516,11 @@ ImportError: cannot import name '_configure_logging' from 'wechat_onebot.cli'
 
 发布结果（2026-11-18）：用户确认发布并撤回 v0.12.0 旧包。**WeChatBot v0.12.1** annotated tag `v0.12.1` → `06d1564`；GitHub Release ID `449853074`，非 draft/prerelease，Latest；[Bot checks #44289239782](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/44289239782) 成功。附件 `wechat-onebot-0.12.1-windows-x64.zip` 60,489,938 B，SHA-256 `f8efb6289823f9a9dd35e6161bd6b94527b1ad271f37806ebcc25822ed20cb0c`，同名 `.sha256` 已上传并公网复验一致；Launcher `VersionStore.import_archive` 导入 1,596 个文件、状态 `compatible`；实际 Launcher worker 启动提取包后 `/healthz` HTTP 200、退出码 0。v0.12.0 Release/资产已删除并返回 404；其历史 tag 保留作审计记录，不再作为可安装包。生产实例未替换。
 
-## SDK 升级 dev18 / bridge11 ABI2（2026-11-19，未提交）
+## SDK 升级 dev18 / bridge11 ABI2（2026-11-19，已提交未发布）
 
 `vendor/wechatbot_api` 从 `0.1.0.dev17` 升级到 **`0.1.0.dev18`**（wheel 124981 字节，SHA-256 `23b25ff3…c8e7df`；sdist 309481 字节，SHA-256 `c6b13ca6…9f0935`；bridge 11 / ABI 2；内嵌 `wca_bridge.dll` 60928 字节、SHA-256 `fec9c75f…c693db06`；构建提交 `11fd3869…160a4`）。整份替换 wheel 并新增同名 `.sha256`，dev17 wheel 与 `.sha256` 已从 vendor 目录移除。`data/builds.json` 仍为 4.2.0.52（`d733489e…f8d84`）与 4.2.0.53（`ac6b174d…104825`）两条 discovery/bridge 已验证构建；Bot 驱动代码与公开 API 调用面不改，`driver.supported_versions` 保持 helper-only。
 
-同步更新 `VENDORED.json`（version/artifact/size/sha256/sdist_sha256/build_commit/abi_version/bridge_version/native_bridge/双 supported_builds）、`THIRD_PARTY_NOTICES.md`、`vendor/wechatbot_api/README.md`、`AGENTS.md` 安装命令，以及 README、wechat-versions、onebot-compatibility、architecture 与测试 fake SDK 版本字符串中的当前口径。CI（`.github/workflows/bot.yml`）与 `scripts/build_portable.py` 从 `VENDORED.json`/vendor 目录动态读取 wheel 与 SHA，无硬编码哈希需要改。未改生产 `config.json`，未启动真实桥接、未发送微信消息、未提交、未发布。
+同步更新 `VENDORED.json`（version/artifact/size/sha256/sdist_sha256/build_commit/abi_version/bridge_version/native_bridge/双 supported_builds）、`THIRD_PARTY_NOTICES.md`、`vendor/wechatbot_api/README.md`、`AGENTS.md` 安装命令，以及 README、wechat-versions、onebot-compatibility、architecture 与测试 fake SDK 版本字符串中的当前口径。CI（`.github/workflows/bot.yml`）与 `scripts/build_portable.py` 从 `VENDORED.json`/vendor 目录动态读取 wheel 与 SHA，无硬编码哈希需要改。未改生产 `config.json`，未启动真实桥接、未发送微信消息；已提交 `897fc3a`、未发布。
 
 验证（安装环境）：`pip install --no-index --no-deps --force-reinstall` 后 `wechatbot_api.__version__=0.1.0.dev18`，安装目录 DLL 60928 B / SHA-256 `fec9c75f…c693db06`，`data/native.json` 为 bridge 11 / ABI 2，`builds.json` 为 .52/.53；`_injector.ABI_VERSION=2`、`NativeEvent` 529712 B（dev17 为 528688 B）、`notification_text` offset 528688 / size 1024、`Request` 1312、`AtRequest` 2336、`Event.schema_version=2`，`notification_text`/`sender_display_name` 默认 `None`；公共 API 与 dev17 一致。**本批次只升级 vendored SDK，未消费** `notification_text`/`sender_display_name`；消费见下一节“dev18 自动通知名与手动绑定移除”。
 
@@ -528,7 +528,7 @@ ImportError: cannot import name '_configure_logging' from 'wechat_onebot.cli'
 
 回滚：`dist/sdk-backup-dev17/`（gitignored）保留 dev17 wheel 与 `.sha256`；恢复时把两者复制回 `vendor/wechatbot_api/`、还原 `VENDORED.json`/上述文档，并 `pip install --no-index --no-deps --force-reinstall` dev17 wheel。
 
-## dev18 自动通知名与手动绑定移除（2026-11-20，未提交）
+## dev18 自动通知名与手动绑定移除（2026-11-20，已提交未发布）
 
 在 dev18 只读字段之上实现**入站显示名学习 + 目标自己的未验证出站 @**，并删除 v0.11.8 引入的手动绑定入口。出站 OneBot `at` 段契约不变，仍不使用 wxid、不伪造已验证 @。
 
@@ -555,7 +555,7 @@ dev18 SDK 自身文档（`wechatbot_api/_notification.py` 模块 docstring）对
 
 该决定由 t7 以文档/注释/测试清理方式记录（未改变已通过 t6 验证的出站实现；t6 独立验证结论为 PASS）。t7 同时修正了 Snowluma 分析文档的当前统计口径（30 路由 / 51 测试文件 / 750 collected）、受影响的 `server.py`/`webui/index.html` 行号、一处过时注释，并将脱敏用例改为经过真实 dev18 转换链路。
 
-验证（仓库）：全量 `pytest -q` **749 passed / 1 skipped** (collect 750)；`compileall -q src`、`scripts/check_action_catalog.py --check`、内联 JS `node --check`（4 段）、`git diff --check` 通过；WebUI 路由由 33 条减为 30 条，`/mention-labels` 三个方法均 404。新增测试覆盖：提取器正/负例矩阵（含 emoji、特殊字符、多义、控制字符、超长、wxid）、独立字段与 `.52`/私聊/开关关闭、加列迁移与显式列 INSERT、来源保留、去重、A→B/群间隔离、入站 `sender.card`、出站优先级/混源降级/缺名降级/开关关闭、WebUI 404 与 HTML 无卡片、日志与存储无原文。未实机发送、未改生产配置、未提交、未发布。
+验证（仓库）：全量 `pytest -q` **749 passed / 1 skipped** (collect 750)；`compileall -q src`、`scripts/check_action_catalog.py --check`、内联 JS `node --check`（4 段）、`git diff --check` 通过；WebUI 路由由 33 条减为 30 条，`/mention-labels` 三个方法均 404。新增测试覆盖：提取器正/负例矩阵（含 emoji、特殊字符、多义、控制字符、超长、wxid）、独立字段与 `.52`/私聊/开关关闭、加列迁移与显式列 INSERT、来源保留、去重、A→B/群间隔离、入站 `sender.card`、出站优先级/混源降级/缺名降级/开关关闭、WebUI 404 与 HTML 无卡片、日志与存储无原文。未实机发送、未改生产配置；已提交 `897fc3a`、未发布。
 
 风险：模板仅覆盖已知中文 4.2.0.53 文案（其他语言/未来文案 fail-closed）；前缀模板在名称本身含 “ : ” 时按多分隔符拒绝，可能漏学但不会串名；自动名是渲染值而非身份，仍不能保证接收端识别为真实 @（`labels_verified=False` 的 native `completed` 不代表真实 @）；按既定优先级（通知名先于历史 profile），若成员改名且 roster 已拿到新 card 而旧自动名仍在库中，会先用旧名做未验证提交，需要清理由 `source='notification'` 人工处理或等新通知覆盖；开关关闭后旧自动名数据仍保留（需停服备份 DB 后按 `source='notification'` 人工清理）。
 
