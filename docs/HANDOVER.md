@@ -557,6 +557,8 @@ dev18 SDK 自身文档（`wechatbot_api/_notification.py` 模块 docstring）对
 
 验证（仓库）：全量 `pytest -q` **749 passed / 1 skipped** (collect 750)；`compileall -q src`、`scripts/check_action_catalog.py --check`、内联 JS `node --check`（4 段）、`git diff --check` 通过；WebUI 路由由 33 条减为 30 条，`/mention-labels` 三个方法均 404。新增测试覆盖：提取器正/负例矩阵（含 emoji、特殊字符、多义、控制字符、超长、wxid）、独立字段与 `.52`/私聊/开关关闭、加列迁移与显式列 INSERT、来源保留、去重、A→B/群间隔离、入站 `sender.card`、出站优先级/混源降级/缺名降级/开关关闭、WebUI 404 与 HTML 无卡片、日志与存储无原文。未实机发送、未改生产配置；已提交 `897fc3a`、未发布。
 
+staging 实机验证（2026-11-20，PASS）：两个 4.2.0.53 测试账号在 `test`（3 人）群完成最多 2 条发送。A→C 的真实 @self 消息触发 C 的 staging Bot 学习：临时 `user_profiles` 按 `(account,target,group)` 写入 `notification_name`/`card`，写入时 `source=notification`，全局 nickname 未覆盖；原始通知文本未进入 DB/日志/事件/raw。C→A 由 staging Bot 发 1 条 `send_group_msg`，仅对目标注入一次性内存 cache miss 以走自动通知名路径，`retcode=0`、`labels_verified=false`、native completed、无文本 fallback；A 端人工确认真实可点击 @ 且只收到一条。staging 使用临时 config/data、无 OneBot 端点/生产端口、无生产配置修改；结束后 bridge=0、无残留进程。注意：发送后 pre-send roster 刷新可能把该行最终 `source` 变为 `group_member`，但 `notification_name`/`card` 保留；本次属单条正向证据，cache-hit 真实优先级仍需后续实测。AstrBot 保持运行但无 staging 接入端点。
+
 风险：模板仅覆盖已知中文 4.2.0.53 文案（其他语言/未来文案 fail-closed）；前缀模板在名称本身含 “ : ” 时按多分隔符拒绝，可能漏学但不会串名；自动名是渲染值而非身份，仍不能保证接收端识别为真实 @（`labels_verified=False` 的 native `completed` 不代表真实 @）；按既定优先级（通知名先于历史 profile），若成员改名且 roster 已拿到新 card 而旧自动名仍在库中，会先用旧名做未验证提交，需要清理由 `source='notification'` 人工处理或等新通知覆盖；开关关闭后旧自动名数据仍保留（需停服备份 DB 后按 `source='notification'` 人工清理）。
 
 回滚：`driver.sdk_notification_names=false` 软回滚；代码回滚为 revert 本批次，`notification_name` 为新增列（旧代码忽略），`mention_labels` 表与数据未动；wheel 回滚同 dev18 节。
