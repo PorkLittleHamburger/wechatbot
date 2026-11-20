@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-20** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 **WeChatBot v0.12.1**，源码 v0.13.0（dev18/ABI2、自动通知名、staging PASS）正在发布；HEAD 为 `8b9fc83`；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-20** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 **WeChatBot v0.13.0**（Launcher 配套 v0.8.12、框架 dev18）；HEAD 为 `b49993a`；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -572,4 +572,4 @@ staging 实机验证（2026-11-20，PASS）：两个 4.2.0.53 测试账号在 `t
 - 出站通知名是 **experimental**：dev18 SDK 文档明确不建议作为 native outbound label；按用户决定保留，始终 `labels_verified=False`，native completed 不代表真实 @。
 - 未解决：U-01 出站引用仍无 SDK quote API（reply 1404）；模板仅覆盖已知中文 `.53` 文案；cache-hit 真实优先级/多目标仍需后续实机；生产配置/实例未替换。
 
-发布结果见后续记录。
+发布结果（2026-11-20）：用户明确要求发布；完成 **WeChatBot v0.13.0**。annotated tag `v0.13.0` → `b49993a`；GitHub Release ID `452128186`，非 draft/prerelease，Latest；[Bot checks #44648238197](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/44648238197) 成功。附件 `wechat-onebot-0.13.0-windows-x64.zip` 60,506,735 B，SHA-256 `367dddffb2171aaccc7f97f975ca7b6cfc1b542dd3c71186f9033e07c054ff7f`，同名 `.sha256` 已上传；按用户要求未重新下载公网资产复核 SHA-256。Launcher `VersionStore.import_archive` 导入 1,598 个文件、状态 `compatible`；实际 Launcher worker 启动提取包后 `/healthz` HTTP 200、退出码 0。生产实例未替换，生产配置未修改。
