@@ -38,7 +38,7 @@ from .protocol.element_manifest import (
 )
 from .protocol.rich_content import canonical_forward, materialize_forwards, rich_segments
 from .protocol.codec import normalize_message, serialize_message
-from .protocol.notification_names import validate_display_name
+from .notification_names import validate_display_name
 from .protocol import outbound_forward as forwarding
 
 

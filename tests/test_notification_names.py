@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from wechat_onebot.protocol.notification_names import (
+from wechat_onebot.notification_names import (
     MAX_NOTIFICATION_NAME_LENGTH,
     extract_notification_name,
     validate_display_name,

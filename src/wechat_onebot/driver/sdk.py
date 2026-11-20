@@ -33,7 +33,7 @@ from ..models import (
     LoginInfo,
     Segment,
 )
-from ..protocol.notification_names import extract_notification_name, validate_display_name
+from ..notification_names import extract_notification_name, validate_display_name
 from .base import Driver, DriverError, DriverUnsupported, EventCallback
 
 logger = logging.getLogger("wechat-onebot.sdk")
