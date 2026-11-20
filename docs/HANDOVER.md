@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-20** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 **WeChatBot v0.12.1**（Launcher 配套 v0.8.12、框架 dev17）；HEAD 为 `897fc3a`，dev18/bridge11/ABI2 与自动通知名为已提交未发布改动；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-20** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 **WeChatBot v0.12.1**，源码 v0.13.0（dev18/ABI2、自动通知名、staging PASS）正在发布；HEAD 为 `8b9fc83`；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -562,3 +562,14 @@ staging 实机验证（2026-11-20，PASS）：两个 4.2.0.53 测试账号在 `t
 风险：模板仅覆盖已知中文 4.2.0.53 文案（其他语言/未来文案 fail-closed）；前缀模板在名称本身含 “ : ” 时按多分隔符拒绝，可能漏学但不会串名；自动名是渲染值而非身份，仍不能保证接收端识别为真实 @（`labels_verified=False` 的 native `completed` 不代表真实 @）；按既定优先级（通知名先于历史 profile），若成员改名且 roster 已拿到新 card 而旧自动名仍在库中，会先用旧名做未验证提交，需要清理由 `source='notification'` 人工处理或等新通知覆盖；开关关闭后旧自动名数据仍保留（需停服备份 DB 后按 `source='notification'` 人工清理）。
 
 回滚：`driver.sdk_notification_names=false` 软回滚；代码回滚为 revert 本批次，`notification_name` 为新增列（旧代码忽略），`mention_labels` 表与数据未动；wheel 回滚同 dev18 节。
+
+## v0.13.0 dev18/ABI2 与自动通知名（2026-11-20，发布）
+
+- vendored SDK：`wechatbot_api 0.1.0.dev18`（wheel 124981 B/SHA `23b25ff3…e7df`，DLL 60928 B/SHA `fec9c75f…db06`，bridge11/ABI2，`.52/.53` 双构建）。
+- 群 @：删除手动绑定入口；按 `(account,target,group)` 自动学习 dev18 通知显示名写入 `user_profiles.notification_name`（source=`notification`），目标自己的自动名可用于未验证出站 @；优先级 `cache → target notification → foreign → profile`，混源/缺名整组可见文本降级，wxid 永不作为标签。
+- `driver.sdk_notification_names` 默认开启，可关闭；原始通知文本不持久化、不写日志；`.52`/私聊/空值不学习。
+- staging：两个 `.53` 账号在 `test` 群完成 2 条发送，A 端确认真实可点击 @ 且仅一条；staging 无 OneBot 端点、无生产配置修改、bridge 清理完成。
+- 出站通知名是 **experimental**：dev18 SDK 文档明确不建议作为 native outbound label；按用户决定保留，始终 `labels_verified=False`，native completed 不代表真实 @。
+- 未解决：U-01 出站引用仍无 SDK quote API（reply 1404）；模板仅覆盖已知中文 `.53` 文案；cache-hit 真实优先级/多目标仍需后续实机；生产配置/实例未替换。
+
+发布结果见后续记录。

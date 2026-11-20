@@ -81,6 +81,8 @@ v0.12.0 支持微信 **4.2.0.53** 并发布 dev17 SDK：`wechatbot_api 0.1.0.dev
 
 v0.12.1 修复 v0.12.0 在 Launcher 中启动失败的问题：Launcher 注入的 worker 仍在读取配置前导入 `_configure_logging`，v0.12.0 的日志重构删除了该兼容函数，服务进程以 `ImportError` 退出。v0.12.1 恢复兼容 shim、增加回归测试，并用实际 worker 完成启动/health 验证；**v0.12.0 的 Release/资产已撤回，请使用 v0.12.1**。
 
+v0.13.0 升级 `wechatbot_api 0.1.0.dev18`（bridge 11 / ABI 2，4.2.0.52 + 4.2.0.53 双构建），并重构群 `@` 名称来源：删除实例 WebUI 的手动绑定入口，改为从 4.2.0.53 群消息学习发送者显示名，写入 `user_profiles.notification_name`（来源 `notification`），按 `(账号, 成员, 群)` 隔离。微信缓存查不到名称时，目标自己的自动通知名可作为 `labels_verified=False` 的未验证出站 @ 候选；不覆盖全局昵称、不串用其他成员/群、不持久化原始通知文本、不写日志原文，开关 `driver.sdk_notification_names` 默认开启。dev18 SDK 文档明确不建议将该字段用作原生出站标签，本仓库按用户决定保留为 **experimental**：native completed 不等于真实 @。2026-11-20 staging 已确认一条真实可点击 @（单条正向证据）。U-01 出站引用仍不支持。
+
 ## 下载与升级
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。

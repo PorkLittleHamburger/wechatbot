@@ -60,3 +60,5 @@ C 批 U-02（已随 v0.12.0 发布；SDK 网关私聊已实机确认可播放）
 v0.12.0 构建升级到 `wechatbot_api 0.1.0.dev17`（bridge 10 / ABI 1），支持微信 **4.2.0.52 与 4.2.0.53** 精确构建。群 @ 保持缓存名/手工绑定/跨账号缓存/profile 优先级，混合来源整批可见文本降级；4.2.0.53 staging 已确认一条真实可点击群 @。包内还包含文件日志与级别热切换、安全头/登录限速/请求体上限、好友申请只读列表、有限的 `bot_offline` 事件和视频发送；U-01 出站引用仍未支持（`reply` 1404），U-08b 跳过。
 
 v0.12.1 修复 v0.12.0 的 Launcher 启动失败（worker 导入 `_configure_logging` 的兼容 shim）；**v0.12.0 已撤回，请使用 v0.12.1**。本包已用实际 Launcher worker 完成启动/health 验证。
+
+v0.13.0 升级到 dev18（bridge 11 / ABI 2，微信 4.2.0.52/4.2.0.53），删除手动 @ 绑定，改为自动学习群通知显示名：按账号/成员/群写入 `user_profiles.notification_name`，缓存无名时作为目标自己的未验证 @ 候选。该出站用法是 **experimental**（SDK 文档不建议），`labels_verified=False`、completed 不代表真实 @；开关 `driver.sdk_notification_names` 默认开启，可关闭。staging 已确认一条真实可点击 @。
