@@ -75,9 +75,18 @@ class MessageStore:
                 account TEXT NOT NULL, user_id TEXT NOT NULL, group_id TEXT NOT NULL,
                 nickname TEXT NOT NULL, card TEXT NOT NULL, source TEXT NOT NULL,
                 observed_at INTEGER NOT NULL,
+                notification_name TEXT NOT NULL DEFAULT '',
                 PRIMARY KEY (account, user_id, group_id)
             )
         """)
+        # Databases created before dev18 lack the notification_name column; keep
+        # the automatic (unverified) group notification name distinguishable
+        # from a verified profile name after later roster refreshes.
+        profile_columns = {str(row[1]) for row in
+                           self._db.execute("PRAGMA table_info(user_profiles)").fetchall()}
+        if "notification_name" not in profile_columns:
+            self._db.execute("ALTER TABLE user_profiles "
+                             "ADD COLUMN notification_name TEXT NOT NULL DEFAULT ''")
         self._db.commit()
 
         self._db.execute("""
@@ -86,6 +95,9 @@ class MessageStore:
                 PRIMARY KEY (account, group_id, user_id)
             )
         """)
+        # Legacy v0.11.8–v0.12.x manual @ display-name bindings.  The gateway no
+        # longer reads or writes this table; existing rows stay untouched for a
+        # manual backup/export instead of being dropped by an upgrade.
         self._db.execute("""
             CREATE TABLE IF NOT EXISTS mention_labels (
                 account TEXT NOT NULL, group_id TEXT NOT NULL, user_id TEXT NOT NULL,
@@ -99,7 +111,9 @@ class MessageStore:
         """Persist observed identities; missing fields never erase known names."""
         with self._lock:
             self._db.executemany("""
-                INSERT INTO user_profiles VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO user_profiles(account, user_id, group_id, nickname, card,
+                                          source, observed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(account, user_id, group_id) DO UPDATE SET
                     nickname=CASE WHEN excluded.nickname!='' THEN excluded.nickname ELSE nickname END,
                     card=CASE WHEN excluded.card!='' THEN excluded.card ELSE card END,
@@ -109,6 +123,51 @@ class MessageStore:
             self._db.executemany("INSERT OR IGNORE INTO group_memberships VALUES (?, ?, ?)",
                                  [(account, group, user) for user, group, *_ in rows if user and group])
             self._db.commit()
+
+    def remember_notification_name(self, account: str, user: str, group: str, name: str) -> bool:
+        """Keep an automatic group notification name for one sender in one group.
+
+        Only the group row is touched: the global (``group_id=''``) nickname is
+        never overwritten and no global row is created.  ``notification_name``
+        stays populated even when ``source`` later becomes ``message`` or
+        ``group_member``, so the name can never be mistaken for a verified
+        profile afterwards.  Returns ``True`` only when something changed, which
+        also de-duplicates the 4.2.0.53 ``app``+``file`` twin events.
+        """
+        value = name.strip()
+        if not account or not user or not group or not value:
+            return False
+        with self._lock:
+            row = self._db.execute(
+                "SELECT card, notification_name, source FROM user_profiles "
+                "WHERE account=? AND user_id=? AND group_id=?",
+                (account, user, group)).fetchone()
+            if row is not None and (str(row[0]), str(row[1]), str(row[2])) == (
+                    value, value, "notification"):
+                return False
+            self._db.execute("""
+                INSERT INTO user_profiles(account, user_id, group_id, nickname, card,
+                                          source, observed_at, notification_name)
+                VALUES (?, ?, ?, '', ?, 'notification', ?, ?)
+                ON CONFLICT(account, user_id, group_id) DO UPDATE SET
+                    card=excluded.card,
+                    notification_name=excluded.notification_name,
+                    source=excluded.source,
+                    observed_at=excluded.observed_at
+            """, (account, user, group, value, int(time.time()), value))
+            self._db.commit()
+            return True
+
+    def notification_name(self, account: str, user: str, group: str) -> str:
+        """Automatic (unverified) notification name for this sender/group."""
+        if not group:
+            return ""
+        with self._lock:
+            row = self._db.execute(
+                "SELECT notification_name FROM user_profiles "
+                "WHERE account=? AND user_id=? AND group_id=?",
+                (account, user, group)).fetchone()
+            return str(row[0]) if row else ""
 
     def replace_memberships(self, account: str, group: str, users: list[str]) -> None:
         """A complete native roster invalidates absent memberships, not historical names."""
@@ -135,39 +194,6 @@ class MessageStore:
             return self._db.execute(
                 "SELECT 1 FROM group_memberships WHERE account=? AND user_id=? AND group_id=?",
                 (account, user, group)).fetchone() is not None
-
-    def mention_label(self, account: str, user: str, group: str) -> str:
-        with self._lock:
-            row = self._db.execute(
-                "SELECT label FROM mention_labels WHERE account=? AND user_id=? AND group_id=?",
-                (account, user, group)).fetchone()
-            return str(row[0]) if row else ""
-
-    def set_mention_label(self, account: str, user: str, group: str, label: str) -> None:
-        with self._lock, self._db:
-            self._db.execute(
-                "INSERT INTO mention_labels VALUES (?, ?, ?, ?, ?) "
-                "ON CONFLICT(account, group_id, user_id) DO UPDATE SET "
-                "label=excluded.label, updated_at=excluded.updated_at",
-                (account, group, user, label, int(time.time())),
-            )
-
-    def delete_mention_label(self, account: str, user: str, group: str) -> None:
-        with self._lock, self._db:
-            self._db.execute(
-                "DELETE FROM mention_labels WHERE account=? AND group_id=? AND user_id=?",
-                (account, group, user),
-            )
-
-    def list_mention_labels(self, account: str, group: str = "") -> list[dict[str, str]]:
-        with self._lock:
-            rows = self._db.execute(
-                "SELECT group_id, user_id, label FROM mention_labels "
-                "WHERE account=? AND (?='' OR group_id=?) ORDER BY group_id, user_id",
-                (account, group, group),
-            ).fetchall()
-        return [{"group": str(row[0]), "user": str(row[1]), "label": str(row[2])}
-                for row in rows]
 
     def forget_membership(self, account: str, user: str, group: str) -> None:
         with self._lock, self._db:

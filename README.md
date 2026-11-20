@@ -12,7 +12,7 @@ Windows 11 x64 个人微信 OneBot v11 网关。本项目包含协议转换、�
 
 - OneBot v11 HTTP API、HTTP 事件上报、正向 WebSocket 与反向 WebSocket。
 - 私聊与群聊文本、图片、微信原生群 `@`；收到的文件以标准文本下载链接交付，微信贴图以图片交付。语音、文件及贴图发送能力与可选扩展的区别见协议兼容说明。
-- 群成员 `@` 显示名绑定：当微信缓存查不到某成员昵称时，可在实例 WebUI 为该成员录入真实群显示名，用 `labels_verified=False` 发出真实原生 @；没有真实名时仍降级为可见文本，任意标签不会伪造 @。
+- 群成员 `@` 显示名自动学习：`sdk` 驱动在 4.2.0.53 群消息上，用 `@` 本账号时的严格 `sender_display_name`，或固定通知模板（文本/引用/文件卡/图片/语音/视频/合并转发）提取发送者**在该群**的显示名，按 `(账号, 成员, 群)` 保存为来源 `notification` 的未验证名称。微信缓存查不到成员名时，用它按次 `labels_verified=False` 发起原生 @。它不覆盖全局昵称、不用于其他成员或其他群，wxid 永不作为标签；模板不匹配、多义或空值时不写入并保持可见文本降级，任意标签不会伪造 @。默认开启，可用 `driver.sdk_notification_names=false` 关闭（关闭后不学习、不读取、不用于出站）。**出站用法为 experimental**：dev18 SDK 文档明确把 `sender_display_name` 定义为仅入站/展示来源、不建议作为原生出站 @ 标签；本仓库按用户决定保留该能力，只用未验证模式提交，原生 completed 仍可能没有真实 @，不代表已获得可点击 @。
 - 跨账号名称补全：sdk 驱动在本账号缓存查不到成员名时，可只读查询同一 Windows 用户下其他已登录微信账号的群成员缓存，取群昵称/微信名（不使用他人备注）作为未验证标签。默认开启，可用 `driver.sdk_cross_account_mentions=false` 关闭。
 - 稳定且持久化的 OneBot 用户、群与消息 ID。
 - 本地 WebUI 管理账号扫描、桥接、OneBot 端点、日志和媒体存储；系统设置 → 存储管理可直接调整 `storage.max_media_bytes`（媒体解码后大小上限，1 KiB–1 GiB）。
@@ -24,7 +24,7 @@ Windows 11 x64 个人微信 OneBot v11 网关。本项目包含协议转换、�
 - 当前验证平台为 Windows 11 x64。
 - 源码要求 Python 3.11+ x64，建议使用与 CI 一致的 Python 3.13；便携包内置解释器。
 - `helper` 驱动适配 PC 微信 **4.1.15.13 / 4.1.15.56 / 4.2.0.11 / 4.2.0.12** 的指定构建，还会核对核心 DLL 指纹；相同版本号不保证兼容。
-- `sdk` 驱动适配 PC 微信 **4.2.0.52 / 4.2.0.53**（两个精确指纹：4.2.0.52 `Weixin.dll` 204168240 字节、SHA-256 `d733489e…f8d84`；4.2.0.53 204154920 字节、SHA-256 `ac6b174d…104825`），依赖包内 `wechatbot_api 0.1.0.dev17` 与其 bridge 10；其他 4.2 构建不在本次范围。
+- `sdk` 驱动适配 PC 微信 **4.2.0.52 / 4.2.0.53**（两个精确指纹：4.2.0.52 `Weixin.dll` 204168240 字节、SHA-256 `d733489e…f8d84`；4.2.0.53 204154920 字节、SHA-256 `ac6b174d…104825`），依赖包内 `wechatbot_api 0.1.0.dev18` 与其 bridge 11 / ABI 2；其他 4.2 构建不在本次范围。
 - 原生桥接需要管理员权限；Mock 模式不需要微信登录。
 
 `helper` 驱动固定要求管理员权限；`sdk` 驱动按微信进程的完整性决定，同级或更高权限即可，权限不足时连接返回 `ACCESS_DENIED`。
@@ -99,7 +99,7 @@ v0.9.3 新增明确的桥接恢复状态与手动停止持久化。自动恢复�
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements-runtime.lock
 .venv\Scripts\python.exe -m pip install -e ".[dev]"
-.venv\Scripts\python.exe -m pip install --no-index --no-deps .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev17-py3-none-win_amd64.whl
+.venv\Scripts\python.exe -m pip install --no-index --no-deps .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev18-py3-none-win_amd64.whl
 .venv\Scripts\python.exe -m pytest -q
 ```
 
@@ -123,7 +123,7 @@ python -m venv .venv
 
 ## 配置与数据
 
-接收消息时会先保存账号隔离的用户资料，补全后再上报 OneBot；微信昵称与各群名片分开记录，空值不覆盖已知名称。`get_stranger_info` 和出站原生 `@` 复用资料缓存，群成员实时资料可用时优先刷新。缓存位于账号的消息数据库内，重启后保留；没有真实资料的用户不会被伪造昵称。`@` 显示标签与正文默认以空格连接，正文自身的换行保持不变。
+接收消息时会先保存账号隔离的用户资料，补全后再上报 OneBot；微信昵称与各群名片分开记录，空值不覆盖已知名称。`get_stranger_info` 和出站原生 `@` 复用资料缓存，群成员实时资料可用时优先刷新。缓存位于账号的消息数据库内，重启后保留；没有真实资料的用户不会被伪造昵称。`@` 显示标签与正文默认以空格连接，正文自身的换行保持不变。sdk 驱动在 4.2.0.53 群消息上学到的自动通知名单独保存在 `user_profiles.notification_name`（来源 `notification`），不会因为后续成员资料刷新被当成已验证资料；入站事件只把它用于本条事件的 `sender.card` 展示。
 
 微信 4.1.15.56 的昵称读取先查好友缓存，再按用户 ID 查询已验证的非好友联系人 LRU 缓存，因此群成员不必先添加好友。该读取不触发网络刷新；微信尚未缓存资料时仍可能缺名，后续收到带昵称的消息或读取到成员资料后会补全。4.2.0.11 / 4.2.0.12 使用上游分别验证的缓存地址映射，沿用账号校验、稳定双读和原始名称校验；不会将旧版偏移套用到未知构建。
 
@@ -133,7 +133,7 @@ python -m venv .venv
 
 `storage.max_media_bytes` 默认 50 MiB、可设 1 KiB–1 GiB，限制 base64/URL/本地媒体**解码后**的实际大小；可在 WebUI“系统设置 → 存储管理”修改并热更新当前账号媒体存储。它与端点的 `maxMessageBytes` 不同：后者限制 WS 原始帧（含 base64 文本）大小，二者必须同时满足。base64 约为原始媒体的 4/3，例如 AstrBot 将 12 MB MP3 转成 56 MiB WAV 后 base64 约 75 MiB：WS 帧能通过但会被 50 MiB 媒体上限拒绝。
 
-`sdk` 驱动另有 `driver.sdk_data_root`（默认 `data/accounts/<账号>/sdk/`，保存框架守护 journal 与私有快照）与 `driver.sdk_allow_unverified`、`driver.sdk_cross_account_mentions`、`driver.sdk_media_timeout`。它的入站媒体先由框架 `request_media` 下载，再导出到账号媒体目录的 `inbound/` 后注册；导出失败会保留明确的文本占位，不会指向不存在或已释放的文件。
+`sdk` 驱动另有 `driver.sdk_data_root`（默认 `data/accounts/<账号>/sdk/`，保存框架守护 journal 与私有快照）与 `driver.sdk_allow_unverified`、`driver.sdk_cross_account_mentions`、`driver.sdk_notification_names`（默认开启：学习/使用 4.2.0.53 群通知显示名；关闭后不再学习、写入或使用这些未验证名称）、`driver.sdk_media_timeout`。它的入站媒体先由框架 `request_media` 下载，再导出到账号媒体目录的 `inbound/` 后注册；导出失败会保留明确的文本占位，不会指向不存在或已释放的文件。
 
 备份或迁移时应先停止服务，再复制配置、完整账号数据和媒体目录，避免遗漏 SQLite WAL，并核对自定义组件路径。不要提交密码、Token、账号标识、消息内容或运行日志。
 
@@ -189,6 +189,6 @@ pwsh -File .\scripts\build_portable.ps1
 
 原生桥接 DLL 位于 `vendor/helper/native/build_text` 与 `vendor/helper/native/build`。DLL 与本地修改的 helper Python 文件的大小和 SHA-256 记录在 `vendor/helper/VENDORED_SHA256.json`；本地修改说明见 [第三方声明](THIRD_PARTY_NOTICES.md)。重新编译方法见 [原生组件说明](vendor/helper/native/README.md)。
 
-`sdk` 驱动的原生组件随 `vendor/wechatbot_api/*.whl` 分发（`wca_bridge.dll`，bridge 10 / ABI 1）。不要单独替换该 DLL 或把不同版本的 wheel 与 DLL 混用；连接前框架会校验版本、大小与哈希。清单见 `vendor/wechatbot_api/VENDORED.json`。
+`sdk` 驱动的原生组件随 `vendor/wechatbot_api/*.whl` 分发（`wca_bridge.dll`，bridge 11 / ABI 2）。不要单独替换该 DLL 或把不同版本的 wheel 与 DLL 混用；连接前框架会校验版本、大小与哈希。清单见 `vendor/wechatbot_api/VENDORED.json`。
 
 两套桥接都使用非商业许可，允许个人学习、研究、测试、娱乐和非商业自用；商业使用、收费服务、SaaS 及营利产品集成不在其许可范围内。详见 [第三方声明](THIRD_PARTY_NOTICES.md)、[helper 许可证](vendor/helper/LICENSE) 与 [SDK 许可证](vendor/wechatbot_api/LICENSE)。

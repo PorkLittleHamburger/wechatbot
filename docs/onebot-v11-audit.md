@@ -31,6 +31,8 @@ v0.11.8 补充：实机对照确认 `labels_verified=False` 仅跳过缓存校�
 
 v0.11.9 补充：本账号缓存无名称时，sdk 驱动只读查询同机其他已登录账号的群成员缓存，取群昵称/全局微信名作为未验证标签（不读备注、不从其他账号发送）；可用 `driver.sdk_cross_account_mentions=false` 关闭。仍不改变 OneBot `at` 段契约。
 
+dev18（bridge 11 / ABI 2）补充：自动学习目标成员**自己的**群通知显示名（4.2.0.53 严格 `@self` 或固定模板），按 `(账号,成员,群)` 存为 `source='notification'`，仅在缓存无名时按次 `labels_verified=False` 使用；同时移除 v0.11.8 的手动绑定 WebUI/API。名称优先级为 缓存 → 自动通知名 → 跨账号缓存 → 历史 profile；未验证来源与 profile 混用或存在缺名时整组可见文本降级。自动名不覆盖全局昵称、不跨成员/跨群复用、wxid 永不作为标签；`driver.sdk_notification_names=false` 可关闭学习与出站使用。OneBot `at` 段契约与消息 ID 映射不变。
+
 
 ## v0.9.0 修复状态（2026-11-04）
 

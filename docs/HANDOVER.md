@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-18** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 **WeChatBot v0.12.1**（Launcher 配套 v0.8.12、框架 dev17）；HEAD 为 `06d1564`；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-20** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 **WeChatBot v0.12.1**（Launcher 配套 v0.8.12、框架 dev17；工作区正升级到 dev18 并接入自动通知名）；HEAD 为 `e963fe3`，dev18/bridge11/ABI2 与自动通知名为未提交工作区改动；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -356,9 +356,9 @@ v0.11.6 修复后，用户再次发送群消息仍失败，错误从 `NOT_VERIFI
 实现：
 1. 升级 `vendor/wechatbot_api` 到 `0.1.0.dev15`（wheel SHA-256 `8dc28458…b951`，构建提交 `7157c44`，bridge10/ABI1 不变）；`VENDORED.json`、`THIRD_PARTY_NOTICES.md` 同步。
 2. `Driver.send_at_text` 增加关键字参数 `labels_verified=True`；`Driver.resolve_mention_label` 默认返回 `None`。SDK 驱动透传 dev15 参数，并调用 `Client.mention_label`；helper/mock 接受该参数但不使用。
-3. `MessageStore` 新增 `mention_labels(account,group_id,user_id,label,updated_at)` 表及持久化方法；按账号/群隔离，空值不覆盖，删除显式生效。
-4. `OneBotService` 解析 @ 名称优先级：当前 SDK 缓存名（verified）→ 手工绑定真实名（按次 `labels_verified=False`）→ Bot 历史资料（verified）。手工绑定只在缓存查不到时生效；若缓存已有名称，以缓存当前名为准，避免错误绑定覆盖真实名。多目标时仅当所有标签都来自“手工真实名或当前缓存名”才使用未验证模式；混入历史 profile、未知或缺失标签时整批降级为可见文本，避免 D 组“completed 但无真实 @”的情况。没有完整真实名时传 `display_names=None` 让 SDK 缓存解析；仍失败则沿用可见文本降级，绝不把 wxid 或任意标签当 native label。
-5. WebUI 账号页新增“成员 @ 显示名”卡片，可绑定/列出/删除 `(group_id,user_id)→真实显示名`；对应 API `GET/PUT/DELETE /api/accounts/{account}/mention-labels`，仅本机已登录 WebUI 可用。输入使用 OneBot 数字 ID，名称限制 1–64 个单行可见字符，拒绝 wxid/空白。
+3. `MessageStore` 新增 `mention_labels(account,group_id,user_id,label,updated_at)` 表及持久化方法；按账号/群隔离，空值不覆盖，删除显式生效。（**历史**：dev18 批次已移除读写方法与 WebUI/API，表与历史数据保留不 DROP。）
+4. `OneBotService` 解析 @ 名称优先级：当前 SDK 缓存名（verified）→ 手工绑定真实名（按次 `labels_verified=False`）→ Bot 历史资料（verified）。手工绑定只在缓存查不到时生效；若缓存已有名称，以缓存当前名为准，避免错误绑定覆盖真实名。多目标时仅当所有标签都来自“手工真实名或当前缓存名”才使用未验证模式；混入历史 profile、未知或缺失标签时整批降级为可见文本，避免 D 组“completed 但无真实 @”的情况。没有完整真实名时传 `display_names=None` 让 SDK 缓存解析；仍失败则沿用可见文本降级，绝不把 wxid 或任意标签当 native label。（**历史**：手工来源已被 dev18 自动通知名取代，见下方 dev18 自动通知名节。）
+5. WebUI 账号页新增“成员 @ 显示名”卡片，可绑定/列出/删除 `(group_id,user_id)→真实显示名`；对应 API `GET/PUT/DELETE /api/accounts/{account}/mention-labels`，仅本机已登录 WebUI 可用。输入使用 OneBot 数字 ID，名称限制 1–64 个单行可见字符，拒绝 wxid/空白。（**历史**：该卡片与三条路由已在 dev18 批次删除，现在返回 404。）
 
 验证：新增存储、发送优先级/降级、SDK 参数/`mention_label`、WebUI 绑定 CRUD 测试；另覆盖 stale profile 的 `NOT_VERIFIED` 一次缓存重试后仍失败→可见文本、缓存名优先于旧绑定、多目标手工+缓存、多目标手工+历史名降级，以及 SDK 重试耗尽只调用两次不重复发送。全量 **548 passed / 1 skipped**。本地 dev15 隔离安装与公共 API 签名通过；未发布 Release、未替换运行实例。
 
@@ -375,7 +375,7 @@ v0.11.6 修复后，用户再次发送群消息仍失败，错误从 `NOT_VERIFI
 实现：
 1. `Driver` 新增可选 `resolve_foreign_mention_label(chat_id,user_id)`；SDK 驱动在启动时记录 `discover()` 到的其他已登录账号，本账号 `mention_label` 为空时，逐个只读查询其他账号的 `group_members`，仅取 `group_nickname` 或 `wechat_name`，**不读取其他账号的备注，不从其他账号发送**。
 2. 跨账号结果带 300 秒正向/30 秒负向内存缓存，避免每条 @ 都扫描其他账号；其他账号未登录/不在群内时静默跳过。
-3. 服务名称优先级：本账号当前缓存名（verified）→ 手工绑定真实名（unverified）→ 其他本机账号缓存名（unverified）→ 历史 profile（verified）。有跨账号或手工来源时按次 `labels_verified=False`；多目标仍要求全部来源为手工/跨账号/当前缓存，混入 profile 或缺失时整批可见文本降级。
+3. 服务名称优先级：本账号当前缓存名（verified）→ 手工绑定真实名（unverified）→ 其他本机账号缓存名（unverified）→ 历史 profile（verified）。有跨账号或手工来源时按次 `labels_verified=False`；多目标仍要求全部来源为手工/跨账号/当前缓存，混入 profile 或缺失时整批可见文本降级。（**历史**：dev18 起改为 缓存 → 该成员自己的自动通知名 → 跨账号 → profile，手工来源已删除。）
 4. 新配置 `driver.sdk_cross_account_mentions`（默认 `true`，示例配置开启）。不希望在多账号环境读取其他账号缓存时设为 `false`；关闭后行为回到 v0.11.8。
 
 验证：新增跨账号服务发送、SDK 跨账号读取/开关、配置校验测试；全量 **553 passed / 1 skipped**。只读实测：B（运行账号）对目标 `wxid_o0b3…pm22` 的 `mention_label` 为 `None`，A 账号缓存同群同成员返回两字名称。未发布 Release、未替换运行实例。
@@ -384,7 +384,7 @@ v0.11.6 修复后，用户再次发送群消息仍失败，错误从 `NOT_VERIFI
 - 该方案依赖本机至少一个其他已登录账号曾缓存过该成员名；所有账号都没有名称时仍无法原生 @。
 - 其他账号的群昵称是群内共享显示名，微信名是全局名；两者都可作为标签来源；**不使用其他账号的私人备注**。
 - 跨账号标签属于未验证提交，接收端是否真实 @ 仍需一次实机确认；若外部缓存名与目标在 B 视角的真实显示名不一致，仍会 completed 但无真实 @。
-- 手工绑定仍是精确修正手段，且缓存/跨账号名称存在时不会被手工绑定覆盖。
+- 手工绑定仍是精确修正手段，且缓存/跨账号名称存在时不会被手工绑定覆盖。（**历史**：dev18 已移除手工绑定入口，改为自动通知名。）
 
 发布结果（2026-11-14）：用户实测确认问题解决并确认发布 **WeChatBot v0.11.9**。annotated tag `v0.11.9` → `d3c50c5`；GitHub Release ID `445142573`，非 draft/prerelease，Latest；[Bot checks #43568730578](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/43568730578) 成功。附件 `wechat-onebot-0.11.9-windows-x64.zip` 60,419,977 B，SHA-256 `4c1556c00801bb243b0778d9257642fcdf3d86fddc86379fae870a2eaabded12`，同名 `.sha256` 一并上传；公网下载后重新计算大小/摘要一致。实际 Launcher `VersionStore.import_archive` 临时工作区导入 1,587 个文件、状态 `compatible`；未替换当前运行实例。
 
@@ -494,7 +494,7 @@ U-01 出站引用仍无 dev17 quote API；Bot 出站 `reply` 继续 1404。后�
 本版把已提交但未发布的 B 批、C 批 U-02 与新微信 4.2.0.53 支持整合发布：
 
 - `wechatbot_api` 升级 **0.1.0.dev17**（wheel 122388 B，SHA-256 `c1294988…ea0495`；内嵌 DLL `0e8fc3a4…d06693`，bridge 10 / ABI 1），同时支持 4.2.0.52 与 4.2.0.53 精确构建；`driver.supported_versions` 保持 helper-only，不加入 4.2.0.53。
-- 群 @ 契约：本账号缓存名 → 手工绑定 → 跨账号缓存名 → 历史 profile；混合不可靠来源整批可见文本降级，wxid 永不作为 native label。4.2.0.53 staging 已实发一条 `test` 群 @，接收端确认真实可点击 @；手工绑定/跨账号/混合降级仍只有离线/框架证据。
+- 群 @ 契约：本账号缓存名 → 手工绑定 → 跨账号缓存名 → 历史 profile；混合不可靠来源整批可见文本降级，wxid 永不作为 native label。4.2.0.53 staging 已实发一条 `test` 群 @，接收端确认真实可点击 @；手工绑定/跨账号/混合降级仍只有离线/框架证据。（**历史**：dev18 起手工绑定已删除，优先级为 缓存 → 该成员自己的自动通知名 → 跨账号 → profile。）
 - C 批 U-02：SDK 私聊短静音 H.264 网关实发成功；4.2.0.53 共用视频能力但未单独实发；helper 4.2.0.12 Q-4、群聊/带音轨/filehelper 仍未实测，转发链 video 1404。
 - B 批：动作目录/元素清单单一真源、文件日志/级别热切换、安全暴露面加固、桥接离线有限事件、好友申请只读列表；U-08b 审批跳过。
 - U-01 出站引用仍不支持（无 quote API，`reply` 1404）；U-03/U-05b 暂缓。
@@ -515,3 +515,48 @@ ImportError: cannot import name '_configure_logging' from 'wechat_onebot.cli'
 修复：在 `src/wechat_onebot/cli.py` 恢复无配置依赖的 `_configure_logging(level="INFO")` 兼容 shim（stderr basicConfig），并新增 `tests/test_cli.py` 回归测试。Bot 自身 `command_run` 继续使用完整文件日志 `configure_logging`；Launcher 托管 worker 的旧启动契约不再被破坏。
 
 发布结果（2026-11-18）：用户确认发布并撤回 v0.12.0 旧包。**WeChatBot v0.12.1** annotated tag `v0.12.1` → `06d1564`；GitHub Release ID `449853074`，非 draft/prerelease，Latest；[Bot checks #44289239782](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/44289239782) 成功。附件 `wechat-onebot-0.12.1-windows-x64.zip` 60,489,938 B，SHA-256 `f8efb6289823f9a9dd35e6161bd6b94527b1ad271f37806ebcc25822ed20cb0c`，同名 `.sha256` 已上传并公网复验一致；Launcher `VersionStore.import_archive` 导入 1,596 个文件、状态 `compatible`；实际 Launcher worker 启动提取包后 `/healthz` HTTP 200、退出码 0。v0.12.0 Release/资产已删除并返回 404；其历史 tag 保留作审计记录，不再作为可安装包。生产实例未替换。
+
+## SDK 升级 dev18 / bridge11 ABI2（2026-11-19，未提交）
+
+`vendor/wechatbot_api` 从 `0.1.0.dev17` 升级到 **`0.1.0.dev18`**（wheel 124981 字节，SHA-256 `23b25ff3…c8e7df`；sdist 309481 字节，SHA-256 `c6b13ca6…9f0935`；bridge 11 / ABI 2；内嵌 `wca_bridge.dll` 60928 字节、SHA-256 `fec9c75f…c693db06`；构建提交 `11fd3869…160a4`）。整份替换 wheel 并新增同名 `.sha256`，dev17 wheel 与 `.sha256` 已从 vendor 目录移除。`data/builds.json` 仍为 4.2.0.52（`d733489e…f8d84`）与 4.2.0.53（`ac6b174d…104825`）两条 discovery/bridge 已验证构建；Bot 驱动代码与公开 API 调用面不改，`driver.supported_versions` 保持 helper-only。
+
+同步更新 `VENDORED.json`（version/artifact/size/sha256/sdist_sha256/build_commit/abi_version/bridge_version/native_bridge/双 supported_builds）、`THIRD_PARTY_NOTICES.md`、`vendor/wechatbot_api/README.md`、`AGENTS.md` 安装命令，以及 README、wechat-versions、onebot-compatibility、architecture 与测试 fake SDK 版本字符串中的当前口径。CI（`.github/workflows/bot.yml`）与 `scripts/build_portable.py` 从 `VENDORED.json`/vendor 目录动态读取 wheel 与 SHA，无硬编码哈希需要改。未改生产 `config.json`，未启动真实桥接、未发送微信消息、未提交、未发布。
+
+验证（安装环境）：`pip install --no-index --no-deps --force-reinstall` 后 `wechatbot_api.__version__=0.1.0.dev18`，安装目录 DLL 60928 B / SHA-256 `fec9c75f…c693db06`，`data/native.json` 为 bridge 11 / ABI 2，`builds.json` 为 .52/.53；`_injector.ABI_VERSION=2`、`NativeEvent` 529712 B（dev17 为 528688 B）、`notification_text` offset 528688 / size 1024、`Request` 1312、`AtRequest` 2336、`Event.schema_version=2`，`notification_text`/`sender_display_name` 默认 `None`；公共 API 与 dev17 一致。**本批次只升级 vendored SDK，未消费** `notification_text`/`sender_display_name`；消费见下一节“dev18 自动通知名与手动绑定移除”。
+
+验证（仓库）：全量 `pytest -q` **669 passed / 1 skipped**（collect 670），`compileall -q src`、`scripts/check_action_catalog.py --check`、内联 JS `node --check`（4 段）、`git diff --check` 通过；另用只读脚本核对 wheel 大小/SHA/包内 DLL/native.json/builds.json/sdist 与 `VENDORED.json` 一致、vendor 恰好 1 个 wheel。
+
+回滚：`dist/sdk-backup-dev17/`（gitignored）保留 dev17 wheel 与 `.sha256`；恢复时把两者复制回 `vendor/wechatbot_api/`、还原 `VENDORED.json`/上述文档，并 `pip install --no-index --no-deps --force-reinstall` dev17 wheel。
+
+## dev18 自动通知名与手动绑定移除（2026-11-20，未提交）
+
+在 dev18 只读字段之上实现**入站显示名学习 + 目标自己的未验证出站 @**，并删除 v0.11.8 引入的手动绑定入口。出站 OneBot `at` 段契约不变，仍不使用 wxid、不伪造已验证 @。
+
+实现：
+1. `protocol/notification_names.py`：fail-closed 提取器。`@self` 文本消息使用 SDK 严格 `sender_display_name`；非 @self 只接受固定模板（`<名> : <正文>`、`<名> : [文件]<文件名>`、`<名> : [聊天记录]`、`<名>在群聊中发了一张图片/一段语音/一段视频`）。多分隔符、空正文、非模板后缀、控制字符、超 64 字符、等于 wxid 的值一律丢弃；不导入 SDK 私有 `_notification`。
+2. `driver/sdk.py`：把 dev18 的 `notification_text`/`sender_display_name` 转成 `IncomingMessage.notification_name`/`notification_name_source`；原始通知文本只在该函数栈内存在，不进入 `raw`、日志、消息库或事件 payload。4.2.0.52（两字段恒 `None`）与私聊消息不学习。
+3. `message_store.py`：`user_profiles` 新增 `notification_name TEXT NOT NULL DEFAULT ''`（启动时 `PRAGMA table_info` 幂等 `ALTER TABLE` 迁移）；`remember_profiles` 改为显式列名 INSERT；`remember_notification_name` 只写群 card + `source='notification'` + `notification_name`，不创建/覆盖全局昵称行，重复值返回 `False`（同时去重 4.2.0.53 文件 `app`+`file` 双事件）。
+4. `service.py`：在通用 profile 写入之后单独学习（开关开启、非本账号、群消息），入站事件仅在 `sender.card` 展示；出站优先级改为 缓存 → 该成员自己的自动通知名（unverified）→ 跨账号 → 历史 profile。通知名按 `(account, user, group)` 查询，A 的名不用于 B/其他群；profile 与未验证来源混用、或存在缺名且有未验证来源时整组可见文本降级；通知名始终 `labels_verified=False`。
+5. 删除手动绑定：`GET/PUT/DELETE /api/accounts/{account}/mention-labels` 路由、WebUI“成员 @ 显示名”卡片及其 JS、`MessageStore` 读写方法与 service 手工优先级。`mention_labels` 表 DDL 保留（历史数据不读不写、不 DROP）。
+6. 配置：`driver.sdk_notification_names`（默认 `true`）控制模板学习、写库与出站使用；关闭后仍保留严格 `@self` 的入站 `sender.card` 展示，并让 profile fallback 忽略 `card == notification_name` 的旧自动名，避免其以 verified profile 身份继续生效。示例配置、README 与文档同步。
+7. 日志脱敏：不记录通知原文或显示名；跨账号补全与 `NOT_VERIFIED` 重试日志只记录错误码/事实，不记录名称。
+
+### 出站使用决定（experimental，2026-11-20 用户确认）
+
+dev18 SDK 自身文档（`wechatbot_api/_notification.py` 模块 docstring）对 `sender_display_name` 的原话是：**“This value is inbound/display provenance only. It is not a verified identity and it must never be used as a native outbound @ label: a clickable native @ requires the receiver's actual display name, and this field describes the *sender*, not the target.”** 即上游只把该字段定义为入站/展示来源，不建议用于原生出站 `@`。
+
+本仓库的用法是一处**有意偏差**：用户明确选择保留“把该成员自己的通知显示名用于后续群 `@`”，并接受 experimental 风险。约束与现状：
+
+- 只把自动名用于**产生该名字的同一账号、同一成员、同一群**；A 的名不用于 B，也不跨群复用；wxid 永不作为标签。
+- 只用 `labels_verified=False` 按次提交；原生 `completed` **可能仍无真实 @**，不得据此宣称“已验证 @”。真实可点击 @ 仍需 4.2.0.53 实机确认。
+- 出站优先级中 verified 的 SDK 缓存名始终优先，自动名不会覆盖或降级缓存命中的结果；profile 与未验证来源混用或缺名时整组可见文本降级。
+- 自动名按 `(account, target_user_id, group_id)` 隔离存储（`source='notification'`、`notification_name` 列），不写通知原文、不记录显示名日志、不覆盖全局昵称。
+- 关闭 `driver.sdk_notification_names` 后：不提取/不写库/不在出站读取；严格 `@self` 名仍可用于本条入站 `sender.card` 展示，旧自动名也不会以 verified profile 身份复活（profile fallback 跳过 `card == notification_name`）。
+
+该决定由 t7 以文档/注释/测试清理方式记录（未改变已通过 t6 验证的出站实现；t6 独立验证结论为 PASS）。t7 同时修正了 Snowluma 分析文档的当前统计口径（30 路由 / 51 测试文件 / 750 collected）、受影响的 `server.py`/`webui/index.html` 行号、一处过时注释，并将脱敏用例改为经过真实 dev18 转换链路。
+
+验证（仓库）：全量 `pytest -q` **749 passed / 1 skipped** (collect 750)；`compileall -q src`、`scripts/check_action_catalog.py --check`、内联 JS `node --check`（4 段）、`git diff --check` 通过；WebUI 路由由 33 条减为 30 条，`/mention-labels` 三个方法均 404。新增测试覆盖：提取器正/负例矩阵（含 emoji、特殊字符、多义、控制字符、超长、wxid）、独立字段与 `.52`/私聊/开关关闭、加列迁移与显式列 INSERT、来源保留、去重、A→B/群间隔离、入站 `sender.card`、出站优先级/混源降级/缺名降级/开关关闭、WebUI 404 与 HTML 无卡片、日志与存储无原文。未实机发送、未改生产配置、未提交、未发布。
+
+风险：模板仅覆盖已知中文 4.2.0.53 文案（其他语言/未来文案 fail-closed）；前缀模板在名称本身含 “ : ” 时按多分隔符拒绝，可能漏学但不会串名；自动名是渲染值而非身份，仍不能保证接收端识别为真实 @（`labels_verified=False` 的 native `completed` 不代表真实 @）；按既定优先级（通知名先于历史 profile），若成员改名且 roster 已拿到新 card 而旧自动名仍在库中，会先用旧名做未验证提交，需要清理由 `source='notification'` 人工处理或等新通知覆盖；开关关闭后旧自动名数据仍保留（需停服备份 DB 后按 `source='notification'` 人工清理）。
+
+回滚：`driver.sdk_notification_names=false` 软回滚；代码回滚为 revert 本批次，`notification_name` 为新增列（旧代码忽略），`mention_labels` 表与数据未动；wheel 回滚同 dev18 节。

@@ -58,6 +58,7 @@ def default_config() -> dict[str, Any]:
             "wechat_data_directory": None,
             "sdk_data_root": None,
             "sdk_allow_unverified": False,
+            "sdk_notification_names": True,
             "sdk_media_timeout": 30.0,
             "supported_versions": ["4.1.15.13", "4.1.15.56", "4.2.0.11", "4.2.0.12"],
         },
@@ -161,6 +162,7 @@ class DriverConfig:
     sdk_data_root: Path | None = None
     sdk_allow_unverified: bool = False
     sdk_cross_account_mentions: bool = True
+    sdk_notification_names: bool = True
     sdk_media_timeout: float = 30.0
 
     @classmethod
@@ -206,6 +208,9 @@ class DriverConfig:
         cross_account_mentions = value.get("sdk_cross_account_mentions", True)
         if type(cross_account_mentions) is not bool:
             raise ConfigError("driver.sdk_cross_account_mentions 必须是布尔值")
+        notification_names = value.get("sdk_notification_names", True)
+        if type(notification_names) is not bool:
+            raise ConfigError("driver.sdk_notification_names 必须是布尔值")
         media_timeout = value.get("sdk_media_timeout", 30.0)
         if type(media_timeout) not in (int, float) or not 1 <= float(media_timeout) <= 300:
             raise ConfigError("driver.sdk_media_timeout 必须在 1–300 秒之间")
@@ -214,6 +219,7 @@ class DriverConfig:
                    wechat_data_directory=data_directory, sdk_data_root=sdk_data_root,
                    sdk_allow_unverified=allow_unverified,
                    sdk_cross_account_mentions=cross_account_mentions,
+                   sdk_notification_names=notification_names,
                    sdk_media_timeout=float(media_timeout))
 
 

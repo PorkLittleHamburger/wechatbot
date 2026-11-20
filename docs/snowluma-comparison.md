@@ -6,7 +6,9 @@
 >
 > **B 批基线变化（2026-11-15，已提交 `5a3a360`）**：A 批（`1b19502`/`04ab900`）之后的工作区新增 U-07 动作目录/元素四向单一真源、U-06 文件日志与级别热切换、U-05a 暴露面加固、U-04 `bot_offline`、U-08a 好友申请只读列表（新增可选扩展动作 `get_friend_requests`）；注册动作 23→24、测试 557→645、测试文件 43→49。正文的现状判断与优先级仍以 A 批为基线，不据 B 批改写；B 批落地与验证入口见 `docs/HANDOVER.md`，引用行号已按当前工作区核对。
 >
-> **C 批 U-02（2026-11-15，未提交）**：出站 `video` 发送已按驱动/构建映射（SDK 4.2.0.52 H.264 静音 MP4：Q-3 私聊短样本已验证，其他编码/带音轨 pending；helper 4.2.0.12：网关已映射但私聊/本机待 Q-4，上游仅声明 filehelper/群已验证；其他构建与转发发送扩展链仍 1404）。当前 `pytest --collect-only` 为 669 项 / 50 个测试文件，动作仍 24、WebUI 路由仍 33；U-02 状态按本批更新，其他条目与 A/B 历史注记不变。
+> **C 批 U-02（2026-11-15，未提交）**：出站 `video` 发送已按驱动/构建映射（SDK 4.2.0.52 H.264 静音 MP4：Q-3 私聊短样本已验证，其他编码/带音轨 pending；helper 4.2.0.12：网关已映射但私聊/本机待 Q-4，上游仅声明 filehelper/群已验证；其他构建与转发发送扩展链仍 1404）。C 批当时 `pytest --collect-only` 为 669 项 / 50 个测试文件，动作仍 24、WebUI 路由 33；U-02 状态按本批更新，其他条目与 A/B 历史注记不变。
+>
+> **dev18 批次（2026-11-20，未提交）**：vendored `wechatbot-api` 升级到 dev18（bridge 11 / ABI 2），新增群通知自动显示名并移除手动绑定入口；**当前** 30 条 WebUI 路由、51 个测试文件 / 750 项（`pytest --collect-only`）、注册动作 24。正文结论与优先级不变，计数与受本批影响的 `server.py`、`webui/index.html` 行号按当前工作区刷新；本批未重审其余既有分析行号。
 >
 > **方法**：只读比对。SnowLuma 侧逐文件阅读镜像源码与文档；本仓库侧逐文件阅读 `src/`、`tests/`、`docs/` 与 `vendor/` 的固定依赖，结论以代码为准、文档为辅。证据格式：本仓库写 `路径:行号`；SnowLuma 镜像写 `SnowLuma v2.4.2: 镜像相对路径:行号`。所有引用在成稿前重新核对到具体行内容（不只校验行号存在）。
 >
@@ -23,11 +25,11 @@
 3. **视频发送已由 C 批按驱动/构建映射（SDK Q-3 已验证；helper 4.2.0.12 映射、Q-4 待验；其他构建/转发链 1404）。** 事实：`video` 段不再一律 1404；SDK 4.2.0.52 映射 H.264 静音 MP4（Q-3 私聊短样本实测可播放；其他编码/带音轨 pending），helper 4.2.0.12 映射但私聊/本机待 Q-4（上游仅声明 filehelper/群已验证），其他构建与转发发送扩展链仍 1404（`src/wechat_onebot/service.py:812-815`、`:884-888`、`:909-914`；`src/wechat_onebot/driver/base.py:101-104`；`src/wechat_onebot/driver/sdk.py:45,726-729`；`src/wechat_onebot/driver/helper.py:101,652-662`；`src/wechat_onebot/protocol/element_manifest.py:52-54`）。判断：U-02 从“未映射”转为“按能力门控”；原“框架能力≠网关能力”口径修正注记保留。
 4. **官方 OneBot v11 的 38 个标准动作，本仓库注册 18 个、未注册 20 个。** 事实：注册表 24 个动作（`src/wechat_onebot/onebot/actions.py:86-221`）；20 个未注册中 **可迁移 5 个**（撤回、好友申请审批、踢人、退群、改群名[待确认]）、**平台不可迁移 13 个**、**明确排除 2 个**（`set_restart`、`clean_cache`）。
 5. **传输层已对齐，缺 6 项协议增强。** 已覆盖：HTTP API、HTTP 上报（含签名/快速操作）、正向/反向 WS、三角色、`echo`、`_async`/`_rate_limited`、心跳与生命周期。缺：SSE 事件流、单端口复用、出站 CQ 字符串模式、自身消息事件上报、离线事件、`Authorization: <token>` 裸 token 形态（均协议层可补，见第四节）。
-6. **管理面闭环完整，缺运维增强而非核心功能。** 事实：33 条 WebUI 路由（`@app` 装饰器；`src/wechat_onebot/webui/server.py:179-730`）覆盖登录、状态、调试台、日志、端点、账号/桥接、@ 显示名绑定；相对 SnowLuma 缺文件日志与级别热切换、管理密码强度、TOTP、TLS、通知渠道、多账号批量操作。
+6. **管理面闭环完整，缺运维增强而非核心功能。** 事实：30 条 WebUI 路由（`@app` 装饰器；`src/wechat_onebot/webui/server.py:179-667`）覆盖登录、状态、调试台、日志、端点、账号/桥接；相对 SnowLuma 缺文件日志与级别热切换、管理密码强度、TOTP、TLS、通知渠道、多账号批量操作。
 7. **上游有"虚标"，不能按名字算缺口。** 事实：222 个声明动作中 9 个显式占位（其中 4 个是标准名：`set_group_anonymous`、`set_group_anonymous_ban`、`set_restart`、`clean_cache`）、2 个语义降级（`check_url_safely`、`clean_cache`），实际有效约 211 个（`SnowLuma v2.4.2: packages/mcp/src/generated/catalog.json` 的 summary/notes）。
 8. **平台不可迁移集中在 QQ 专有能力。** QQ 空间（29）、群文件（12）、群相册（9）、群精华、闪传、系统表情、匿名/禁言/管理员/群名片/头衔等；另有一批"微信有产品但**无公开接口/原生未提供**"（头像、资料、小程序卡片、输入状态），本文统一写作"无接口"，不写成"微信无对应"。
 9. **微信侧原生已有但未映射的能力，不属于 SnowLuma 差距。** 群邀请/建群（4.1.15.x）、主动好友申请（4.2.0.12）、公众号、本机防撤回（4.2.0.12）属产品决策项，不应混入"相对 SnowLuma 缺什么"；表情导出（U-21）与朋友圈（U-20）虽同样来自微信侧，但因其可对齐 OneBot 语义，仍列入第四节并标注"上游无对应/高风险"。
-10. **定位差异不应计入缺口。** SDK、MCP、UI 组件包、插件运行器、多平台发行、发布自动化源于 SnowLuma 的"平台"定位；本仓库是"网关 + 管理面"，业务外置。判断：先做协议与管理面补强；SDK/MCP 若做，建议外置进程并复用 WebUI 动作代理（`src/wechat_onebot/webui/server.py:705-715`），不进内核。
+10. **定位差异不应计入缺口。** SDK、MCP、UI 组件包、插件运行器、多平台发行、发布自动化源于 SnowLuma 的"平台"定位；本仓库是"网关 + 管理面"，业务外置。判断：先做协议与管理面补强；SDK/MCP 若做，建议外置进程并复用 WebUI 动作代理（`src/wechat_onebot/webui/server.py:633-643`），不进内核。
 
 ---
 
@@ -42,7 +44,7 @@
 | 接入对象 | Windows 微信（helper 注入 / wechatbot-api SDK） | QQ NT 桌面客户端（原生 hook 注入）（`SnowLuma v2.4.2: packages/bridge/src/injector.ts:112-124`） |
 | 动作来源 | 原生后端已有能力 ∩ 网关映射（`src/wechat_onebot/driver/helper.py:99-117`） | QQ 协议层自研动作（`SnowLuma v2.4.2: packages/onebot/src/actions/index.ts:288-313`） |
 | 对外入口 | OneBot v11（HTTP/上报/双向 WS）+ WebUI + CLI | OneBot v11（HTTP/WS/SSE）+ WebUI + TypeScript SDK + MCP |
-| 管理面 | FastAPI + 单文件前端，33 路由 | Vite/React，66 处路由注册 |
+| 管理面 | FastAPI + 单文件前端，30 路由 | Vite/React，66 处路由注册 |
 | 平台 | Windows x64 便携包 | win-x64 / linux-x64 / linux-arm64（`SnowLuma v2.4.2: .github/workflows/release.yml:42-57`） |
 | 发布 | 人工发布 + Launcher 实例复验 | GitHub Actions 三平台矩阵 + 自动发布说明（`SnowLuma v2.4.2: .github/workflows/release.yml:119-192`） |
 | 许可 | 本仓库许可 + 第三方声明 | 源码可见非商业许可 + 专有原生组件（`SnowLuma v2.4.2: LICENSE:32-35`） |
@@ -202,7 +204,7 @@
 | # | 能力 | 判定 | 清单 | 微信侧 | 证据 |
 | --- | --- | --- | --- | --- | --- |
 | 69 | 每账号 Runtime / 端点 / PID 独占 | 已覆盖 | — | 有 | `src/wechat_onebot/core/runtime.py:47-75`、`src/wechat_onebot/bridge/process_lock.py:18-57` / `SnowLuma v2.4.2: packages/onebot/src/manager.ts:126-184` |
-| 70 | 管理面多账号批量操作 | 未覆盖-可迁移 | U-28 | 有 | 一次一个账号：`webui/index.html:706-714` / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:1941-2070` |
+| 70 | 管理面多账号批量操作 | 未覆盖-可迁移 | U-28 | 有 | 一次一个账号：`webui/index.html:705-713` / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:1941-2070` |
 | 71 | 临时会话 | 未覆盖-平台不可迁移 | — | 无 | 无临时会话分支：`src/wechat_onebot/protocol/converters.py:86-121` / `SnowLuma v2.4.2: packages/onebot/src/temp-session-store.ts:12` |
 
 **小结**：后端多账号模型等价（每账号 Runtime/DB/端点/PID 锁），差在管理面批量操作与展示。
@@ -211,17 +213,17 @@
 
 | # | 能力 | 判定 | 清单 | 微信侧 | 证据 |
 | --- | --- | --- | --- | --- | --- |
-| 72 | 管理面规模（33 vs 66 路由） | 部分覆盖 | — | 有 | `src/wechat_onebot/webui/server.py:179-730` / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:1611-1751`、`SnowLuma v2.4.2: packages/core/src/webui/storage-routes.ts:76-164`、`SnowLuma v2.4.2: packages/core/src/webui/update-routes.ts:12-70` |
+| 72 | 管理面规模（30 vs 66 路由） | 部分覆盖 | — | 有 | `src/wechat_onebot/webui/server.py:179-667` / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:1611-1751`、`SnowLuma v2.4.2: packages/core/src/webui/storage-routes.ts:76-164`、`SnowLuma v2.4.2: packages/core/src/webui/update-routes.ts:12-70` |
 | 73 | 登录/首设/改密/状态/实时流 | 已覆盖 | — | 有 | `src/wechat_onebot/webui/server.py:210-295`、`:137-152`、`:494-508` / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:1783` |
-| 74 | 调试台与消息编排 | 部分覆盖 | — | 有 | 有 JSON 段编辑 + 发送确认，无逐段表单/文件源：`webui/index.html:1596-1673`（消息输入在 `:1632`） / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:1611` |
+| 74 | 调试台与消息编排 | 部分覆盖 | — | 有 | 有 JSON 段编辑 + 发送确认，无逐段表单/文件源：`webui/index.html:1569-1646`（消息输入在 `:1605`） / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:1611` |
 | 75 | 日志查看/导出与级别热切换 | 部分覆盖 | U-06 | 有 | 仅内存 200 条 + 前端导出，无文件日志/级别路由：`src/wechat_onebot/webui/server.py:427-431`、`src/wechat_onebot/logging_setup.py:1-29` / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:1836-1873` |
-| 76 | 存储管理与统计 | 部分覆盖 | — | 有 | 只有媒体上限 + 统计，无配额/保留/清理：`src/wechat_onebot/webui/server.py:668-703` / `SnowLuma v2.4.2: packages/core/src/webui/storage-routes.ts:76-164` |
+| 76 | 存储管理与统计 | 部分覆盖 | — | 有 | 只有媒体上限 + 统计，无配额/保留/清理：`src/wechat_onebot/webui/server.py:596-631` / `SnowLuma v2.4.2: packages/core/src/webui/storage-routes.ts:76-164` |
 | 77 | 通知渠道（Webhook/SMTP） | 未覆盖-可迁移 | U-24 | 有 | 本仓库无通知实现 / `SnowLuma v2.4.2: packages/core/src/notifications/config.ts:40-70` |
 | 78 | TOTP 两步验证 | 未覆盖-可迁移 | U-22 | 有 | 本仓库无 TOTP / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:978`、`SnowLuma v2.4.2: packages/core/src/webui/totp.ts:1-40` |
 | 79 | 管理面 TLS | 未覆盖-可迁移 | U-23 | 有 | 默认 loopback、无 TLS/证书管理：`docs/network-config.md:97` / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:1469-1536` |
 | 80 | 管理密码强度策略 | 未覆盖-可迁移 | U-27 | 有 | 仅 8–1024 长度：`src/wechat_onebot/webui/auth.py:44-46` / `SnowLuma v2.4.2: packages/core/src/webui/auth.ts:51-73`、`SnowLuma v2.4.2: packages/core/src/webui/server.ts:913-947` |
-| 81 | 真实账号头像 | 部分覆盖 | — | 有（无接口） | 字母占位头像，无真实头像：`webui/index.html:70-72,494,1081` / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:1214` |
-| 82 | 内置更新器 / 备份 / 外观宿主 / EULA 同意 | 明确排除 | — | — | 由外部 Launcher 承担（推断：`docs/HANDOVER.md:7`、`docs/troubleshooting.md:27`）；外观为单文件 UI：`webui/index.html:1-2283` / `SnowLuma v2.4.2: packages/core/src/webui/update-routes.ts:12-70`、`SnowLuma v2.4.2: packages/core/src/webui/server.ts:1537-1610`、`SnowLuma v2.4.2: packages/webui/INTEGRATIONS.md:3-75` |
+| 81 | 真实账号头像 | 部分覆盖 | — | 有（无接口） | 字母占位头像，无真实头像：`webui/index.html:70-72,494,1080` / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:1214` |
+| 82 | 内置更新器 / 备份 / 外观宿主 / EULA 同意 | 明确排除 | — | — | 由外部 Launcher 承担（推断：`docs/HANDOVER.md:7`、`docs/troubleshooting.md:27`）；外观为单文件 UI：`webui/index.html:1-2217` / `SnowLuma v2.4.2: packages/core/src/webui/update-routes.ts:12-70`、`SnowLuma v2.4.2: packages/core/src/webui/server.ts:1537-1610`、`SnowLuma v2.4.2: packages/webui/INTEGRATIONS.md:3-75` |
 
 **小结**：核心闭环（登录/状态/调试/日志/端点/诊断）完备且部分更严格；缺口都在运维增强与远程访问。更新器/备份/外观属"上游平台化"与"本仓库 Launcher 分工"的差异，不计缺口。
 
@@ -247,7 +249,7 @@
 | 91 | 发布流程 | 明确排除 | — | — | 人工发布 + Launcher 复验：`docs/HANDOVER.md:66` / `SnowLuma v2.4.2: .github/workflows/release.yml:119-192` |
 | 92 | CI 治理（lint/类型/覆盖率/矩阵） | 部分覆盖 | — | — | 单作业 windows-x64：`.github/workflows/bot.yml:10-53` / `SnowLuma v2.4.2: .github/workflows/ci.yml:17-106` |
 | 93 | 依赖固定与 vendored 校验 | 已覆盖 | — | — | `.github/workflows/bot.yml:26-35`、`vendor/helper/VENDORED_SHA256.json` / `SnowLuma v2.4.2: LICENSE:32-35` |
-| 94 | 测试规模与分层 | 部分覆盖 | — | — | 50 个测试文件 / 669 项（`pytest --collect-only`）；无真实客户端 e2e：`docs/live-preflight.md:3` / `SnowLuma v2.4.2: AGENTS.md:54-90`；测试文件 518（含 scripts 生成器测试为 519） |
+| 94 | 测试规模与分层 | 部分覆盖 | — | — | 51 个测试文件 / 750 项（`pytest --collect-only`）；无真实客户端 e2e：`docs/live-preflight.md:3` / `SnowLuma v2.4.2: AGENTS.md:54-90`；测试文件 518（含 scripts 生成器测试为 519） |
 | 95 | 动作目录 / 元素四向清单单一真源 | 部分覆盖 | U-07 | — | 运行期目录（`src/wechat_onebot/onebot/actions.py:220-225`），无生成快照/漂移校验 / `SnowLuma v2.4.2: .github/workflows/ci.yml:39-43`、`SnowLuma v2.4.2: packages/protocol/src/element-manifest.ts:1-27,134-288` |
 | 96 | 客户端 SDK | 未覆盖-可迁移 | U-25 | — | 对外契约只有 OneBot 协议：`docs/onebot-compatibility.md:3` / `SnowLuma v2.4.2: packages/sdk/README.md:3`、`SnowLuma v2.4.2: packages/sdk/src/actions.ts:5-240` |
 | 97 | MCP 服务器 | 未覆盖-可迁移 | U-26 | — | 本仓库无 MCP / `SnowLuma v2.4.2: packages/mcp/README.md:3-11`、`SnowLuma v2.4.2: packages/mcp/src/tools.ts:57-162` |
@@ -312,11 +314,11 @@
 | U-21 | 收藏表情导出（只读本地缓存） | 客户端可读取账号已缓存的自定义表情；无完整 CRUD | **原生已有（仅 4.1.15.x）**：`emoticon.extract`/`export_emoticons`（`vendor/helper/wxbot_framework/backend.py:23,187-188`、`vendor/helper/wxbot_framework/emoticons.py:483-489`）；非权威收藏列表（`vendor/helper/docs/messages/emoticons.md:13-22`） | 受构建限制、数据非权威；写操作不可迁移 | `SnowLuma v2.4.2: packages/onebot/src/actions/extended.ts:2402` |
 | U-22 | TOTP 两步验证 | 远程管理 WebUI 时提升安全 | 纯管理面（密钥/恢复码/校验） | 恢复码丢失风险 | `src/wechat_onebot/webui/server.py:210-295`（登录流程无 TOTP） / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:978`、`SnowLuma v2.4.2: packages/core/src/webui/totp.ts:1-40` |
 | U-23 | 管理面 TLS | 反代/远程访问 | 纯管理面（证书导入/删除、失败不静默降级） | 证书管理复杂度 | `docs/network-config.md:97` / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:1469-1536` |
-| U-24 | 通知渠道（Webhook/SMTP） | 掉线/异常告警 | 纯管理面 | 密钥/模板注入 | `src/wechat_onebot/webui/server.py:179-730`（无通知路由） / `SnowLuma v2.4.2: packages/core/src/notifications/config.ts:40-70` |
+| U-24 | 通知渠道（Webhook/SMTP） | 掉线/异常告警 | 纯管理面 | 密钥/模板注入 | `src/wechat_onebot/webui/server.py:179-667`（无通知路由） / `SnowLuma v2.4.2: packages/core/src/notifications/config.ts:40-70` |
 | U-25 | 客户端 SDK | 降低接入成本；上游有 230 动作名与流式/反向 WS 服务端 | 生态层：建议外置并先做机器可读契约（U-07） | 维护多语言包成本 | `docs/onebot-compatibility.md:3` / `SnowLuma v2.4.2: packages/sdk/README.md:3`、`SnowLuma v2.4.2: packages/sdk/src/actions.ts:5-240` |
-| U-26 | MCP 服务器 | AI 客户端操作网关；上游 14 工具/三模式 | 可外置进程复用 `POST /api/accounts/{account}/action`（`src/wechat_onebot/webui/server.py:705-715`） | 写模式安全门控 | `docs/onebot-compatibility.md:3`（对外只有 OneBot 协议） / `SnowLuma v2.4.2: packages/mcp/src/tools.ts:57-162` |
+| U-26 | MCP 服务器 | AI 客户端操作网关；上游 14 工具/三模式 | 可外置进程复用 `POST /api/accounts/{account}/action`（`src/wechat_onebot/webui/server.py:633-643`） | 写模式安全门控 | `docs/onebot-compatibility.md:3`（对外只有 OneBot 协议） / `SnowLuma v2.4.2: packages/mcp/src/tools.ts:57-162` |
 | U-27 | 管理密码强度策略 | 弱密码无护栏 | 纯管理面：长度/大小写/符号/空格规则 + 评估接口（对齐 `SnowLuma v2.4.2: packages/core/src/webui/auth.ts:51-73`） | 与既有 8–1024 长度兼容 | `src/wechat_onebot/webui/auth.py:44-46` |
-| U-28 | 管理面多账号批量操作 | 多账号用户需逐账号切换 | 纯管理面（批量启停/状态） | 并发桥接未实测 | `webui/index.html:706-714` / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:1941-2070` |
+| U-28 | 管理面多账号批量操作 | 多账号用户需逐账号切换 | 纯管理面（批量启停/状态） | 并发桥接未实测 | `webui/index.html:705-713` / `SnowLuma v2.4.2: packages/core/src/webui/server.ts:1941-2070` |
 
 **未单列的低价值项**：状态文本命令（`#sl` 类）、性能基准、存储配额/清理、消息段可视化构造器、真实账号头像、`download_file` 落盘——矩阵中已判定（部分覆盖或平台不可迁移），因价值低/影响面小不进入排期清单。
 
@@ -379,7 +381,7 @@
 | X-5 | 登录历史回填（读取微信本地历史） | `docs/onebot-compatibility.md:34`、`docs/architecture.md:43-50` | 读微信加密本地库违反安全边界；"历史只读运行期观测"已声明 |
 | X-6 | 内置更新器 / 自更新 | `docs/HANDOVER.md:7`（推断） | 版本切换由外部 Launcher 的实例模型负责 |
 | X-7 | 备份/恢复 API | `docs/troubleshooting.md:27`（推断） | 外部 Launcher 承担实例备份/恢复；网关只要求停服务后复制数据目录 |
-| X-8 | 外观宿主协议 / EULA 同意 | `webui/index.html:1-2283` | 单文件 UI，无 MaiBot/Electron 宿主场景；无对应法务需求 |
+| X-8 | 外观宿主协议 / EULA 同意 | `webui/index.html:1-2217` | 单文件 UI，无 MaiBot/Electron 宿主场景；无对应法务需求 |
 | X-9 | 插件运行器 | `docs/vendor-helper.md:5` | 上游 helper 插件运行器被显式禁用（`plugins={}`）；业务逻辑外置 |
 | X-10 | npm 包生态 / 文档站 / Docker 镜像分发 | 定位差异 | Python 网关 + Windows 便携包 + Launcher；容器化已列 N-15 |
 
@@ -431,7 +433,7 @@
 | 上游占位/降级 | 9 个显式占位（含 4 个标准名）+ 2 个语义降级，实际有效约 211 | catalog 的 summary/notes |
 | SnowLuma 入站事件/消息元素/WebUI/MCP | 23 类事件 / 16 类元素 / 66 处路由 / 14 个 MCP 工具 | 镜像源码统计 |
 | 本仓库注册动作 | 24（18 标准 + 6 扩展） | `src/wechat_onebot/onebot/actions.py:86-221`；AST 复核 |
-| 本仓库 WebUI/测试 | 33 路由；50 个测试文件 / 669 项 | `src/wechat_onebot/webui/server.py:179-730`；`pytest --collect-only` |
+| 本仓库 WebUI/测试 | 30 路由；51 个测试文件 / 750 项 | `src/wechat_onebot/webui/server.py:179-667`；`pytest --collect-only` |
 | 本报告矩阵/清单 | 99 行矩阵；28 个可迁移条目（P0 1 / P1 7 / P2 20） | 本文第三、四节 |
 
 **自检**
@@ -440,4 +442,4 @@
 - 矩阵每个"未覆盖"行同时给出本仓库与 SnowLuma 两侧证据；28 个可迁移条目与矩阵第三列一一对应，无跨域重复、无同一能力两处不同优先级。
 - `docs/onebot-v11-audit.md:146` 的"本项目注册 19 个动作"是该文档文首声明的 v0.9.0 代码基线（`7b62bdd`）历史快照，不代表当前注册表；当前注册表为 24 个动作（见上表与 `src/wechat_onebot/onebot/actions.py:86-221`），本报告保留该历史基线且不改写该审计文档。
 - 未引用个人路径、账号、代理或任何本地分析目录；未复制上游大段源码。
-- 本轮只改文档：新增本文件与 `docs/README.md` 索引一行；未改代码、未提交/推送/发布。**批次说明**：其后的独立纠偏批次（HEAD `1b19502`）提交了本报告复核出的 7 项一致性修正（5 项文档口径 + 2 项低风险代码文案/参数描述，P1/P0 均未实施）；本报告结论不变，测试计数与文档索引已按该批次刷新。**B 批说明（2026-11-15，已提交 `5a3a360`）**：工作区新增 U-07/U-06/U-05a/U-04/U-08a 的落地内容；本报告已按 B 批工作区刷新计数与引用行号（动作 24、测试 49 文件/645 项、新增 `get_friend_requests` 计为可选扩展），结论与优先级不变，B 批验收见 `docs/HANDOVER.md`。**C 批说明（2026-11-15，未提交）**：U-02 出站视频已按驱动/构建映射（SDK Q-3 私聊短样本已验证；helper 4.2.0.12 映射但 Q-4 待验；其他构建/转发链 1404）；测试计数更新为 50 文件 / 669 项，动作 24、WebUI 路由 33 不变，其他结论与优先级不变，验收口径见 `docs/HANDOVER.md` C 批节与 Q-3/Q-4。**SDK 升级说明（2026-11-18，未提交）**：vendored `wechatbot-api` 升级到 dev17，sdk 支持 4.2.0.52/4.2.0.53 双构建；helper `driver.supported_versions` 不变，测试计数同步为 669；4.2.0.53 仅做只读发现与离线群 @ 准备验证，未做真实群 @。
+- 本轮只改文档：新增本文件与 `docs/README.md` 索引一行；未改代码、未提交/推送/发布。**批次说明**：其后的独立纠偏批次（HEAD `1b19502`）提交了本报告复核出的 7 项一致性修正（5 项文档口径 + 2 项低风险代码文案/参数描述，P1/P0 均未实施）；本报告结论不变，测试计数与文档索引已按该批次刷新。**B 批说明（2026-11-15，已提交 `5a3a360`）**：工作区新增 U-07/U-06/U-05a/U-04/U-08a 的落地内容；本报告已按 B 批工作区刷新计数与引用行号（动作 24、测试 49 文件/645 项、新增 `get_friend_requests` 计为可选扩展），结论与优先级不变，B 批验收见 `docs/HANDOVER.md`。**C 批说明（2026-11-15，未提交）**：U-02 出站视频已按驱动/构建映射（SDK Q-3 私聊短样本已验证；helper 4.2.0.12 映射但 Q-4 待验；其他构建/转发链 1404）；测试计数更新为 50 文件 / 669 项，动作 24、WebUI 路由 33 不变，其他结论与优先级不变，验收口径见 `docs/HANDOVER.md` C 批节与 Q-3/Q-4。**SDK 升级说明（2026-11-18，未提交）**：vendored `wechatbot-api` 升级到 dev17，sdk 支持 4.2.0.52/4.2.0.53 双构建；helper `driver.supported_versions` 不变，测试计数同步为 669；4.2.0.53 仅做只读发现与离线群 @ 准备验证，未做真实群 @。**dev18 批次说明（2026-11-20，未提交）**：vendored `wechatbot-api` 升级到 dev18（bridge 11 / ABI 2），群通知自动显示名（experimental 出站使用）与手动绑定移除；计数刷新为 30 条 WebUI 路由 / 51 个测试文件 / 750 项，注册动作 24；受本批影响的 `server.py`、`webui/index.html` 行号已按当前工作区核对，报告结论与优先级不变。

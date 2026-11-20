@@ -12,18 +12,20 @@ from wechat_onebot.media import MediaStore
 from wechat_onebot.service import OneBotService
 
 
-def make_config(tmp_path: Path) -> AppConfig:
+def make_config(tmp_path: Path, **driver_changes) -> AppConfig:
+    values = dict(type="mock", helper_root=tmp_path / "helper", wechat_account="wxid_robot")
+    values.update(driver_changes)
     return AppConfig(
         path=tmp_path / "config.json",
         onebot=OneBotConfig(access_token="test-token"),
         reverse_ws=(),
-        driver=DriverConfig(type="mock", helper_root=tmp_path / "helper", wechat_account="wxid_robot"),
+        driver=DriverConfig(**values),
         storage=StorageConfig(tmp_path / "data", tmp_path / "media", 1024 * 1024),
     )
 
 
-async def make_service(tmp_path: Path):
-    config = make_config(tmp_path)
+async def make_service(tmp_path: Path, **driver_changes):
+    config = make_config(tmp_path, **driver_changes)
     driver = MockDriver()
     mapper = IdMapper(tmp_path / "ids.sqlite3")
     media = MediaStore(config.storage.media_dir, max_bytes=config.storage.max_media_bytes,

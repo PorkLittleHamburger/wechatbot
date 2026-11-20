@@ -38,6 +38,7 @@ from .protocol.element_manifest import (
 )
 from .protocol.rich_content import canonical_forward, materialize_forwards, rich_segments
 from .protocol.codec import normalize_message, serialize_message
+from .protocol.notification_names import validate_display_name
 from .protocol import outbound_forward as forwarding
 
 
@@ -106,6 +107,16 @@ class OneBotService:
     @property
     def supported_actions(self) -> frozenset[str]:
         return frozenset(ACTION_REGISTRY)
+
+    @property
+    def _notification_names_enabled(self) -> bool:
+        """Automatic group notification names are learned/used only when enabled.
+
+        The switch is ``driver.sdk_notification_names`` (default on).  Disabling
+        it stops template learning, profile writes and outbound lookups; the
+        strict @self display name still reaches the inbound ``sender.card``.
+        """
+        return bool(getattr(self.config.driver, "sdk_notification_names", False))
 
     def set_event_sink(self, sink: EventSink | None) -> None:
         self._event_sink = sink
@@ -195,6 +206,22 @@ class OneBotService:
                 (user, "", event.sender_name, "", "message"),
                 *([(user, group, "", event.sender_card, "message")] if group else []),
             ])
+            # The automatic notification name is display data, not an identity:
+            # it gets its own column/source and never touches the global
+            # nickname.  It is written separately from sender_name/sender_card
+            # so a later roster refresh cannot turn it into a verified profile.
+            # With learning disabled the strict @self name is still shown for
+            # this event, but nothing is persisted or used for outbound @.
+            notification_name = (validate_display_name(event.notification_name, sender_id=user)
+                                 if group else "")
+            if notification_name and self._notification_names_enabled:
+                if user != self.mapper.reverse("user", self.self_id):
+                    if self.message_store.remember_notification_name(
+                            self.account, user, group, notification_name):
+                        logger.info(
+                            "已记录群通知显示名（仅用于本群显示与未验证 @）account=%s group=%s source=%s",
+                            self.account, group,
+                            event.notification_name_source or "notification")
             profile = self.message_store.profile(self.account, user, group)
             if group and (not known_member or not (profile and profile["nickname"])):
                 try:
@@ -210,7 +237,12 @@ class OneBotService:
                 profile = self.message_store.profile(self.account, user)
             if profile:
                 event = replace(event, sender_name=event.sender_name or profile["nickname"],
-                                sender_card=event.sender_card or profile["card"])
+                                sender_card=(event.sender_card or notification_name
+                                             or profile["card"]))
+            elif notification_name and not event.sender_card:
+                # Display-only fallback: the strict @self name survives even
+                # when learning is disabled (no profile row was written).
+                event = replace(event, sender_card=notification_name)
             event_name = message_event_name(event)
             session_key = event.external_chat_id
             sequence_key = message_sequence(event)
@@ -707,13 +739,17 @@ class OneBotService:
                     sources.append("cache")
                     fallback_labels.append(cached)
                     continue
-                manual = self.message_store.mention_label(
-                    self.account, external, chat_id)
-                manual = self._mention_label_name(manual, external)
-                if manual:
-                    names.append(manual)
-                    sources.append("manual")
-                    fallback_labels.append(manual)
+                notification = ""
+                if self._notification_names_enabled:
+                    notification = self._mention_label_name(
+                        self.message_store.notification_name(
+                            self.account, external, chat_id), external)
+                if notification:
+                    # Learned from this sender's own group notification; kept
+                    # per (account, target, group) and always unverified.
+                    names.append(notification)
+                    sources.append("notification")
+                    fallback_labels.append(notification)
                     continue
                 foreign = ""
                 try:
@@ -738,30 +774,33 @@ class OneBotService:
                 names.append("")
                 sources.append("none")
                 fallback_labels.append(supplied or external)
-            has_manual = "manual" in sources
-            has_unverified = has_manual or "foreign" in sources
+            has_unverified = "notification" in sources or "foreign" in sources
             attempt_native = False
             display_names: tuple[str, ...] | None = None
             labels_verified = True
             if at_ids:
                 if not all(names):
                     # Without an unverified source the SDK may still resolve all
-                    # targets from its cache; with a manual/foreign label an
-                    # incomplete set must not turn other names into unverified.
-                    attempt_native = not has_unverified
+                    # targets from its cache; an incomplete set that relies on
+                    # notification/foreign labels must not turn other names
+                    # into unverified ones.
+                    if has_unverified:
+                        logger.warning("多目标 @ 有成员缺少可靠显示名，降级为普通文本")
+                    else:
+                        attempt_native = True
                 elif not has_unverified:
                     attempt_native = True
                     display_names = tuple(names)
-                elif all(source in ("manual", "foreign", "cache")
+                elif all(source in ("notification", "foreign", "cache")
                          for source in sources):
                     attempt_native = True
                     display_names = tuple(names)
                     labels_verified = False
                 else:
                     # A profile/history name is not proof of the current
-                    # display name. Mixing it with manual/foreign labels under
-                    # labels_verified=False would look like D组: native
-                    # completed but no real @. Degrade the whole batch.
+                    # display name. Mixing it with notification/foreign labels
+                    # under labels_verified=False would look like a "completed
+                    # but no real @" outcome. Degrade the whole batch.
                     logger.warning("多目标 @ 名称来源混合，降级为普通文本")
             chunks = list(_split_utf8(text or " ", 900 if at_ids else 1023))
             for index, chunk in enumerate(chunks):
@@ -776,9 +815,10 @@ class OneBotService:
                             if not _mention_validation_error(error):
                                 raise
                             # SDK native mentions require a verified/real
-                            # display name. When neither the cache nor a manual
-                            # binding has one, keep the reply usable by sending
-                            # visible text instead of failing the chain.
+                            # display name. When neither the cache nor an
+                            # unverified learned/foreign name is usable, keep the
+                            # reply usable by sending visible text instead of
+                            # failing the chain.
                             logger.warning("原生 @ 发送失败，降级为普通文本: %s", error)
                     if accepted:
                         sent += 1
@@ -1130,54 +1170,21 @@ class OneBotService:
 
     def _display_name(self, user: str, group: str) -> str:
         profile = self.message_store.profile(self.account, user, group)
-        name = (profile["card"] or profile["nickname"]) if profile else ""
+        card = profile["card"] if profile else ""
+        nickname = profile["nickname"] if profile else ""
+        if (card and not self._notification_names_enabled
+                and card == self.message_store.notification_name(self.account, user, group)):
+            # Switching automatic notification names off must also stop an old
+            # learned name from resurfacing as a verified profile card (its
+            # source may meanwhile have become message/group_member).
+            card = ""
+        name = card or nickname
         return "".join(" " if ord(ch) < 32 else ch for ch in name).strip()[:64]
 
     @staticmethod
     def _mention_label_name(label: str, external: str) -> str:
         """A wxid is never a native display label, even from legacy/profile data."""
         return "" if not label or label == external else label
-
-    @staticmethod
-    def _mention_label_value(value: Any) -> str:
-        if not isinstance(value, str):
-            raise OneBotActionError(1400, "显示名必须是字符串")
-        label = "".join(" " if ord(ch) < 32 else ch for ch in value).strip()
-        if not 1 <= len(label) <= 64:
-            raise OneBotActionError(1400, "显示名必须为 1–64 个可见字符")
-        return label
-
-    def set_mention_label(self, group_number: int, user_number: int,
-                          label: Any) -> dict[str, Any]:
-        external_group = self._external_group(group_number)
-        external_user = self._external_user(user_number)
-        value = self._mention_label_value(label)
-        if value == external_user:
-            raise OneBotActionError(1400, "显示名不能是 wxid；请填写群内真实显示名")
-        self.message_store.set_mention_label(
-            self.account, external_user, external_group, value)
-        return {"group_id": group_number, "user_id": user_number, "label": value}
-
-    def remove_mention_label(self, group_number: int, user_number: int) -> dict[str, Any]:
-        external_group = self._external_group(group_number)
-        external_user = self._external_user(user_number)
-        self.message_store.delete_mention_label(
-            self.account, external_user, external_group)
-        return {"group_id": group_number, "user_id": user_number, "deleted": True}
-
-    def mention_labels(self, group_number: int | None = None) -> list[dict[str, Any]]:
-        external_group = (self._external_group(group_number)
-                          if group_number is not None else "")
-        rows = self.message_store.list_mention_labels(self.account, external_group)
-        result: list[dict[str, Any]] = []
-        for row in rows:
-            try:
-                group = self.mapper.get_or_create("group", row["group"])
-                user = self.mapper.get_or_create("user", row["user"])
-            except ValueError:
-                continue
-            result.append({"group_id": group, "user_id": user, "label": row["label"]})
-        return result
 
     async def _get_stranger_info(self, params: dict[str, Any]) -> dict[str, Any]:
         number = self._required_int(params, "user_id")

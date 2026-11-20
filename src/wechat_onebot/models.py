@@ -25,6 +25,11 @@ class IncomingMessage:
     timestamp: int = 0
     raw: dict[str, Any] = field(default_factory=dict)
     sender_card: str = ""
+    # Kept apart from sender_name/sender_card on purpose: those are written to
+    # the profile store with source="message".  A notification-derived name is
+    # unverified display data with its own source and its own column.
+    notification_name: str = ""
+    notification_name_source: str = ""
 
 
 @dataclass(frozen=True)

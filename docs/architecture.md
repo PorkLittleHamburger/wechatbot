@@ -5,7 +5,7 @@
 ```text
 WeChat (fingerprint-locked Windows x64 builds)
   helper driver: 4.1.15.13 / 4.1.15.56 / 4.2.0.11 / 4.2.0.12
-  sdk driver:    4.2.0.52/4.2.0.53 (wechatbot_api 0.1.0.dev17)
+  sdk driver:    4.2.0.52/4.2.0.53 (wechatbot_api 0.1.0.dev18)
         |
         v
 Driver implementation + bridge helpers
@@ -130,6 +130,8 @@ The authoritative action list and segment limits are in [OneBot compatibility](o
 ## User profiles and client sessions
 
 Inbound observations are stored before OneBot delivery; known nonempty names survive blank observations and restarts. Global nicknames and per-group cards are separate. A verified complete native member list replaces observed membership, while leave notices remove membership without erasing historical identity. Nickname lookup tries the friend cache, then the separately verified 4.1.15.56 / 4.2.0.11 / 4.2.0.12 non-friend LRU layouts. Missing or unstable native records remain unavailable.
+
+The `sdk` driver additionally maps dev18's read-only group notification fields into a dedicated `IncomingMessage.notification_name`/`notification_name_source` pair (`protocol/notification_names.py`); the raw preview is never stored, logged or placed in the event payload. The service persists a validated name only for that sender and group (`user_profiles.notification_name`, `source='notification'`, group card only, never the global nickname) and uses it for the inbound `sender.card` and as an unverified outbound group-`@` label. Outbound priority is cached name → the target's own automatic notification name → another local account's cache → historical profile; profile mixed with unverified sources degrades the whole batch to visible text, and `driver.sdk_notification_names=false` disables learning, persistence and outbound use. The outbound use is **experimental and a deliberate deviation**: the dev18 SDK documents `sender_display_name` as inbound/display provenance that "must never be used as a native outbound @ label"; the user chose to keep it for the same member/group only, submitted with `labels_verified=False`, where a native `completed` is not proof of a real @.
 
 The gateway emits separate `user_id` and `group_id` fields. External clients such as AstrBot may combine these into per-member session identifiers according to their own configuration; this does not change the gateway's group identity.
 

@@ -57,6 +57,8 @@ def event(**changes):
         native_message_id="100", native_timestamp=1700000000.0,
         content_type="text", text="", mentions=(), reference=None,
         content={}, media=None, bridge_sequence=1,
+        # dev18 (bridge 11 / ABI 2) read-only notification fields.
+        notification_text=None, sender_display_name=None,
     )
     base.update(changes)
     return SimpleNamespace(**base)
@@ -200,7 +202,7 @@ def install_fake_sdk(monkeypatch, client=None) -> FakeClient:
 
     module = types.ModuleType("wechatbot_api")
     module.Client = Holder()
-    module.__version__ = "0.1.0.dev17"
+    module.__version__ = "0.1.0.dev18"
     monkeypatch.setitem(sys.modules, "wechatbot_api", module)
     return holder
 
@@ -281,6 +283,174 @@ def test_group_mentions_become_at_segments_and_labels_are_trimmed(tmp_path: Path
     assert message.segments[2].data["text"] == "你好"
     assert message.raw["is_at_self"] is True
     assert message.is_group is True
+
+
+# ------------------------------------------------ notification display names
+def test_at_self_text_uses_the_strict_sender_display_name(tmp_path: Path):
+    driver = SdkDriver(make_config(tmp_path))
+    message = driver._convert_message(event(
+        chat_id="1@chatroom", sender_id="wxid_a", text="@机器人\u2005你好",
+        mentions=("wxid_robot",),
+        notification_text="群名片在群聊中@了你",
+        sender_display_name="群名片",
+    ))
+    assert message.notification_name == "群名片"
+    assert message.notification_name_source == "sender_display_name"
+    assert message.raw["is_at_self"] is True
+    # The notification preview itself never enters the event payload.
+    assert "群名片在群聊中@了你" not in repr(message.raw)
+
+
+def test_non_at_self_group_message_learns_the_template_name(tmp_path: Path):
+    driver = SdkDriver(make_config(tmp_path))
+    message = driver._convert_message(event(
+        chat_id="1@chatroom", sender_id="wxid_a", text="你好",
+        notification_text="甲 : 你好",
+    ))
+    assert message.notification_name == "甲"
+    assert message.notification_name_source == "template"
+
+
+def test_sender_display_name_is_ignored_without_an_at_self_mention(tmp_path: Path):
+    driver = SdkDriver(make_config(tmp_path))
+    message = driver._convert_message(event(
+        chat_id="1@chatroom", sender_id="wxid_a", text="你好", mentions=("wxid_b",),
+        notification_text="乙 : 你好", sender_display_name="乙",
+    ))
+    assert message.notification_name == "乙"
+    assert message.notification_name_source == "template"
+
+
+def test_42052_events_without_the_new_fields_learn_nothing(tmp_path: Path):
+    # WeChat 4.2.0.52 never fills notification_text/sender_display_name.
+    driver = SdkDriver(make_config(tmp_path))
+    message = driver._convert_message(event(
+        chat_id="1@chatroom", sender_id="wxid_a", text="你好",
+        notification_text=None, sender_display_name=None,
+    ))
+    assert message.notification_name == ""
+    assert message.notification_name_source == ""
+
+    legacy = event(chat_id="1@chatroom", sender_id="wxid_a", text="你好")
+    del legacy.notification_text
+    del legacy.sender_display_name
+    assert driver._convert_message(legacy).notification_name == ""
+
+
+def test_private_chat_notification_text_is_never_learned(tmp_path: Path):
+    driver = SdkDriver(make_config(tmp_path))
+    message = driver._convert_message(event(
+        chat_id="wxid_friend", sender_id="wxid_friend", text="你好",
+        notification_text="甲 : 你好", sender_display_name="甲",
+    ))
+    assert message.notification_name == ""
+
+
+def test_notification_names_switch_disables_templates_but_keeps_at_self_display(tmp_path: Path):
+    driver = SdkDriver(make_config(tmp_path, sdk_notification_names=False))
+    template = driver._convert_message(event(
+        chat_id="1@chatroom", sender_id="wxid_a", text="你好",
+        notification_text="甲 : 你好",
+    ))
+    assert template.notification_name == ""
+    strict = driver._convert_message(event(
+        chat_id="1@chatroom", sender_id="wxid_a", text="@机器人\u2005你好",
+        mentions=("wxid_robot",), sender_display_name="群名片",
+    ))
+    assert strict.notification_name == "群名片"
+
+
+def test_file_card_twin_events_extract_the_same_name(tmp_path: Path):
+    driver = SdkDriver(make_config(tmp_path))
+    file_event = event(chat_id="1@chatroom", sender_id="wxid_a", text="",
+                       content_type="file", content={"media_state": "unavailable"},
+                       notification_text="甲 : [文件]报告.pdf", native_message_id="2")
+    file_message = driver._convert_message(file_event)
+    assert file_message.notification_name == "甲"
+    # The 4.2.0.53 file card also arrives as an ``app`` twin with no OneBot
+    # segment mapping; its preview carries the identical name.
+    app_name, app_source = driver._notification_identity(
+        event(chat_id="1@chatroom", sender_id="wxid_a", content_type="app",
+              notification_text="甲 : [文件]报告.pdf"),
+        "app", is_group=True, mentions=(), sender_id="wxid_a")
+    assert (app_name, app_source) == ("甲", "template")
+
+
+def test_notification_name_longer_than_64_characters_is_rejected(tmp_path: Path):
+    driver = SdkDriver(make_config(tmp_path))
+    message = driver._convert_message(event(
+        chat_id="1@chatroom", sender_id="wxid_a", text="你好",
+        notification_text=f"{'名' * 65} : 你好",
+    ))
+    assert message.notification_name == ""
+
+
+def test_raw_notification_preview_is_never_logged_or_kept(tmp_path: Path, caplog):
+    sentinel = "SENTINEL-不应出现在日志或事件里的通知正文"
+    driver = SdkDriver(make_config(tmp_path))
+    with caplog.at_level("DEBUG", logger="wechat-onebot.sdk"):
+        message = driver._convert_message(event(
+            chat_id="1@chatroom", sender_id="wxid_a", text="你好",
+            content_type="reference",
+            reference={"type": 1, "native_message_id": "1", "sender_id": "wxid_b",
+                       "sender_name": "乙", "content": "引用"},
+            notification_text=f"甲 : {sentinel}",
+        ))
+    assert message.notification_name == "甲"
+    assert sentinel not in caplog.text
+    assert sentinel not in repr(message)
+    assert sentinel not in repr(message.raw)
+
+
+@pytest.mark.asyncio
+async def test_learned_sdk_name_is_reused_for_the_targets_own_group_at(monkeypatch, tmp_path: Path):
+    """End-to-end through the real SdkDriver conversion and OneBotService."""
+    from wechat_onebot.ids import IdMapper
+    from wechat_onebot.media import MediaStore
+    from wechat_onebot.service import OneBotService
+
+    config = make_config(tmp_path)
+    client = install_fake_sdk(monkeypatch)
+    driver = SdkDriver(config)
+    mapper = IdMapper(tmp_path / "ids.sqlite3")
+    media = MediaStore(config.storage.media_dir, max_bytes=config.storage.max_media_bytes,
+                       public_base_url="http://127.0.0.1:6700")
+    service = OneBotService(config, driver, mapper, media)
+    events: list = []
+    arrived = asyncio.Event()
+
+    async def emit(payload):
+        events.append(payload)
+        arrived.set()
+
+    service.set_event_sink(emit)
+    try:
+        await service.start()
+        client.session_obj.sub.put(event(
+            event_id="evt-n1", chat_id="1@chatroom", sender_id="wxid_b",
+            text="你好", notification_text="乙 : 你好"))
+        await wait_for(lambda: events if arrived.is_set() else None)
+        sender = events[-1]["sender"]
+        assert sender["card"] == "乙"
+        assert sender["nickname"] == ""
+        assert service.message_store.notification_name("wxid_robot", "wxid_b", "1@chatroom") == "乙"
+        assert service.message_store.notification_name("wxid_robot", "wxid_b", "") == ""
+
+        group = events[-1]["group_id"]
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group,
+            "message": [{"type": "at", "data": {"qq": sender["user_id"]}},
+                        {"type": "text", "data": {"text": "hi"}}],
+        })
+        assert response["status"] == "ok"
+        name, args, kwargs = client.session_obj.sent[-1]
+        assert name == "send_at_text"
+        assert kwargs["members"] == ["wxid_b"]
+        assert kwargs["display_names"] == ["乙"]
+        assert kwargs["labels_verified"] is False
+    finally:
+        await service.stop()
+        mapper.close()
 
 
 def test_reference_message_keeps_reply_identity_for_the_service(tmp_path: Path):
@@ -942,13 +1112,23 @@ def test_sdk_driver_config_accepts_new_fields(tmp_path: Path):
     config = DriverConfig.from_dict({
         "type": "sdk", "wechat_account": "wxid_robot",
         "sdk_data_root": "sdk-data", "sdk_allow_unverified": True,
-        "sdk_cross_account_mentions": False, "sdk_media_timeout": 12.5,
+        "sdk_cross_account_mentions": False, "sdk_notification_names": False,
+        "sdk_media_timeout": 12.5,
     }, base_dir=tmp_path)
     assert config.type == "sdk"
     assert config.sdk_data_root == (tmp_path / "sdk-data").resolve()
     assert config.sdk_allow_unverified is True
     assert config.sdk_cross_account_mentions is False
+    assert config.sdk_notification_names is False
     assert config.sdk_media_timeout == 12.5
+
+
+def test_notification_names_are_enabled_by_default(tmp_path: Path):
+    from wechat_onebot.config import default_config
+
+    assert DriverConfig().sdk_notification_names is True
+    assert default_config()["driver"]["sdk_notification_names"] is True
+    assert DriverConfig.from_dict({}, base_dir=tmp_path).sdk_notification_names is True
 
 
 @pytest.mark.parametrize("payload", [
@@ -956,6 +1136,8 @@ def test_sdk_driver_config_accepts_new_fields(tmp_path: Path):
     {"type": "sdk", "sdk_data_root": ""},
     {"type": "sdk", "sdk_allow_unverified": "yes"},
     {"type": "sdk", "sdk_cross_account_mentions": "yes"},
+    {"type": "sdk", "sdk_notification_names": "yes"},
+    {"type": "sdk", "sdk_notification_names": 0},
     {"type": "sdk", "sdk_media_timeout": 0},
     {"type": "sdk", "sdk_media_timeout": 301},
 ])
@@ -975,7 +1157,7 @@ def test_sdk_discovery_fills_missing_nickname_from_contact_cache(monkeypatch, tm
 
     module = types.ModuleType("wechatbot_api")
     module.Client = Client
-    module.__version__ = "0.1.0.dev17"
+    module.__version__ = "0.1.0.dev18"
     monkeypatch.setitem(sys.modules, "wechatbot_api", module)
     rows = discover_sdk_accounts(make_config(tmp_path))
     assert rows[0].wxid == "wxid_a"
@@ -992,7 +1174,7 @@ def test_sdk_discovery_accepts_42053_build(monkeypatch):
     module = types.ModuleType("wechatbot_api")
     module.Client = Client
     module.ErrorCode = ErrorCode
-    module.__version__ = "0.1.0.dev17"
+    module.__version__ = "0.1.0.dev18"
     monkeypatch.setitem(sys.modules, "wechatbot_api", module)
     rows = discover_sdk_accounts(make_config(Path(".")))
     assert [row.wxid for row in rows] == ["wxid_c"]
@@ -1014,7 +1196,7 @@ def test_sdk_discovery_filters_unverified_rows(monkeypatch):
     module = types.ModuleType("wechatbot_api")
     module.Client = Client
     module.ErrorCode = ErrorCode
-    module.__version__ = "0.1.0.dev17"
+    module.__version__ = "0.1.0.dev18"
     monkeypatch.setitem(sys.modules, "wechatbot_api", module)
     rows = discover_sdk_accounts(make_config(Path(".")))
     assert [row.wxid for row in rows] == ["wxid_a", "wxid_b"]

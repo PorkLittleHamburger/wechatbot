@@ -1,3 +1,11 @@
+"""Outbound group-@ name priority and degradation.
+
+Priority per target: verified SDK cache name -> the target's own automatic
+notification name (unverified) -> another local account's cache name
+(unverified) -> historical profile.  A notification name is never verified,
+never reused for another target/group and never a wxid.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,48 +15,85 @@ import pytest
 
 from test_service import make_service
 from wechat_onebot.driver.base import DriverError
-from wechat_onebot.onebot.message_store import MessageStore
-from wechat_onebot.service import OneBotActionError
 
 
-def test_mention_labels_persist_and_isolate_accounts(tmp_path: Path):
-    path = tmp_path / "messages.sqlite3"
-    with MessageStore(path) as store:
-        store.set_mention_label("a", "wxid_alice", "g1", "Alice")
-        store.set_mention_label("a", "wxid_bob", "g1", "Bob")
-        store.set_mention_label("b", "wxid_alice", "g1", "Other")
-        assert store.mention_label("a", "wxid_alice", "g1") == "Alice"
-        assert store.list_mention_labels("a", "g1") == [
-            {"group": "g1", "user": "wxid_alice", "label": "Alice"},
-            {"group": "g1", "user": "wxid_bob", "label": "Bob"},
-        ]
-        store.delete_mention_label("a", "wxid_alice", "g1")
-    with MessageStore(path) as store:
-        assert store.mention_label("a", "wxid_alice", "g1") == ""
-        assert store.mention_label("b", "wxid_alice", "g1") == "Other"
-        assert store.list_mention_labels("a", "g1") == [
-            {"group": "g1", "user": "wxid_bob", "label": "Bob"},
-        ]
+GROUP = "10001@chatroom"
+
+
+def at_message(*targets: int) -> list[dict]:
+    message: list[dict] = []
+    for index, target in enumerate(targets):
+        if index:
+            message.append({"type": "text", "data": {"text": " "}})
+        message.append({"type": "at", "data": {"qq": target}})
+    message.append({"type": "text", "data": {"text": "hi"}})
+    return message
 
 
 @pytest.mark.asyncio
-async def test_manual_mention_label_is_sent_as_unverified_real_name(tmp_path: Path):
-    service, driver, mapper, _ = await make_service(tmp_path)
+async def test_learned_notification_name_is_reused_for_a_later_at(tmp_path: Path):
+    service, driver, mapper, events = await make_service(tmp_path)
     try:
-        group = mapper.get_or_create("group", "10001@chatroom")
+        group = mapper.get_or_create("group", GROUP)
         user = mapper.get_or_create("user", "wxid_alice")
-        service.set_mention_label(group, user, "群里的真实名")
-        assert service.mention_labels(group) == [{
-            "group_id": group, "user_id": user, "label": "群里的真实名"}]
+        driver.members[GROUP] = ()
+        driver.resolve_mention_label = AsyncMock(return_value=None)
+        driver.resolve_foreign_mention_label = AsyncMock(return_value=None)
+        # Inbound group notification teaches this sender's own display name.
+        await driver.inject_message(
+            chat_id=GROUP, sender_id="wxid_alice", sender_name="", is_group=True,
+            notification_name="群里的甲", notification_name_source="template")
+        assert events[-1]["sender"]["card"] == "群里的甲"
         response = await service.dispatch("send_group_msg", {
-            "group_id": group,
-            "message": [{"type": "at", "data": {"qq": user}},
-                        {"type": "text", "data": {"text": "hi"}}],
-        })
+            "group_id": group, "message": at_message(user)})
         assert response["status"] == "ok"
         payload = driver.sent[-1].payload
+        assert driver.sent[-1].kind == "at_text"
         assert payload["user_ids"] == ["wxid_alice"]
-        assert payload["display_names"] == ["群里的真实名"]
+        assert payload["display_names"] == ["群里的甲"]
+        assert payload["labels_verified"] is False
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_learned_notification_name_keeps_special_characters(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = mapper.get_or_create("group", GROUP)
+        user = mapper.get_or_create("user", "wxid_alice")
+        service.message_store.remember_notification_name(
+            service.account, "wxid_alice", GROUP, "🙂小明·A")
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group, "message": at_message(user)})
+        assert response["status"] == "ok"
+        assert driver.sent[-1].payload["display_names"] == ["🙂小明·A"]
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_learned_notification_name_survives_a_later_profile_observation(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = mapper.get_or_create("group", GROUP)
+        user = mapper.get_or_create("user", "wxid_alice")
+        service.message_store.remember_notification_name(
+            service.account, "wxid_alice", GROUP, "自动名")
+        # A later roster/message observation changes the source but must not
+        # turn the automatic name into a verified profile name.
+        service.message_store.remember_profiles(service.account, [
+            ("wxid_alice", GROUP, "", "", "message")])
+        driver.members[GROUP] = ()
+        driver.resolve_mention_label = AsyncMock(return_value=None)
+        driver.resolve_foreign_mention_label = AsyncMock(return_value=None)
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group, "message": at_message(user)})
+        assert response["status"] == "ok"
+        payload = driver.sent[-1].payload
+        assert payload["display_names"] == ["自动名"]
         assert payload["labels_verified"] is False
     finally:
         await service.stop()
@@ -59,7 +104,7 @@ async def test_manual_mention_label_is_sent_as_unverified_real_name(tmp_path: Pa
 async def test_cached_mention_label_stays_verified(tmp_path: Path):
     service, driver, mapper, _ = await make_service(tmp_path)
     try:
-        group = mapper.get_or_create("group", "10001@chatroom")
+        group = mapper.get_or_create("group", GROUP)
         user = mapper.get_or_create("user", "wxid_alice")
         driver.resolve_mention_label = AsyncMock(return_value="缓存真实名")
         response = await service.dispatch("send_group_msg", {
@@ -77,12 +122,35 @@ async def test_cached_mention_label_stays_verified(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_cache_name_wins_over_a_learned_notification_name(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = mapper.get_or_create("group", GROUP)
+        user = mapper.get_or_create("user", "wxid_alice")
+        service.message_store.remember_notification_name(
+            service.account, "wxid_alice", GROUP, "自动旧名")
+        driver.resolve_mention_label = AsyncMock(return_value="缓存当前名")
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group,
+            "message": [{"type": "at", "data": {"qq": user}},
+                        {"type": "text", "data": {"text": "hi"}}],
+        })
+        assert response["status"] == "ok"
+        payload = driver.sent[-1].payload
+        assert payload["display_names"] == ["缓存当前名"]
+        assert payload["labels_verified"] is True
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
 async def test_missing_mention_label_lets_sdk_resolve_or_falls_back_to_text(tmp_path: Path):
     service, driver, mapper, _ = await make_service(tmp_path)
     try:
-        group = mapper.get_or_create("group", "10001@chatroom")
+        group = mapper.get_or_create("group", GROUP)
         user = mapper.get_or_create("user", "wxid_alice")
-        driver.members["10001@chatroom"] = ()
+        driver.members[GROUP] = ()
         driver.resolve_mention_label = AsyncMock(return_value=None)
         response = await service.dispatch("send_group_msg", {
             "group_id": group,
@@ -112,27 +180,10 @@ async def test_missing_mention_label_lets_sdk_resolve_or_falls_back_to_text(tmp_
 
 
 @pytest.mark.asyncio
-async def test_mention_label_validation_rejects_wxid_and_blank(tmp_path: Path):
-    service, _, mapper, _ = await make_service(tmp_path)
-    try:
-        group = mapper.get_or_create("group", "10001@chatroom")
-        user = mapper.get_or_create("user", "wxid_alice")
-        with pytest.raises(OneBotActionError):
-            service.set_mention_label(group, user, "wxid_alice")
-        with pytest.raises(OneBotActionError):
-            service.set_mention_label(group, user, "   ")
-        with pytest.raises(OneBotActionError):
-            service.set_mention_label(group, user, "x" * 65)
-    finally:
-        await service.stop()
-        mapper.close()
-
-
-@pytest.mark.asyncio
 async def test_foreign_account_cache_name_is_used_when_own_cache_missing(tmp_path: Path):
     service, driver, mapper, _ = await make_service(tmp_path)
     try:
-        group = mapper.get_or_create("group", "10001@chatroom")
+        group = mapper.get_or_create("group", GROUP)
         user = mapper.get_or_create("user", "wxid_alice")
         driver.resolve_mention_label = AsyncMock(return_value=None)
         driver.resolve_foreign_mention_label = AsyncMock(return_value="外账号名")
@@ -151,12 +202,13 @@ async def test_foreign_account_cache_name_is_used_when_own_cache_missing(tmp_pat
 
 
 @pytest.mark.asyncio
-async def test_manual_binding_wins_over_foreign_account_name(tmp_path: Path):
+async def test_notification_name_wins_over_foreign_account_name(tmp_path: Path):
     service, driver, mapper, _ = await make_service(tmp_path)
     try:
-        group = mapper.get_or_create("group", "10001@chatroom")
+        group = mapper.get_or_create("group", GROUP)
         user = mapper.get_or_create("user", "wxid_alice")
-        service.set_mention_label(group, user, "手工真名")
+        service.message_store.remember_notification_name(
+            service.account, "wxid_alice", GROUP, "自动真名")
         driver.resolve_mention_label = AsyncMock(return_value=None)
         driver.resolve_foreign_mention_label = AsyncMock(return_value="外账号名")
         response = await service.dispatch("send_group_msg", {
@@ -166,30 +218,9 @@ async def test_manual_binding_wins_over_foreign_account_name(tmp_path: Path):
         })
         assert response["status"] == "ok"
         payload = driver.sent[-1].payload
-        assert payload["display_names"] == ["手工真名"]
+        assert payload["display_names"] == ["自动真名"]
         assert payload["labels_verified"] is False
-    finally:
-        await service.stop()
-        mapper.close()
-
-
-@pytest.mark.asyncio
-async def test_current_cache_name_wins_over_stale_manual_binding(tmp_path: Path):
-    service, driver, mapper, _ = await make_service(tmp_path)
-    try:
-        group = mapper.get_or_create("group", "10001@chatroom")
-        user = mapper.get_or_create("user", "wxid_alice")
-        service.set_mention_label(group, user, "手工旧名")
-        driver.resolve_mention_label = AsyncMock(return_value="缓存当前名")
-        response = await service.dispatch("send_group_msg", {
-            "group_id": group,
-            "message": [{"type": "at", "data": {"qq": user}},
-                        {"type": "text", "data": {"text": "hi"}}],
-        })
-        assert response["status"] == "ok"
-        payload = driver.sent[-1].payload
-        assert payload["display_names"] == ["缓存当前名"]
-        assert payload["labels_verified"] is True
+        driver.resolve_foreign_mention_label.assert_not_called()
     finally:
         await service.stop()
         mapper.close()
@@ -199,11 +230,11 @@ async def test_current_cache_name_wins_over_stale_manual_binding(tmp_path: Path)
 async def test_stale_profile_falls_back_to_visible_text_without_duplicate(tmp_path: Path):
     service, driver, mapper, _ = await make_service(tmp_path)
     try:
-        group = mapper.get_or_create("group", "10001@chatroom")
+        group = mapper.get_or_create("group", GROUP)
         user = mapper.get_or_create("user", "wxid_alice")
-        service.message_store.remember_profiles("wxid_robot", [
+        service.message_store.remember_profiles(service.account, [
             ("wxid_alice", "", "旧资料名", "", "message")])
-        driver.members["10001@chatroom"] = ()
+        driver.members[GROUP] = ()
         calls = 0
 
         async def reject(*args, **kwargs):
@@ -227,25 +258,21 @@ async def test_stale_profile_falls_back_to_visible_text_without_duplicate(tmp_pa
 
 
 @pytest.mark.asyncio
-async def test_mixed_manual_and_cached_labels_use_unverified_native(tmp_path: Path):
+async def test_notification_and_cached_names_use_one_unverified_native_attempt(tmp_path: Path):
     service, driver, mapper, _ = await make_service(tmp_path)
     try:
-        group = mapper.get_or_create("group", "10001@chatroom")
+        group = mapper.get_or_create("group", GROUP)
         alice = mapper.get_or_create("user", "wxid_alice")
         bob = mapper.get_or_create("user", "wxid_bob")
-        service.set_mention_label(group, alice, "绑定真名")
+        service.message_store.remember_notification_name(
+            service.account, "wxid_alice", GROUP, "自动名")
         driver.resolve_mention_label = AsyncMock(
-            side_effect=lambda _chat, user: "缓存真名" if user == "wxid_bob" else None)
+            side_effect=lambda _chat, user: "缓存名" if user == "wxid_bob" else None)
         response = await service.dispatch("send_group_msg", {
-            "group_id": group,
-            "message": [{"type": "at", "data": {"qq": alice}},
-                        {"type": "text", "data": {"text": " "}},
-                        {"type": "at", "data": {"qq": bob}},
-                        {"type": "text", "data": {"text": "hi"}}],
-        })
+            "group_id": group, "message": at_message(alice, bob)})
         assert response["status"] == "ok"
         payload = driver.sent[-1].payload
-        assert payload["display_names"] == ["绑定真名", "缓存真名"]
+        assert payload["display_names"] == ["自动名", "缓存名"]
         assert payload["labels_verified"] is False
     finally:
         await service.stop()
@@ -256,7 +283,7 @@ async def test_mixed_manual_and_cached_labels_use_unverified_native(tmp_path: Pa
 async def test_at_only_qq_segment_uses_native_mention_without_text(tmp_path: Path):
     service, driver, mapper, _ = await make_service(tmp_path)
     try:
-        group = mapper.get_or_create("group", "10001@chatroom")
+        group = mapper.get_or_create("group", GROUP)
         user = mapper.get_or_create("user", "wxid_alice")
         response = await service.dispatch("send_group_msg", {
             "group_id": group,
@@ -274,31 +301,99 @@ async def test_at_only_qq_segment_uses_native_mention_without_text(tmp_path: Pat
 
 
 @pytest.mark.asyncio
-async def test_cache_manual_foreign_priority_in_one_batch(tmp_path: Path):
+async def test_cache_notification_foreign_priority_in_one_batch(tmp_path: Path):
     service, driver, mapper, _ = await make_service(tmp_path)
     try:
-        group = mapper.get_or_create("group", "10001@chatroom")
+        group = mapper.get_or_create("group", GROUP)
         alice = mapper.get_or_create("user", "wxid_alice")
         bob = mapper.get_or_create("user", "wxid_bob")
         carol = mapper.get_or_create("user", "wxid_carol")
-        service.set_mention_label(group, bob, "手工名")
+        service.message_store.remember_notification_name(
+            service.account, "wxid_bob", GROUP, "自动名")
         driver.resolve_mention_label = AsyncMock(
             side_effect=lambda _chat, user: "缓存名" if user == "wxid_alice" else None)
         driver.resolve_foreign_mention_label = AsyncMock(
             side_effect=lambda _chat, user: "外账号名" if user == "wxid_carol" else None)
         response = await service.dispatch("send_group_msg", {
-            "group_id": group,
-            "message": [{"type": "at", "data": {"qq": alice}},
-                        {"type": "text", "data": {"text": " "}},
-                        {"type": "at", "data": {"qq": bob}},
-                        {"type": "text", "data": {"text": " "}},
-                        {"type": "at", "data": {"qq": carol}},
-                        {"type": "text", "data": {"text": "hi"}}],
-        })
+            "group_id": group, "message": at_message(alice, bob, carol)})
         assert response["status"] == "ok"
         payload = driver.sent[-1].payload
-        assert payload["display_names"] == ["缓存名", "手工名", "外账号名"]
+        assert payload["display_names"] == ["缓存名", "自动名", "外账号名"]
         assert payload["labels_verified"] is False
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_notification_and_profile_labels_degrade_without_a_native_attempt(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = mapper.get_or_create("group", GROUP)
+        alice = mapper.get_or_create("user", "wxid_alice")
+        bob = mapper.get_or_create("user", "wxid_bob")
+        service.message_store.remember_notification_name(
+            service.account, "wxid_alice", GROUP, "自动名")
+        service.message_store.remember_profiles(service.account, [
+            ("wxid_bob", GROUP, "", "资料卡片", "group_member")])
+        driver.members[GROUP] = ()
+        driver.send_at_text = AsyncMock(side_effect=AssertionError("must degrade"))
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group, "message": at_message(alice, bob)})
+        assert response["status"] == "ok"
+        assert driver.sent[-1].kind == "text"
+        text = driver.sent[-1].payload["text"]
+        assert "@自动名" in text and "@资料卡片" in text
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_missing_target_with_a_notification_name_degrades_the_batch(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = mapper.get_or_create("group", GROUP)
+        alice = mapper.get_or_create("user", "wxid_alice")
+        bob = mapper.get_or_create("user", "wxid_bob")
+        service.message_store.remember_notification_name(
+            service.account, "wxid_alice", GROUP, "自动名")
+        driver.members[GROUP] = ()
+        driver.resolve_mention_label = AsyncMock(return_value=None)
+        driver.resolve_foreign_mention_label = AsyncMock(return_value=None)
+        driver.send_at_text = AsyncMock(side_effect=AssertionError("must degrade"))
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group, "message": at_message(alice, bob)})
+        assert response["status"] == "ok"
+        assert driver.sent[-1].kind == "text"
+        text = driver.sent[-1].payload["text"]
+        assert "@自动名" in text and "@wxid_bob" in text
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_profile_in_mixed_batch_degrades_entire_visible_text(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = mapper.get_or_create("group", GROUP)
+        alice = mapper.get_or_create("user", "wxid_alice")
+        bob = mapper.get_or_create("user", "wxid_bob")
+        carol = mapper.get_or_create("user", "wxid_carol")
+        service.message_store.remember_profiles(service.account, [
+            ("wxid_carol", "", "资料名", "", "message")])
+        driver.resolve_mention_label = AsyncMock(
+            side_effect=lambda _chat, user: "缓存名" if user == "wxid_alice" else None)
+        driver.resolve_foreign_mention_label = AsyncMock(
+            side_effect=lambda _chat, user: "外账号名" if user == "wxid_bob" else None)
+        driver.send_at_text = AsyncMock(side_effect=AssertionError("must degrade"))
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group, "message": at_message(alice, bob, carol)})
+        assert response["status"] == "ok"
+        assert driver.sent[-1].kind == "text"
+        text = driver.sent[-1].payload["text"]
+        assert "@缓存名" in text and "@外账号名" in text and "@资料名" in text
     finally:
         await service.stop()
         mapper.close()
@@ -308,11 +403,11 @@ async def test_cache_manual_foreign_priority_in_one_batch(tmp_path: Path):
 async def test_wxid_is_never_passed_as_a_native_label(tmp_path: Path):
     service, driver, mapper, _ = await make_service(tmp_path)
     try:
-        group = mapper.get_or_create("group", "10001@chatroom")
+        group = mapper.get_or_create("group", GROUP)
         user = mapper.get_or_create("user", "wxid_ghost")
-        # Legacy/manual/profile/cache data can disagree with the setter guard.
-        service.message_store.set_mention_label(
-            service.account, "wxid_ghost", "10001@chatroom", "wxid_ghost")
+        # Legacy/cache/notification data can disagree with the stored guard.
+        service.message_store.remember_notification_name(
+            service.account, "wxid_ghost", GROUP, "wxid_ghost")
         driver.resolve_mention_label = AsyncMock(return_value="wxid_ghost")
         driver.resolve_foreign_mention_label = AsyncMock(return_value="wxid_ghost")
         response = await service.dispatch("send_group_msg", {
@@ -330,70 +425,146 @@ async def test_wxid_is_never_passed_as_a_native_label(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_profile_in_mixed_batch_degrades_entire_visible_text(tmp_path: Path):
+async def test_notification_name_is_not_reused_for_another_target(tmp_path: Path):
     service, driver, mapper, _ = await make_service(tmp_path)
     try:
-        group = mapper.get_or_create("group", "10001@chatroom")
+        group = mapper.get_or_create("group", GROUP)
         alice = mapper.get_or_create("user", "wxid_alice")
         bob = mapper.get_or_create("user", "wxid_bob")
-        carol = mapper.get_or_create("user", "wxid_carol")
-        service.message_store.remember_profiles("wxid_robot", [
-            ("wxid_carol", "", "资料名", "", "message")])
-        driver.resolve_mention_label = AsyncMock(
-            side_effect=lambda _chat, user: "缓存名" if user == "wxid_alice" else None)
-        driver.resolve_foreign_mention_label = AsyncMock(
-            side_effect=lambda _chat, user: "外账号名" if user == "wxid_bob" else None)
-        driver.send_at_text = AsyncMock(side_effect=AssertionError("must degrade"))
+        service.message_store.remember_notification_name(
+            service.account, "wxid_alice", GROUP, "甲的名")
+        driver.members[GROUP] = ()
+        driver.resolve_mention_label = AsyncMock(return_value=None)
+        driver.resolve_foreign_mention_label = AsyncMock(return_value=None)
         response = await service.dispatch("send_group_msg", {
-            "group_id": group,
-            "message": [{"type": "at", "data": {"qq": alice}},
-                        {"type": "text", "data": {"text": " "}},
-                        {"type": "at", "data": {"qq": bob}},
-                        {"type": "text", "data": {"text": " "}},
-                        {"type": "at", "data": {"qq": carol}},
-                        {"type": "text", "data": {"text": "hi"}}],
-        })
+            "group_id": group, "message": at_message(bob)})
         assert response["status"] == "ok"
-        assert driver.sent[-1].kind == "text"
-        text = driver.sent[-1].payload["text"]
-        assert "@缓存名" in text and "@外账号名" in text and "@资料名" in text
+        payload = driver.sent[-1].payload
+        assert payload["display_names"] == []
+        assert "甲的名" not in (payload["display_names"] or [])
     finally:
         await service.stop()
         mapper.close()
 
 
 @pytest.mark.asyncio
-async def test_mixed_manual_and_profile_labels_degrade_without_native_attempt(tmp_path: Path):
+async def test_notification_name_is_not_reused_in_another_group(tmp_path: Path):
     service, driver, mapper, _ = await make_service(tmp_path)
     try:
-        group = mapper.get_or_create("group", "10001@chatroom")
+        other = mapper.get_or_create("group", "10002@chatroom")
+        user = mapper.get_or_create("user", "wxid_alice")
+        service.message_store.remember_notification_name(
+            service.account, "wxid_alice", GROUP, "甲群的名字")
+        driver.members["10002@chatroom"] = ()
+        driver.resolve_mention_label = AsyncMock(return_value=None)
+        driver.resolve_foreign_mention_label = AsyncMock(return_value=None)
+        response = await service.dispatch("send_group_msg", {
+            "group_id": other, "message": at_message(user)})
+        assert response["status"] == "ok"
+        payload = driver.sent[-1].payload
+        assert payload["display_names"] == []
+        assert "甲群的名字" not in (payload["display_names"] or [])
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_switch_off_ignores_learned_names_and_notification_cards(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(
+        tmp_path, sdk_notification_names=False)
+    try:
+        group = mapper.get_or_create("group", GROUP)
+        user = mapper.get_or_create("user", "wxid_alice")
+        # An old automatic name from an earlier run, later observed by a roster.
+        service.message_store.remember_notification_name(
+            service.account, "wxid_alice", GROUP, "旧自动名")
+        service.message_store.remember_profiles(service.account, [
+            ("wxid_alice", "", "全局昵称", "", "group_member")])
+        driver.members[GROUP] = ()
+        driver.resolve_mention_label = AsyncMock(return_value=None)
+        driver.resolve_foreign_mention_label = AsyncMock(return_value=None)
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group, "message": at_message(user)})
+        assert response["status"] == "ok"
+        payload = driver.sent[-1].payload
+        # The learned name is not used, and it also does not resurface as a
+        # "verified" profile card; the remaining global nickname is used.
+        assert payload["display_names"] == ["全局昵称"]
+        assert payload["labels_verified"] is True
+        assert "旧自动名" not in (payload["display_names"] or [])
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_switch_off_ignores_a_notification_only_target(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(
+        tmp_path, sdk_notification_names=False)
+    try:
+        group = mapper.get_or_create("group", GROUP)
+        user = mapper.get_or_create("user", "wxid_carol")
+        service.message_store.remember_notification_name(
+            service.account, "wxid_carol", GROUP, "旧自动名")
+        driver.members[GROUP] = ()
+        driver.resolve_mention_label = AsyncMock(return_value=None)
+        driver.resolve_foreign_mention_label = AsyncMock(return_value=None)
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group, "message": at_message(user)})
+        assert response["status"] == "ok"
+        payload = driver.sent[-1].payload
+        assert payload["display_names"] == []
+        assert "旧自动名" not in (payload["display_names"] or [])
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_switch_off_does_not_learn_from_new_events(tmp_path: Path):
+    service, driver, mapper, _ = await make_service(
+        tmp_path, sdk_notification_names=False)
+    try:
+        group = mapper.get_or_create("group", GROUP)
+        user = mapper.get_or_create("user", "wxid_alice")
+        driver.members[GROUP] = ()
+        driver.resolve_mention_label = AsyncMock(return_value=None)
+        driver.resolve_foreign_mention_label = AsyncMock(return_value=None)
+        await driver.inject_message(
+            chat_id=GROUP, sender_id="wxid_alice", sender_name="", is_group=True,
+            notification_name="新自动名", notification_name_source="sender_display_name")
+        assert service.message_store.notification_name(
+            service.account, "wxid_alice", GROUP) == ""
+        response = await service.dispatch("send_group_msg", {
+            "group_id": group, "message": at_message(user)})
+        assert response["status"] == "ok"
+        assert driver.sent[-1].payload["display_names"] == []
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_cache_plus_profile_stays_verified_native(tmp_path: Path):
+    """Existing behaviour: cache and profile are both treated as verified."""
+    service, driver, mapper, _ = await make_service(tmp_path)
+    try:
+        group = mapper.get_or_create("group", GROUP)
         alice = mapper.get_or_create("user", "wxid_alice")
         bob = mapper.get_or_create("user", "wxid_bob")
-        service.set_mention_label(group, alice, "绑定真名")
-        service.message_store.remember_profiles("wxid_robot", [
-            ("wxid_bob", "", "旧资料名", "", "message")])
-        driver.members["10001@chatroom"] = ()
-        driver.resolve_mention_label = AsyncMock(return_value=None)
-        at_calls = 0
-
-        async def reject(*args, **kwargs):
-            nonlocal at_calls
-            at_calls += 1
-            raise AssertionError("native @ must not be attempted")
-
-        driver.send_at_text = reject
+        service.message_store.remember_profiles(service.account, [
+            ("wxid_bob", GROUP, "", "资料卡片", "group_member")])
+        driver.members[GROUP] = ()
+        driver.resolve_mention_label = AsyncMock(
+            side_effect=lambda _chat, user: "缓存名" if user == "wxid_alice" else None)
+        driver.resolve_foreign_mention_label = AsyncMock(return_value=None)
         response = await service.dispatch("send_group_msg", {
-            "group_id": group,
-            "message": [{"type": "at", "data": {"qq": alice}},
-                        {"type": "text", "data": {"text": " "}},
-                        {"type": "at", "data": {"qq": bob}},
-                        {"type": "text", "data": {"text": "hi"}}],
-        })
+            "group_id": group, "message": at_message(alice, bob)})
         assert response["status"] == "ok"
-        assert at_calls == 0
-        assert driver.sent[-1].kind == "text"
-        assert "@绑定真名" in driver.sent[-1].payload["text"]
-        assert "@旧资料名" in driver.sent[-1].payload["text"]
+        payload = driver.sent[-1].payload
+        assert payload["display_names"] == ["缓存名", "资料卡片"]
+        assert payload["labels_verified"] is True
     finally:
         await service.stop()
         mapper.close()

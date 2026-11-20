@@ -7,7 +7,7 @@
 | 驱动 | 固定来源 | 支持的 Windows x64 微信构建 |
 | --- | --- | --- |
 | `helper` | [helper `119acdf`](https://github.com/Prometheus-first/helper/tree/119acdf9d74654c6ebb8cded2c6841b85af75867) + 本项目补丁 | 4.1.15.13、4.1.15.56、4.2.0.11、4.2.0.12 |
-| `sdk` | `wechatbot-api 0.1.0.dev17`（bridge 10 / ABI 1，见 [vendor/wechatbot_api](../vendor/wechatbot_api/README.md)） | 4.2.0.52、4.2.0.53 |
+| `sdk` | `wechatbot-api 0.1.0.dev18`（bridge 11 / ABI 2，见 [vendor/wechatbot_api](../vendor/wechatbot_api/README.md)） | 4.2.0.52、4.2.0.53 |
 
 helper 驱动的指纹以 `vendor/helper/native/compatibility.json` 为准；sdk 驱动在
 连接前由框架校验 `Weixin.dll` 的完整指纹。**4.2.0.52 与 4.2.0.53 只支持 `sdk` 驱动**；
@@ -37,13 +37,15 @@ sdk 驱动还要求 `wechatbot_api` 包与包内 `wca_bridge.dll` 的版本、�
   `get_image`/`get_record` 读取收到的媒体（语音可转
   mp3/amr/wma/m4a/spx/ogg/wav/flac）、私聊引用文本/引用原图与两层嵌套转发、
   只读联系人/群/群成员缓存查询。视频不进入转发发送扩展链（仍 1404）。
-- 群 `@` 名称：dev17 沿用按次 `labels_verified=False` 和只读
-  `mention_label(room, wxid)`，并增加 4.2.0.53 目录/群成员缓存与标签适配。网关优先使用当前 SDK 缓存名（verified）；
-  缓存查不到时先用实例 WebUI 手工绑定的真实名（按次未验证提交），仍没有时
-  只读查询同一 Windows 用户下其他已登录微信账号的群成员缓存，取群昵称或
-  微信名作为未验证标签（不读私人备注、不从其他账号发送）。任意标签即使
-  原生 `completed` 也不会被接收端识别为真实 @；没有真实名时保持可见文本降级。
-  手工绑定名必须与群内实际显示名一致，且不会覆盖缓存已有的当前名。
+- 群 `@` 名称：按次 `labels_verified=False`、只读 `mention_label(room, wxid)`
+  与 dev18 的自动通知名。网关优先使用当前 SDK 缓存名（verified）；缓存查不到时，
+  先取该成员**在本群**自动学到的通知显示名（未验证提交），再只读查询同一 Windows
+  用户下其他已登录微信账号的群成员缓存，取群昵称或微信名作为未验证标签（不读私人
+  备注、不从其他账号发送），最后才用历史 profile。任意标签即使原生 `completed`
+  也不会被接收端识别为真实 @；没有可用真实名时保持可见文本降级。自动名按
+  `(账号, 成员, 群)` 隔离，不用于其他成员或其他群，不覆盖全局昵称，wxid 永不作为标签。
+  4.2.0.53 的入站通知模板不匹配、多义或为空时不学习；可用
+  `driver.sdk_notification_names=false` 关闭学习与出站使用。
 - 不支持：表情包发送、撤回、好友申请、群管理、原生合并转发卡片、出站原生引用。
   网关对这些保持明确失败，不返回假成功。
 - 群富图片的 `request_media` 在框架内仍为开发 opt-in；网关默认只在私聊场景解析
@@ -75,6 +77,7 @@ sdk 驱动还要求 `wechatbot_api` 包与包内 `wca_bridge.dll` 的版本、�
     "sdk_data_root": null,
     "sdk_allow_unverified": false,
     "sdk_cross_account_mentions": true,
+    "sdk_notification_names": true,
     "sdk_media_timeout": 30.0
   }
 }
@@ -116,11 +119,12 @@ v0.11.8 将 sdk 框架固定版本升级到 `0.1.0.dev15`（bridge 10 / ABI 1 �
 `labels_verified=False` 且 native completed，接收端也没有真实 @；真实显示名才有效。
 缓存无名称时，手工绑定真实名走按次未验证提交；没有真实名则保持可见文本降级。
 **手工绑定名必须与群内实际显示名一致，不能填 wxid 或占位标签。**
+（历史能力：该 WebUI 手工绑定入口在 dev18 批次移除，改为自动通知名；见下方“自动通知名”。）
 
 v0.11.9 新增跨账号名称补全：本账号缓存缺失时，sdk 驱动只读查询同机其他
 已登录微信账号的群成员缓存，取群昵称/微信名作为未验证标签；默认开启，
 `driver.sdk_cross_account_mentions=false` 可关闭。该路径不读其他账号备注，
-也不从其他账号发送；其他账号都未缓存该成员时仍需手工绑定或可见文本降级。
+也不从其他账号发送；其他账号都未缓存该成员时仍需自动通知名或可见文本降级。
 
 ## dev17 与 4.2.0.53 双构建（2026-11-18 源码接入，未发布）
 
@@ -140,3 +144,57 @@ SHA-256 `c1294988…ea0495`；bridge 10 / ABI 1 不变；内嵌 `wca_bridge.dll`
 4.2.0.52 私聊短静音 H.264 MP4，**4.2.0.53 未单独做网关侧视频实发**；其他编码/
 带音轨仍为框架 pending。本接入未改生产 `config.json`、未启动真实桥接、未发送
 微信消息；验证见交接文件。
+
+## dev18 与 bridge11/ABI2（2026-11-19 源码接入，未发布）
+
+`vendor/wechatbot_api` 从 `0.1.0.dev17` 升级到 **`0.1.0.dev18`**（wheel 124981 字节，
+SHA-256 `23b25ff3…c8e7df`；bridge 11 / ABI 2；内嵌 `wca_bridge.dll` 60928 字节、
+SHA-256 `fec9c75f…c693db06`；构建提交 `11fd3869…160a4`；sdist SHA-256
+`c6b13ca6…9f0935`）。`data/builds.json` 仍声明 4.2.0.52（`d733489e…f8d84`）与
+4.2.0.53（`ac6b174d…104825`）两条 discovery/bridge 已验证构建；Bot 驱动代码与
+公开 API 调用面不改。
+
+dev18 在原生事件末尾新增 `notification_text`（1024 字节槽，`NativeEvent` 由
+528688 扩展到 529712 字节）和只读的 `sender_display_name`；ABI 1 的字段偏移、
+`Request`/`AtRequest` 大小与既有能力位不变。4.2.0.52 不读取该槽，两个新字段恒为
+`None`；通知名只来自 4.2.0.53 群消息的严格 `@self` 显示名或固定通知模板，不读
+缓存/备注/资料。网关的消费者实现见下一节。
+
+本接入未改生产 `config.json`、未启动真实桥接、未发送微信消息、未发布；验证见
+交接文件。回滚：恢复 dev17 wheel（备份在 gitignored 的
+`dist/sdk-backup-dev17/`）与 `VENDORED.json`/文档，并
+`pip install --no-index --no-deps --force-reinstall` 旧 wheel。
+
+## 自动通知名（2026-11-20 源码接入，未发布）
+
+dev18 的只读通知字段被消费为**未验证显示名**，不改变 OneBot 身份映射：
+
+- 学习范围：仅 4.2.0.53 群消息。`@` 本账号的文本消息使用严格
+  `sender_display_name`；非 `@self` 消息按 `content_type` 只接受固定模板
+  （`<名> : <正文>`、`<名> : [文件]<文件名>`、`<名> : [聊天记录]`、
+  `<名>在群聊中发了一张图片/一段语音/一段视频`）。多分隔符、空正文、非模板后缀、
+  控制字符、长度 1–64 之外、等于 wxid 的值都不写入。
+- 存储：`user_profiles.notification_name` 与 `source='notification'`，键为
+  `(account, target_user_id, group_id)`；只写群 card，不创建/覆盖全局昵称行。
+  后续 roster/message 刷新改 `source` 但保留该列，因此自动名不会被当成已验证资料。
+- 入站：只影响本条事件的 `sender.card`；`sender.user_id`/`sender_id` 与消息 ID 不变。
+- 出站群 `@` 优先级：缓存 verified → 目标自己的自动通知名（unverified，
+  `labels_verified=False`）→ 跨账号缓存（unverified）→ 历史 profile；A 的自动名
+  不用于 B 或其他群；多目标混用 profile 与未验证来源时整组可见文本降级；缺名且
+  存在未验证来源时同样降级；wxid 永不作为 native display label。
+- 开关：`driver.sdk_notification_names` 默认 `true`。关闭后不提取模板、不写库、
+  出站不读自动名，并让 profile fallback 忽略 `card == notification_name` 的旧自动名
+  （避免其以 verified profile 身份继续生效）；严格 `@self` 名仍用于入站
+  `sender.card` 展示。关闭开关即软回滚，数据保留；清空旧自动名需停服备份 DB 后
+  按 `source='notification'` 人工处理。
+- 日志：不记录通知原文与显示名，只记录账号、群、来源和错误码；原文不进入
+  `IncomingMessage.raw`、消息库或事件 payload。
+- 历史 `mention_labels` 表与其数据保留（不读不写、不 DROP）；手动绑定 WebUI 卡片与
+  `GET/PUT/DELETE /api/accounts/{account}/mention-labels` 路由已删除（现在返回 404）。
+- **出站使用为 experimental（有意偏差）**：dev18 SDK 文档（`wechatbot_api/_notification.py`）
+  写明 `sender_display_name` 仅用于入站/展示，*“must never be used as a native outbound
+  @ label”*；上游要求可点击 @ 使用接收者的实际显示名，而该字段描述的是发送者。用户
+  明确选择保留“同一成员、同一群”的自动名用于后续未验证出站 @，并接受该 experimental
+  风险：只用 `labels_verified=False` 按次提交，原生 `completed` 可能仍无真实 @，不得据此
+  宣称已验证 @。该用法受上面的目标/群隔离、wxid 过滤、缓存优先与开关约束；关闭
+  `driver.sdk_notification_names` 后不学/不写/不用于出站。

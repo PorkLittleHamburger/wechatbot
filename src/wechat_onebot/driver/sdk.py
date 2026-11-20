@@ -33,6 +33,7 @@ from ..models import (
     LoginInfo,
     Segment,
 )
+from ..protocol.notification_names import extract_notification_name, validate_display_name
 from .base import Driver, DriverError, DriverUnsupported, EventCallback
 
 logger = logging.getLogger("wechat-onebot.sdk")
@@ -447,6 +448,8 @@ class SdkDriver(Driver):
         if not segments:
             logger.debug("跳过无法映射的 SDK 消息 kind=%r", kind)
             return None
+        notification_name, notification_source = self._notification_identity(
+            event, kind, is_group=is_group, mentions=mentions, sender_id=sender_id)
         return IncomingMessage(
             external_chat_id=chat_id,
             external_sender_id=sender_id,
@@ -461,7 +464,34 @@ class SdkDriver(Driver):
             sequence=int(event.sequence or 0),
             timestamp=int(event.native_timestamp) if event.native_timestamp else _now(),
             raw=raw,
+            notification_name=notification_name,
+            notification_name_source=notification_source,
         )
+
+    def _notification_identity(self, event: Any, kind: str, *, is_group: bool,
+                               mentions: Sequence[str], sender_id: str) -> tuple[str, str]:
+        """Best-effort display name for *this* sender in *this* group.
+
+        The raw ``notification_text`` never leaves this method: only the
+        validated name and its source tag are returned.  The strict
+        ``sender_display_name`` is a display value that stays available when
+        learning is disabled; template extraction is fully disabled by
+        ``driver.sdk_notification_names``.
+        """
+        if not is_group or not sender_id:
+            return "", ""
+        if mentions and self._self_id and self._self_id in mentions and kind == "text":
+            # The SDK only fills sender_display_name after its own strict
+            # "…在群聊中@了你" fullmatch; an @self text message has no other
+            # template fallback by design.
+            name = validate_display_name(
+                getattr(event, "sender_display_name", None), sender_id=sender_id)
+            return (name, "sender_display_name") if name else ("", "")
+        if not self.config.driver.sdk_notification_names:
+            return "", ""
+        name = extract_notification_name(
+            kind, getattr(event, "notification_text", None), sender_id)
+        return (name, "template") if name else ("", "")
 
     def _body_segments(self, event: Any, content: Any, kind: str) -> tuple[Segment, ...]:
         if kind == "text":
@@ -650,7 +680,7 @@ class SdkDriver(Driver):
             # A stale/custom label can fail the native cache check even though a
             # valid cached label exists. NOT_VERIFIED is a pre-send rejection, so
             # retrying once with SDK-resolved labels cannot duplicate a message.
-            logger.warning("原生 @ 名称校验失败，改用 SDK 缓存名称重试: %s", error)
+            logger.warning("原生 @ 名称校验失败，改用 SDK 缓存名称重试: %s", _code(error))
             return await self._send("send_at_text", chat_id, text,
                                     members=members, display_names=None)
 
@@ -709,7 +739,8 @@ class SdkDriver(Driver):
                 getattr(row, "wechat_name", None), 64)
             if label and label != user_id:
                 self._foreign_labels[key] = (label, now + 300)
-                logger.info("从其他本机微信账号缓存补全 @ 显示名: %s", label)
+                # Display names are personal data; log the lookup, not the name.
+                logger.info("从其他本机微信账号缓存补全 @ 显示名（名称不写入日志）")
                 return label
         self._foreign_labels[key] = ("", now + 30)
         return None

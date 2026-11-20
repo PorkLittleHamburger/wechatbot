@@ -136,18 +136,22 @@ class MockDriver(Driver):
         sender_name: str = "Alice",
         message_id: str | None = None,
         timestamp: int | None = None,
+        notification_name: str = "",
+        notification_name_source: str = "",
     ) -> None:
         if self._emit is None:
             raise RuntimeError("mock driver 尚未启动")
-        segments = (Segment("text", {"text": text}),)
+        body = (Segment("text", {"text": text}),)
         message = IncomingMessage(
             external_chat_id=chat_id,
             external_sender_id=sender_id,
             sender_name=sender_name,
-            segments=segments,
+            segments=body,
             external_message_id=message_id or f"mock-{time.time_ns()}",
             is_group=is_group,
             timestamp=timestamp or int(time.time()),
             raw={"mock": True},
+            notification_name=notification_name,
+            notification_name_source=notification_name_source,
         )
         await self._emit(message)
