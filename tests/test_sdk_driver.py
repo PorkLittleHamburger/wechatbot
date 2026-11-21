@@ -202,7 +202,7 @@ def install_fake_sdk(monkeypatch, client=None) -> FakeClient:
 
     module = types.ModuleType("wechatbot_api")
     module.Client = Holder()
-    module.__version__ = "0.1.0.dev18"
+    module.__version__ = "0.1.0.dev19"
     monkeypatch.setitem(sys.modules, "wechatbot_api", module)
     return holder
 
@@ -1157,7 +1157,7 @@ def test_sdk_discovery_fills_missing_nickname_from_contact_cache(monkeypatch, tm
 
     module = types.ModuleType("wechatbot_api")
     module.Client = Client
-    module.__version__ = "0.1.0.dev18"
+    module.__version__ = "0.1.0.dev19"
     monkeypatch.setitem(sys.modules, "wechatbot_api", module)
     rows = discover_sdk_accounts(make_config(tmp_path))
     assert rows[0].wxid == "wxid_a"
@@ -1174,7 +1174,7 @@ def test_sdk_discovery_accepts_42053_build(monkeypatch):
     module = types.ModuleType("wechatbot_api")
     module.Client = Client
     module.ErrorCode = ErrorCode
-    module.__version__ = "0.1.0.dev18"
+    module.__version__ = "0.1.0.dev19"
     monkeypatch.setitem(sys.modules, "wechatbot_api", module)
     rows = discover_sdk_accounts(make_config(Path(".")))
     assert [row.wxid for row in rows] == ["wxid_c"]
@@ -1196,7 +1196,7 @@ def test_sdk_discovery_filters_unverified_rows(monkeypatch):
     module = types.ModuleType("wechatbot_api")
     module.Client = Client
     module.ErrorCode = ErrorCode
-    module.__version__ = "0.1.0.dev18"
+    module.__version__ = "0.1.0.dev19"
     monkeypatch.setitem(sys.modules, "wechatbot_api", module)
     rows = discover_sdk_accounts(make_config(Path(".")))
     assert [row.wxid for row in rows] == ["wxid_a", "wxid_b"]

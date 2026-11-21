@@ -7,7 +7,7 @@
 | 驱动 | 固定来源 | 支持的 Windows x64 微信构建 |
 | --- | --- | --- |
 | `helper` | [helper `119acdf`](https://github.com/Prometheus-first/helper/tree/119acdf9d74654c6ebb8cded2c6841b85af75867) + 本项目补丁 | 4.1.15.13、4.1.15.56、4.2.0.11、4.2.0.12 |
-| `sdk` | `wechatbot-api 0.1.0.dev18`（bridge 11 / ABI 2，见 [vendor/wechatbot_api](../vendor/wechatbot_api/README.md)） | 4.2.0.52、4.2.0.53 |
+| `sdk` | `wechatbot-api 0.1.0.dev19`（bridge 11 / ABI 2，见 [vendor/wechatbot_api](../vendor/wechatbot_api/README.md)） | 4.2.0.52、4.2.0.53 |
 
 helper 驱动的指纹以 `vendor/helper/native/compatibility.json` 为准；sdk 驱动在
 连接前由框架校验 `Weixin.dll` 的完整指纹。**4.2.0.52 与 4.2.0.53 只支持 `sdk` 驱动**；
@@ -145,7 +145,31 @@ SHA-256 `c1294988…ea0495`；bridge 10 / ABI 1 不变；内嵌 `wca_bridge.dll`
 带音轨仍为框架 pending。本接入未改生产 `config.json`、未启动真实桥接、未发送
 微信消息；验证见交接文件。
 
-## dev18 与 bridge11/ABI2（2026-11-19 源码接入，未发布）
+## dev19 图片诊断与视频依赖（2026-11-20 集成，未发布）
+
+`vendor/wechatbot_api` 升级到 **0.1.0.dev19**（wheel 130249 B，SHA-256
+`62de70a9…adef8`；bridge 11 / ABI 2 不变，Python-only）。主要变化：
+
+- 图片 native 下载/严格校验失败时，`OperationResult.detail` 与
+  `media_update.reason` 增加脱敏 stage（copy/native_open/byte_count/header/
+  PNG CRC/IEND/JPEG EOI/decode/pixels/frames 等），不包含图片字节、
+  filekey/aeskey、URL/XML、通知文本或账号群信息；
+- 完整 PNG（IEND 后）和完整 JPEG（EOI 后）允许尾部字节；截断、CRC 错、
+  缺 IEND/EOI、BMP/HEIC/AVIF、超像素仍拒绝；
+- 这不是 dev18 UI 群图片失败的已证实修复；原失败样本尚未重放，不能宣称
+  图片问题已解决。
+
+2026-11-21 staging（两个 4.2.0.53 测试账号、`test` 群、各 1 次）：文本、
+群文件下载链接、群语音、群视频（安装 `av==18.1.0` 后）、SDK PNG 和用户 UI
+手发 PNG 均映射到对应 OneBot 段；UI PNG 本次进入 `image`，不再降级为
+`[图片]`。该结果只是单条正向证据；私聊文件/语音、私聊 CDN voice、大图/
+HEIC/AVIF 等仍未测试，不能写成 PASS。
+
+Bot 依赖新增 **`av==18.1.0`**（视频接收解码；`requirements-runtime.lock` 与
+`pyproject.toml` 同步）。未安装时 SDK 视频接收不能到达 OneBot `video` 段，
+只能保留 `[视频]` 占位；生产/Launcher runtime 与 staging 必须统一安装。
+
+## dev18 与 bridge11/ABI2（2026-11-19 源码接入，已随 v0.13.0 发布）
 
 `vendor/wechatbot_api` 从 `0.1.0.dev17` 升级到 **`0.1.0.dev18`**（wheel 124981 字节，
 SHA-256 `23b25ff3…c8e7df`；bridge 11 / ABI 2；内嵌 `wca_bridge.dll` 60928 字节、

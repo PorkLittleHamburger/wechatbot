@@ -5,7 +5,7 @@
 ```text
 WeChat (fingerprint-locked Windows x64 builds)
   helper driver: 4.1.15.13 / 4.1.15.56 / 4.2.0.11 / 4.2.0.12
-  sdk driver:    4.2.0.52/4.2.0.53 (wechatbot_api 0.1.0.dev18)
+  sdk driver:    4.2.0.52/4.2.0.53 (wechatbot_api 0.1.0.dev19)
         |
         v
 Driver implementation + bridge helpers

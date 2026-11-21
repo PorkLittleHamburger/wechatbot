@@ -18,6 +18,7 @@ dependencies = [
   "Pillow>=13,<14",
   "imageio-ffmpeg>=0.6,<0.7",
   "silk-python==0.2.9",
+  "av==18.1.0",
 ]
 
 [project.optional-dependencies]

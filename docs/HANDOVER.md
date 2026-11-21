@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-20** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 **WeChatBot v0.13.0**（Launcher 配套 v0.8.12、框架 dev18）；HEAD 为 `b49993a`；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-21** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 **WeChatBot v0.13.0**（Launcher 配套 v0.8.12、框架 dev18）；源码正在集成 dev19（诊断 stage/图片校验窄修、固定 `av==18.1.0`），尚未发布；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -571,5 +571,36 @@ staging 实机验证（2026-11-20，PASS）：两个 4.2.0.53 测试账号在 `t
 - staging：两个 `.53` 账号在 `test` 群完成 2 条发送，A 端确认真实可点击 @ 且仅一条；staging 无 OneBot 端点、无生产配置修改、bridge 清理完成。
 - 出站通知名是 **experimental**：dev18 SDK 文档明确不建议作为 native outbound label；按用户决定保留，始终 `labels_verified=False`，native completed 不代表真实 @。
 - 未解决：U-01 出站引用仍无 SDK quote API（reply 1404）；模板仅覆盖已知中文 `.53` 文案；cache-hit 真实优先级/多目标仍需后续实机；生产配置/实例未替换。
+
+## dev19 框架集成（2026-11-21，未发布）
+
+`vendor/wechatbot_api` 从 dev18 升级到 **0.1.0.dev19**（wheel 130249 B，SHA-256
+`62de70a9daf1a8432dd77b9d8623c7393c09f0996f03ef36ded76296feeadef8`；
+sdist 335233 B，SHA-256 `74c660cb…d802ea`；DLL 60928 B，
+`fec9c75f…db06`；bridge 11 / ABI 2 不变，Python-only；构建提交 `0c68a02`）。
+dev19 在图片 native 下载/严格校验失败时返回脱敏 stage（copy/native_open/
+byte_count/header/PNG CRC/IEND/JPEG EOI/decode/pixels/frames），并放宽完整
+PNG/JPEG 尾部字节；原 dev18 UI 图片失败样本尚未重放，**不能宣称图片已修复**。
+
+Bot 依赖新增 pinned **`av==18.1.0`**（`requirements-runtime.lock` 与
+`pyproject.toml` 同步），用于视频接收解码；未安装时视频只保留 `[视频]` 占位。
+媒体回归要求：文本、群文件（设计上是下载链接 + 框架 media，不是 OneBot
+`file` 段）、群语音、群视频、图片各 1 次；图片失败需保留 stage；私聊文件/语音
+和私聊 CDN voice 仍是 NOT_RUN/NOT_VERIFIED，不能写成 PASS/FAIL。
+
+staging 媒体回归（2026-11-21）：两个 `.53` 测试账号在 `test` 群完成一次各类型发送：
+
+- 文本 → OneBot `text`；
+- 群文件 → OneBot `text`，内容为 `[文件] <name>` + 本地媒体下载 URL（符合设计，非 OneBot `file` 段）；
+- 群语音 → OneBot `record`；
+- 群视频 → OneBot `video`（dev19 包已安装 `av==18.1.0`）；
+- SDK PNG → OneBot `image`；
+- 用户 UI 手发 PNG → staging Bot `get_group_msg_history` 返回 OneBot `image`（此前 dev18 样本为 `[图片]` 文本；dev19 本次样本通过，但只算单条正向证据，不能宣称所有 UI 图片已修复）。
+
+dev19 的图片诊断 stage 未在本次成功样本中触发；失败样本仍需保留 stage。未测试
+私聊文件/语音、私聊 CDN voice、多格式图片/大图/HEIC/AVIF；这些不得写成 PASS。
+staging 使用临时 config/data、无 OneBot 端点/生产端口，结束后 bridge=0；生产
+实例在采样期间临时停止，需用户从 Launcher 重新启动。
+
 
 发布结果（2026-11-20）：用户明确要求发布；完成 **WeChatBot v0.13.0**。annotated tag `v0.13.0` → `b49993a`；GitHub Release ID `452128186`，非 draft/prerelease，Latest；[Bot checks #44648238197](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/44648238197) 成功。附件 `wechat-onebot-0.13.0-windows-x64.zip` 60,506,735 B，SHA-256 `367dddffb2171aaccc7f97f975ca7b6cfc1b542dd3c71186f9033e07c054ff7f`，同名 `.sha256` 已上传；按用户要求未重新下载公网资产复核 SHA-256。Launcher `VersionStore.import_archive` 导入 1,598 个文件、状态 `compatible`；实际 Launcher worker 启动提取包后 `/healthz` HTTP 200、退出码 0。生产实例未替换，生产配置未修改。

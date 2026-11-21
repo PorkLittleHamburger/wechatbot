@@ -4,9 +4,9 @@
 
 `vendor/wechatbot_api` contains an **unmodified** wheel of the independent framework:
 
-- Package: `wechatbot-api 0.1.0.dev18` (import name `wechatbot_api`)
-- Build commit: `11fd38697b473a0fb5834cd598e62f7e66a160a4`
-- Wheel: `wechatbot_api-0.1.0.dev18-py3-none-win_amd64.whl`, SHA-256 `23b25ff38f5e28d3edddcfe5acc99adbb1179d91425b838ded38234751c8e7df`
+- Package: `wechatbot-api 0.1.0.dev19` (import name `wechatbot_api`)
+- Build commit: `0c68a02`
+- Wheel: `wechatbot_api-0.1.0.dev19-py3-none-win_amd64.whl`, SHA-256 `62de70a9daf1a8432dd77b9d8623c7393c09f0996f03ef36ded76296feeadef8`
 - Native bridge: `wechatbot_api/bin/wca_bridge.dll` (bridge 11 / ABI 2), SHA-256 `fec9c75f747ccf269f8bca5dfb783cdb94df78fbd131cf9074a92952c693db06`
 - Target builds: WeChat 4.2.0.52 (`Weixin.dll` 204168240 bytes, SHA-256 `d733489eea0b62af77e1aa61ba645cd941583d2a64fb2d7572da818d285f8d84`) and 4.2.0.53 (204154920 bytes, SHA-256 `ac6b174d98ee1b69e95c99a7a39c3197c8c167b7c6d32f5b72c7a7659c104825`)
 - License: helper Noncommercial License 1.0 (`LicenseRef-helper-noncommercial-1.0`), full text at `vendor/wechatbot_api/LICENSE`

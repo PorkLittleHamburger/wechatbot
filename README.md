@@ -24,7 +24,7 @@ Windows 11 x64 个人微信 OneBot v11 网关。本项目包含协议转换、�
 - 当前验证平台为 Windows 11 x64。
 - 源码要求 Python 3.11+ x64，建议使用与 CI 一致的 Python 3.13；便携包内置解释器。
 - `helper` 驱动适配 PC 微信 **4.1.15.13 / 4.1.15.56 / 4.2.0.11 / 4.2.0.12** 的指定构建，还会核对核心 DLL 指纹；相同版本号不保证兼容。
-- `sdk` 驱动适配 PC 微信 **4.2.0.52 / 4.2.0.53**（两个精确指纹：4.2.0.52 `Weixin.dll` 204168240 字节、SHA-256 `d733489e…f8d84`；4.2.0.53 204154920 字节、SHA-256 `ac6b174d…104825`），依赖包内 `wechatbot_api 0.1.0.dev18` 与其 bridge 11 / ABI 2；其他 4.2 构建不在本次范围。
+- `sdk` 驱动适配 PC 微信 **4.2.0.52 / 4.2.0.53**（两个精确指纹：4.2.0.52 `Weixin.dll` 204168240 字节、SHA-256 `d733489e…f8d84`；4.2.0.53 204154920 字节、SHA-256 `ac6b174d…104825`），依赖包内 `wechatbot_api 0.1.0.dev19` 与其 bridge 11 / ABI 2；其他 4.2 构建不在本次范围。
 - 原生桥接需要管理员权限；Mock 模式不需要微信登录。
 
 `helper` 驱动固定要求管理员权限；`sdk` 驱动按微信进程的完整性决定，同级或更高权限即可，权限不足时连接返回 `ACCESS_DENIED`。
@@ -83,6 +83,8 @@ v0.12.1 修复 v0.12.0 在 Launcher 中启动失败的问题：Launcher 注入�
 
 v0.13.0 升级 `wechatbot_api 0.1.0.dev18`（bridge 11 / ABI 2，4.2.0.52 + 4.2.0.53 双构建），并重构群 `@` 名称来源：删除实例 WebUI 的手动绑定入口，改为从 4.2.0.53 群消息学习发送者显示名，写入 `user_profiles.notification_name`（来源 `notification`），按 `(账号, 成员, 群)` 隔离。微信缓存查不到名称时，目标自己的自动通知名可作为 `labels_verified=False` 的未验证出站 @ 候选；不覆盖全局昵称、不串用其他成员/群、不持久化原始通知文本、不写日志原文，开关 `driver.sdk_notification_names` 默认开启。dev18 SDK 文档明确不建议将该字段用作原生出站标签，本仓库按用户决定保留为 **experimental**：native completed 不等于真实 @。2026-11-20 staging 已确认一条真实可点击 @（单条正向证据）。U-01 出站引用仍不支持。
 
+dev19（工作区，未发布）升级 `wechatbot_api 0.1.0.dev19`（Python-only；bridge11/ABI2 不变），为图片下载/严格校验失败增加脱敏 `stage`（copy/native_open/byte_count/header/PNG CRC/IEND/JPEG EOI/decode/pixels/frames），并放宽完整 PNG/JPEG 尾部字节；这不是 dev18 UI 图片失败的已证实修复。Bot 同时固定 `av==18.1.0` 以启用视频接收入口；缺失 `av` 时视频只能显示 `[视频]`。群图片仍按失败 stage 明确降级，不伪造 `image` 段。
+
 ## 下载与升级
 
 从 [最新 Release](https://github.com/PorkLittleHamburger/wechatbot/releases/latest) 下载完整 Windows x64 便携包及同名 `.sha256` 文件，按 [便携包说明](PORTABLE_README.md) 启动。
@@ -101,7 +103,7 @@ v0.9.3 新增明确的桥接恢复状态与手动停止持久化。自动恢复�
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements-runtime.lock
 .venv\Scripts\python.exe -m pip install -e ".[dev]"
-.venv\Scripts\python.exe -m pip install --no-index --no-deps .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev18-py3-none-win_amd64.whl
+.venv\Scripts\python.exe -m pip install --no-index --no-deps .\vendor\wechatbot_api\wechatbot_api-0.1.0.dev19-py3-none-win_amd64.whl
 .venv\Scripts\python.exe -m pytest -q
 ```
 

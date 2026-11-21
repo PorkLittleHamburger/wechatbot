@@ -1,13 +1,13 @@
 {
   "package": "wechatbot-api",
   "import_name": "wechatbot_api",
-  "version": "0.1.0.dev18",
+  "version": "0.1.0.dev19",
   "source": "private PorkLittleHamburger/wechatbot-api repository",
-  "artifact": "wechatbot_api-0.1.0.dev18-py3-none-win_amd64.whl",
-  "size": 124981,
-  "sha256": "23b25ff38f5e28d3edddcfe5acc99adbb1179d91425b838ded38234751c8e7df",
-  "sdist_sha256": "c6b13ca64907f6e58b4b3708e402ac844d8becc8f8a273235b9345d27a9f0935",
-  "build_commit": "11fd38697b473a0fb5834cd598e62f7e66a160a4",
+  "artifact": "wechatbot_api-0.1.0.dev19-py3-none-win_amd64.whl",
+  "size": 130249,
+  "sha256": "62de70a9daf1a8432dd77b9d8623c7393c09f0996f03ef36ded76296feeadef8",
+  "sdist_sha256": "74c660cb8d4a7e2c6ff828626383b39e7efb0da90daf4e41fbb9cb3a99d802ea",
+  "build_commit": "0c68a02",
   "abi_version": 2,
   "bridge_version": 11,
   "native_bridge": {
@@ -18,7 +18,10 @@
   "license": "helper 非商业使用许可协议 1.0 (LicenseRef-helper-noncommercial-1.0)",
   "license_file": "LICENSE",
   "python_tested": "3.13.9",
-  "toolchain": {"msvc": "14.44.35207", "windows_sdk": "10.0.26100.0"},
+  "toolchain": {
+    "msvc": "14.44.35207",
+    "windows_sdk": "10.0.26100.0"
+  },
   "supported_builds": [
     {
       "wechat_version": "4.2.0.52",
