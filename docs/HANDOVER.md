@@ -2,7 +2,7 @@
 
 ## 接手前先读
 
-新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-26** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 **WeChatBot v0.13.1**（Launcher 配套 v0.8.12、框架 dev19）；源码 **v0.13.2**（群名片→nickname 兼容回退）正在发布；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
+新接手的 AI 必须先读根 [AGENTS.md](../AGENTS.md)、本文件和 [文档索引](README.md)，再核对工作区、分支、远端和实际运行版本。本文是 **2026-11-26** 的维护快照，早期修复基线为 `23f46eb`（v0.8.6），当前发布基线为 **WeChatBot v0.13.2**（Launcher 配套 v0.8.12、框架 dev19）；日期、测试数量及 Release 不代表未来状态。开发命令面向源码 checkout，便携包不包含完整测试及构建工具。
 
 本仓库只维护 Windows 个人微信 OneBot v11 网关。外部 Launcher、AstrBot 与其插件是独立项目。历史上的 `bot/` 与 `launcher/` 布局已在 `2a16bc3` 收敛为根目录 Bot 工程，不能按旧文档恢复已移出的启动器。
 
@@ -602,7 +602,7 @@ dev19 的图片诊断 stage 未在本次成功样本中触发；失败样本仍�
 staging 使用临时 config/data、无 OneBot 端点/生产端口，结束后 bridge=0；生产
 实例在采样期间临时停止，需用户从 Launcher 重新启动。
 
-## v0.13.2 群名片昵称兼容（2026-11-26，发布准备）
+## v0.13.2 群名片昵称兼容（2026-11-26，已发布）
 
 现场问题：部分 `.53` 群成员只有真实 `card`、没有全局 `nickname`；后端只读
 `sender.nickname` 时输出 `@xxx ,您的...` 缺名。新增
@@ -611,6 +611,14 @@ staging 使用临时 config/data、无 OneBot 端点/生产端口，结束后 br
 `sender.card`；不写回全局 profile、不影响私聊、两者都空时不编造。设为 `false`
 恢复严格语义。完整测试 **752 passed / 1 skipped**，新增配置/启用/禁用回归；
 未替换生产实例。
+
+发布结果（2026-11-26）：用户要求发布；完成 **WeChatBot v0.13.2**。annotated tag
+`v0.13.2` → `7df0a08`；GitHub Release ID `459430449`，非 draft/prerelease，
+Latest；[Bot checks #45826122277](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/45826122277)
+成功。附件 `wechat-onebot-0.13.2-windows-x64.zip` 88,198,308 B，SHA-256
+`20f9154f850388fba02814e8c5942f823d38ae3f792da8c1f93905f5ee18d687`，同名
+`.sha256` 已上传；Launcher `VersionStore.import_archive` 导入 1,855 个文件、
+状态 `compatible`；实际 Launcher worker 启动后 `/healthz` HTTP 200、退出码 0。
 
 发布结果（2026-11-21）：用户要求发布；完成 **WeChatBot v0.13.1**。annotated tag
 `v0.13.1` → `226ca41`；GitHub Release ID `453561236`，非 draft/prerelease，
