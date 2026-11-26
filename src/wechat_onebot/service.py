@@ -118,6 +118,19 @@ class OneBotService:
         """
         return bool(getattr(self.config.driver, "sdk_notification_names", False))
 
+    @property
+    def _sender_card_as_nickname(self) -> bool:
+        """Use a real group card as a display-only nickname when the global name is missing.
+
+        Some WebChat caches expose only the group card for non-friend members.  The
+        default compatibility switch keeps the card in ``sender.card`` and also
+        fills an otherwise empty ``sender.nickname`` so consumers that only read
+        ``nickname`` still display a real observed name.  This never invents a name
+        when both values are empty and is disabled with
+        ``driver.sender_card_as_nickname=false``.
+        """
+        return bool(getattr(self.config.driver, "sender_card_as_nickname", True))
+
     def set_event_sink(self, sink: EventSink | None) -> None:
         self._event_sink = sink
 
@@ -243,6 +256,11 @@ class OneBotService:
                 # Display-only fallback: the strict @self name survives even
                 # when learning is disabled (no profile row was written).
                 event = replace(event, sender_card=notification_name)
+            if (event.is_group and self._sender_card_as_nickname
+                    and not (event.sender_name or "").strip() and event.sender_card):
+                # Compatibility for consumers that read only sender.nickname:
+                # the card is a real observed group display name, not invented.
+                event = replace(event, sender_name=event.sender_card)
             event_name = message_event_name(event)
             session_key = event.external_chat_id
             sequence_key = message_sequence(event)

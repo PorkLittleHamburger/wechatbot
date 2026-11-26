@@ -127,7 +127,7 @@ python -m venv .venv
 
 ## 配置与数据
 
-接收消息时会先保存账号隔离的用户资料，补全后再上报 OneBot；微信昵称与各群名片分开记录，空值不覆盖已知名称。`get_stranger_info` 和出站原生 `@` 复用资料缓存，群成员实时资料可用时优先刷新。缓存位于账号的消息数据库内，重启后保留；没有真实资料的用户不会被伪造昵称。`@` 显示标签与正文默认以空格连接，正文自身的换行保持不变。sdk 驱动在 4.2.0.53 群消息上学到的自动通知名单独保存在 `user_profiles.notification_name`（来源 `notification`），不会因为后续成员资料刷新被当成已验证资料；入站事件可把它用于本条事件的 `sender.card` 展示，出站仅按上述 automatic/experimental 优先级作为未验证候选。
+接收消息时会先保存账号隔离的用户资料，补全后再上报 OneBot；微信昵称与各群名片分开记录，空值不覆盖已知名称。`get_stranger_info` 和出站原生 `@` 复用资料缓存，群成员实时资料可用时优先刷新。缓存位于账号的消息数据库内，重启后保留；没有真实资料的用户不会被伪造昵称。群消息中若全局 `nickname` 为空但存在真实群名片 `card`，事件上报会按兼容开关 `driver.sender_card_as_nickname`（默认开启）用该名片填充空 `sender.nickname`，同时保留 `sender.card`；这只影响本条事件展示，不写回全局资料、不用于私聊，也不会在两者都为空时编造名称。`@` 显示标签与正文默认以空格连接，正文自身的换行保持不变。sdk 驱动在 4.2.0.53 群消息上学到的自动通知名单独保存在 `user_profiles.notification_name`（来源 `notification`），不会因为后续成员资料刷新被当成已验证资料；入站事件可把它用于本条事件的 `sender.card` 展示，出站仅按上述 automatic/experimental 优先级作为未验证候选。
 
 微信 4.1.15.56 的昵称读取先查好友缓存，再按用户 ID 查询已验证的非好友联系人 LRU 缓存，因此群成员不必先添加好友。该读取不触发网络刷新；微信尚未缓存资料时仍可能缺名，后续收到带昵称的消息或读取到成员资料后会补全。4.2.0.11 / 4.2.0.12 使用上游分别验证的缓存地址映射，沿用账号校验、稳定双读和原始名称校验；不会将旧版偏移套用到未知构建。
 
@@ -137,7 +137,7 @@ python -m venv .venv
 
 `storage.max_media_bytes` 默认 50 MiB、可设 1 KiB–1 GiB，限制 base64/URL/本地媒体**解码后**的实际大小；可在 WebUI“系统设置 → 存储管理”修改并热更新当前账号媒体存储。它与端点的 `maxMessageBytes` 不同：后者限制 WS 原始帧（含 base64 文本）大小，二者必须同时满足。base64 约为原始媒体的 4/3，例如 AstrBot 将 12 MB MP3 转成 56 MiB WAV 后 base64 约 75 MiB：WS 帧能通过但会被 50 MiB 媒体上限拒绝。
 
-`sdk` 驱动另有 `driver.sdk_data_root`（默认 `data/accounts/<账号>/sdk/`，保存框架守护 journal 与私有快照）与 `driver.sdk_allow_unverified`、`driver.sdk_cross_account_mentions`、`driver.sdk_notification_names`（默认开启：学习/使用 4.2.0.53 群通知显示名；关闭后不再学习、写入或使用这些未验证名称）、`driver.sdk_media_timeout`。它的入站媒体先由框架 `request_media` 下载，再导出到账号媒体目录的 `inbound/` 后注册；导出失败会保留明确的文本占位，不会指向不存在或已释放的文件。
+`sdk` 驱动另有 `driver.sdk_data_root`（默认 `data/accounts/<账号>/sdk/`，保存框架守护 journal 与私有快照）与 `driver.sdk_allow_unverified`、`driver.sdk_cross_account_mentions`、`driver.sdk_notification_names`（默认开启：学习/使用 4.2.0.53 群通知显示名；关闭后不再学习、写入或使用这些未验证名称）、`driver.sender_card_as_nickname`（默认开启：群消息缺全局昵称时把真实群名片填入本条事件的 `sender.nickname`，不写回资料）、`driver.sdk_media_timeout`。它的入站媒体先由框架 `request_media` 下载，再导出到账号媒体目录的 `inbound/` 后注册；导出失败会保留明确的文本占位，不会指向不存在或已释放的文件。
 
 备份或迁移时应先停止服务，再复制配置、完整账号数据和媒体目录，避免遗漏 SQLite WAL，并核对自定义组件路径。不要提交密码、Token、账号标识、消息内容或运行日志。
 

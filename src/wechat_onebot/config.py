@@ -163,6 +163,7 @@ class DriverConfig:
     sdk_allow_unverified: bool = False
     sdk_cross_account_mentions: bool = True
     sdk_notification_names: bool = True
+    sender_card_as_nickname: bool = True
     sdk_media_timeout: float = 30.0
 
     @classmethod
@@ -211,6 +212,9 @@ class DriverConfig:
         notification_names = value.get("sdk_notification_names", True)
         if type(notification_names) is not bool:
             raise ConfigError("driver.sdk_notification_names 必须是布尔值")
+        card_as_nickname = value.get("sender_card_as_nickname", True)
+        if type(card_as_nickname) is not bool:
+            raise ConfigError("driver.sender_card_as_nickname 必须是布尔值")
         media_timeout = value.get("sdk_media_timeout", 30.0)
         if type(media_timeout) not in (int, float) or not 1 <= float(media_timeout) <= 300:
             raise ConfigError("driver.sdk_media_timeout 必须在 1–300 秒之间")
@@ -220,6 +224,7 @@ class DriverConfig:
                    sdk_allow_unverified=allow_unverified,
                    sdk_cross_account_mentions=cross_account_mentions,
                    sdk_notification_names=notification_names,
+                   sender_card_as_nickname=card_as_nickname,
                    sdk_media_timeout=float(media_timeout))
 
 

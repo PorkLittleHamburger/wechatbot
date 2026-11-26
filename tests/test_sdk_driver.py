@@ -432,7 +432,7 @@ async def test_learned_sdk_name_is_reused_for_the_targets_own_group_at(monkeypat
         await wait_for(lambda: events if arrived.is_set() else None)
         sender = events[-1]["sender"]
         assert sender["card"] == "乙"
-        assert sender["nickname"] == ""
+        assert sender["nickname"] == "乙"
         assert service.message_store.notification_name("wxid_robot", "wxid_b", "1@chatroom") == "乙"
         assert service.message_store.notification_name("wxid_robot", "wxid_b", "") == ""
 

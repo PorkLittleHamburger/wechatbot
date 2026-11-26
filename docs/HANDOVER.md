@@ -610,5 +610,15 @@ Latest；[Bot checks #44886810903](https://github.com/PorkLittleHamburger/wechat
 `.sha256` 已上传；Launcher `VersionStore.import_archive` 导入 1,855 个文件、
 状态 `compatible`；实际 Launcher worker 启动后 `/healthz` HTTP 200、退出码 0。
 
+## 群名片→nickname 兼容回退（2026-11-26，未发布）
+
+现场证据：部分 `.53` 群成员缓存只有 `card`、没有全局 `nickname`；后端插件只读
+`sender.nickname`，导致格式化成 `@xxx ,您的...`，而原生 @ 使用群显示名仍能成功。
+新增 `driver.sender_card_as_nickname`，**默认开启**：仅群消息、仅当
+`sender.nickname` 为空且存在真实 `card` 时，用该 `card` 填本条事件的
+`sender.nickname`，同时保留 `sender.card`；不写回全局资料、不影响私聊、两者都空
+时不编造。设置为 `false` 可恢复严格 OneBot 语义。新增两条回归测试覆盖开启/关闭，
+并更新 README、架构与兼容性文档；未发布，未替换生产版本。
+
 
 发布结果（2026-11-20）：用户明确要求发布；完成 **WeChatBot v0.13.0**。annotated tag `v0.13.0` → `b49993a`；GitHub Release ID `452128186`，非 draft/prerelease，Latest；[Bot checks #44648238197](https://github.com/PorkLittleHamburger/wechatbot/actions/runs/44648238197) 成功。附件 `wechat-onebot-0.13.0-windows-x64.zip` 60,506,735 B，SHA-256 `367dddffb2171aaccc7f97f975ca7b6cfc1b542dd3c71186f9033e07c054ff7f`，同名 `.sha256` 已上传；按用户要求未重新下载公网资产复核 SHA-256。Launcher `VersionStore.import_archive` 导入 1,598 个文件、状态 `compatible`；实际 Launcher worker 启动提取包后 `/healthz` HTTP 200、退出码 0。生产实例未替换，生产配置未修改。

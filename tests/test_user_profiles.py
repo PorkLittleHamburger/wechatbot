@@ -34,6 +34,40 @@ def test_profiles_persist_isolate_accounts_groups_and_preserve_nonempty_names(tm
 
 
 @pytest.mark.asyncio
+async def test_group_card_fills_missing_event_nickname_without_faking_profile(tmp_path):
+    service, driver, mapper, events = await make_service(tmp_path)
+    try:
+        driver.members["10001@chatroom"] = (GroupMemberInfo(
+            "10001@chatroom", "wxid_alice", "", "曹越皓"),)
+        await driver.inject_message(chat_id="10001@chatroom", sender_id="wxid_alice",
+                                    sender_name="", is_group=True)
+        sender = events[-1]["sender"]
+        assert sender["card"] == "曹越皓"
+        assert sender["nickname"] == "曹越皓"
+        profile = service.message_store.profile(service.account, "wxid_alice", "10001@chatroom")
+        assert profile is not None and profile["nickname"] == "" and profile["card"] == "曹越皓"
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
+async def test_group_card_nickname_fallback_can_be_disabled(tmp_path):
+    service, driver, mapper, events = await make_service(tmp_path, sender_card_as_nickname=False)
+    try:
+        driver.members["10001@chatroom"] = (GroupMemberInfo(
+            "10001@chatroom", "wxid_alice", "", "曹越皓"),)
+        await driver.inject_message(chat_id="10001@chatroom", sender_id="wxid_alice",
+                                    sender_name="", is_group=True)
+        sender = events[-1]["sender"]
+        assert sender["card"] == "曹越皓"
+        assert sender["nickname"] == ""
+    finally:
+        await service.stop()
+        mapper.close()
+
+
+@pytest.mark.asyncio
 async def test_first_empty_name_is_filled_before_event_then_reused_for_at(tmp_path):
     service, driver, mapper, events = await make_service(tmp_path)
     try:

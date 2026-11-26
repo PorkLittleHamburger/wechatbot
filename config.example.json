@@ -17,6 +17,7 @@
     "sdk_allow_unverified": false,
     "sdk_cross_account_mentions": true,
     "sdk_notification_names": true,
+    "sender_card_as_nickname": true,
     "sdk_media_timeout": 30.0,
     "supported_versions": [
       "4.1.15.13",
